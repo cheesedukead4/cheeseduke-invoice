@@ -191,7 +191,7 @@ body.auth-locked header,body.auth-locked nav,body.auth-locked main,body.auth-loc
 // ===== 登入身分與頁面權限（Google 登入；雲端後端另外檢查可見範圍與簽核順序）=====
 const PAGE_LABELS={dashboard:'總覽儀表板',entry:'發票登錄／上傳',list:'發票明細',vendors:'廠商資料庫',approval:'主管簽核',executive:'執行長簽核',finance:'財務整合',organization:'部門／人員架構',settings:'資料備份／說明',accounts:'帳號／權限管理'};
 const ALL_PAGES=Object.keys(PAGE_LABELS);
-const DEFAULT_PAGES={staff:['entry'],manager:['dashboard','entry','list','approval'],executive:['dashboard','entry','list','executive'],finance:['dashboard','list','vendors','finance'],admin:ALL_PAGES};
+const DEFAULT_PAGES={staff:['entry','list'],manager:['dashboard','entry','list','approval'],executive:['dashboard','entry','list','executive'],finance:['dashboard','list','vendors','finance'],admin:ALL_PAGES};
 let authUser=null,accountEditId='',authBootstrap=false;
 const normalizeAccount=s=>String(s||'').trim().toLowerCase();
 // ===== 雲端人員名單（用 Gmail 登入）：只有管理員讀得到；網頁版沒有密碼 =====
