@@ -139,7 +139,7 @@ dialog{width:100%;max-width:100%;height:100%;max-height:100%;margin:0;border-rad
     <div class="auth-warn"><b>資料安全：</b>發票、金額與存摺影本存在公司的 Google 雲端硬碟，系統會依你的角色與部門過濾可見範圍，並檢查簽核順序。請勿在公用電腦登入，離開座位請先登出。</div>
   </div>
 </div>
-<script src="config.js"></script><script src="js/cloud.js"></script>
+<script src="config.js"></script><script src="js/cloud.js"></script><script src="js/einvoice-qr.js"></script>
 <header><div><h1>公司發票登錄與帳務簽核系統</h1><div class="sub">網頁版 v6.0｜雲端共用資料・Google 登入・首次匯款存摺影本上傳／跨部門分攤</div></div><div class="role"><span id="loggedSummary">尚未登入</span><span id="syncState" class="sub">雲端：—</span><button id="syncNowBtn" type="button">🔄 同步</button><button id="logoutBtn" type="button">登出</button><select id="role" class="hide"><option value="staff">申請人</option><option value="manager">部門主管</option><option value="executive">執行長</option><option value="finance">財務人員</option><option value="admin">系統管理者</option></select><input id="actorName" class="hide" readonly aria-label="操作人員姓名"></div></header>
 <nav id="tabs"><button type="button" id="menuToggle" aria-expanded="false">☰ 選單</button><button class="tab active" data-tab="dashboard">總覽儀表板</button><button class="tab" data-tab="entry">發票登錄／上傳</button><button class="tab" data-tab="list">發票明細</button><button class="tab" data-tab="vendors">廠商資料庫</button><button class="tab" data-tab="approval">主管簽核</button><button class="tab" data-tab="executive">執行長簽核</button><button class="tab" data-tab="finance">財務整合</button><button class="tab" data-tab="organization">部門／人員架構</button><button class="tab" data-tab="settings">資料備份／說明</button><button class="tab" data-tab="accounts">帳號／權限管理</button></nav>
 <main>
@@ -159,7 +159,7 @@ dialog{width:100%;max-width:100%;height:100%;max-height:100%;margin:0;border-rad
 <div id="singleMode" class="hide"><div class="panel"><h2 id="entryTitle">發票登錄＋一般請款申請單</h2><div class="note">先拍照或上傳發票，自動填寫七項基本資料；同一頁往下填寫一般請款單（用途、項目、預定付款日、匯款方式等），一次儲存與送簽。選取多張時，每張都有同樣的請款表單。支援手機拍照／上傳發票後辨識日期、發票號碼、<b>賣方統編</b>、廠商名稱及含稅金額；會嘗試透過經濟部登記公開資料核對統編與名稱。官方介接需要核准來源 IP，無法連線時將明確提示並使用公司廠商資料庫／OCR 名稱，不會假裝已完成官方核對。可先存草稿，確認後送出簽核。</div><div class="ocr-box">
  <div class="ocr-head"><div><h3 style="margin:0">📷 發票智慧辨識（測試版）</h3><div class="muted small">手機可直接拍照；電腦可選擇圖片或 PDF。首次使用需連線載入 OCR 模組及繁體中文辨識資料。</div></div><span class="ocr-tag">本機辨識・不傳往本系統伺服器</span></div>
  <div class="toolbar" style="margin:12px 0"><label class="btn ocr-button" for="cameraInput">📸 開啟相機拍照</label><input id="cameraInput" type="file" accept="image/*" capture="environment" style="display:none"><button type="button" id="ocrStart" class="primary">🔎 辨識已上傳的附件</button><button type="button" id="ocrClear">清除辨識結果</button></div>
- <div class="ocr-preview-wrap"><img id="ocrPreview" class="ocr-preview hide" alt="等待辨識的發票影像"><div id="ocrStatus" class="muted" aria-live="polite">請先拍照或在下方「發票影像／PDF 附件」選擇檔案，系統將自動嘗試辨識。</div></div>
+ <div class="ocr-preview-wrap"><img id="ocrPreview" class="ocr-preview hide" alt="等待辨識的發票影像"><div id="ocrStatus" class="muted" aria-live="polite">請先拍照或在下方「發票影像／PDF 附件」選擇檔案。電子發票會優先讀取證明聯上的 QR code（發票號碼、日期、賣方統編、金額、品項），讀不到 QR code 才改用文字辨識。</div></div>
  <div id="ocrReview" class="ocr-review hide"><strong>辨識結果（已自動帶入表單，請逐項核對）</strong><div id="ocrValues" class="ocr-values"></div><div class="small muted">請特別確認辨識到的是「開立發票的賣方廠商」，不是買方／公司抬頭；不清楚的欄位請手動修改。</div><details><summary>查看 OCR 原始文字（供查核）</summary><pre id="ocrRaw"></pre></details></div>
  </div>
  <form id="invoiceForm"><input type="hidden" id="editId">
@@ -211,7 +211,7 @@ dialog{width:100%;max-width:100%;height:100%;max-height:100%;margin:0;border-rad
 <div class="batch-tools"><div class="field" style="min-width:280px"><strong>使用上方統一上傳區選取多張發票</strong><span class="muted small">每張發票單獨建立一筆帳務紀錄</span><input id="batchFiles" type="file" multiple accept="image/jpeg,image/png,image/webp,application/pdf" hidden></div><button id="batchScan" class="primary" type="button">🔎 開始批次辨識</button><button id="batchReset" type="button">清空批次清單</button></div>
 <div class="muted small">每張發票下方都會顯示與單張登錄一致的完整表單。各筆的發票基本資料及一般請款欄位均可獨立填寫，合計自動計算。</div>
 <div class="hide"><select id="batchDept"><option value=""></option></select><input id="batchApplicant"><select id="batchCategory"><option value=""></option></select><input id="batchDescription"></div>
-<div id="batchProgress" class="note" aria-live="polite">選擇發票照片後，按「開始批次辨識」。首次載入 OCR 模型需要網路。</div>
+<div id="batchProgress" class="note" aria-live="polite">選擇發票照片後，按「開始批次辨識」。電子發票會優先讀取 QR code；沒有 QR code 的才用文字辨識（首次需要下載辨識模型）。</div>
 <div class="batch-table" id="batchTable"></div><div class="actions"><button id="batchDraft" type="button">儲存勾選項目為草稿</button><button id="batchSubmit" class="primary" type="button">勾選項目送出簽核</button></div>
 <p class="muted small">批次操作會保存每筆發票原始檔作為附件。每張表單均可獨立儲存或送簽；未完成欄位的項目需修正後才能匯入；會檢查與既有紀錄及本次批次重複的發票號碼（搭配統編）。資料可見範圍與簽核權限由雲端後端檢查。</p></div></div></section>
 <section id="vendors" class="view hide"><div class="panel"><h2>廠商資料庫｜統編自動記憶</h2><div class="note">當新增或批次匯入發票並確認資料後，系統會將有效的 8 碼廠商統編與廠商名稱記錄至雲端廠商資料庫（所有同事共用）。下次辨識或輸入相同統編，優先帶出資料庫已記錄的廠商名稱；若找不到相同統編，則自動採用發票 OCR 辨識的賣方名稱，確認後儲存即可新增廠商。若發票辨識名稱不同，不會自動覆寫既有正確名稱。</div><div class="formgrid"><div class="field"><label>廠商統編（8 碼）</label><input id="vendorTaxEdit" maxlength="8" inputmode="numeric" placeholder="例如 12345678"></div><div class="field"><label>廠商名稱</label><input id="vendorNameEdit" maxlength="100" placeholder="完整公司／商店名稱"></div><div class="field"><label>搜尋廠商</label><input id="vendorSearch" placeholder="統編或名稱"></div></div><div class="actions"><button id="vendorSave" class="primary" type="button">新增／更新廠商</button><button id="vendorExport" type="button">匯出廠商 CSV</button></div><div class="tablewrap" id="vendorTable" style="margin-top:16px"></div><p class="muted small">公司廠商名錄與經濟部公開查詢是兩套不同資料來源。官方 API 依規定需申請來源 IP 白名單；純 HTML 從瀏覽器直接查詢也可能受 CORS 限制。網路查詢不成功時仍可人工確認與儲存草稿。資料會包含於完整 JSON 備份。官方資料來源：<a href="https://data.gcis.nat.gov.tw/od/rule" target="_blank" rel="noopener noreferrer">經濟部商工行政資料開放平臺</a>。</p></div></section><section id="list" class="view hide"><div class="panel"><h2>所有發票紀錄</h2><div class="toolbar"><input id="listSearch" placeholder="搜尋號碼、廠商、申請人"><select id="listStatus"><option value="">全部狀態</option><option value="draft">草稿</option><option value="pending">待主管簽核</option><option value="executive_pending">待執行長簽核</option><option value="approved">待財務覆核</option><option value="finance_ok">已覆核／待付款</option><option value="rejected">退回</option><option value="paid">已付款</option></select><input type="month" id="listMonth"><button id="clearList">清除條件</button></div><div class="tablewrap" id="invoiceTable"></div></div></section>
@@ -1174,7 +1174,40 @@ async function improveImage(source){
  if(bitmap!==source&&bitmap.close)bitmap.close();return canvas;
 }
 async function getWorker(){if(!window.Tesseract)throw Error('OCR 模組載入失敗，請連接網路後重新開啟頁面');if(!worker){show('第一次啟用：正在下載繁體中文及英文辨識資料，可能需要約 10–60 秒…');worker=await Tesseract.createWorker('chi_tra+eng',1,{logger:m=>{if(m.status==='recognizing text')show(`正在辨識發票文字：${Math.round((m.progress||0)*100)}%`);else if(/loading|initializing/i.test(m.status))show('正在載入 OCR 引擎與辨識資料…')}})}return worker}
-async function scan(file){if(!file||inProgress)return;const ok=/^image\/(jpeg|png|webp)$/.test(file.type)||file.type==='application/pdf';if(!ok){show('請使用 JPG、PNG、WEBP 或 PDF 檔案',true);return}if(file.size>10*1024*1024){show('單一檔案超過 10MB，請縮小後再試',true);return}inProgress=true;el('ocrStart').disabled=true;el('ocrReview').classList.add('hide');setPreview(file);show('準備辨識 '+file.name+'…');try{const target=await loadImage(file);const w=await getWorker();const enhanced=await improveImage(target);const result=await w.recognize(enhanced);let raw=result.data.text||'';let detected=extractInvoice(raw);if(!detected.invoiceNo||!detected.taxId||!detected.amount||!detected.vendor){show('正在進行第二輪英數字補強辨識…');await w.setParameters({tessedit_pageseg_mode:'11'});const secondary=await w.recognize(enhanced);await w.setParameters({tessedit_pageseg_mode:'3'});const alternative=extractInvoice(secondary.data.text||'');for(const key of ['invoiceDate','invoiceNo','taxId','amount','vendor'])if(detected[key]===undefined&&alternative[key]!==undefined)detected[key]=alternative[key];}window.lastSingleOCRVendor=detected.vendor||'';window.lastSingleOCRTax=detected.taxId||'';
+// 先讀發票上的 QR code（左：字軌、日期、統編、金額與前幾項品項；右：其餘品項）。讀到就不用跑文字辨識
+async function applyQRToSingle(file){
+ show('正在讀取發票 QR code…');
+ let qr=null;
+ try{qr=await window.EInvoiceQR.scanFile(file)}catch(e){console.warn('QR code 讀取失敗，改用文字辨識',e);return false}
+ if(!qr)return false;
+ const detected={invoiceDate:qr.invoiceDate,invoiceNo:qr.invoiceNo,taxId:qr.sellerId,amount:qr.total};
+ window.lastSingleOCRVendor='';window.lastSingleOCRTax=detected.taxId;
+ show('已讀到發票 QR code（賣方統編 '+qr.sellerId+'），正在查詢廠商名稱…');
+ let vendorSource='';
+ try{const lookup=await window.lookupSeller(detected.taxId,'');if(lookup.name)detected.vendor=lookup.name;vendorSource=sellerLookupMessage(lookup);
+  el('vendorLookupStatus').textContent=vendorSource;el('vendorLookupStatus').className='lookup-note '+(lookup.verified&&!lookup.conflict?'ok':'warn')}
+ catch(e){vendorSource='查詢廠商名稱失敗，請手動輸入';el('vendorLookupStatus').textContent=vendorSource;el('vendorLookupStatus').className='lookup-note warn'}
+ const labels={invoiceDate:'發票日期',invoiceNo:'發票號碼',taxId:'廠商統編',vendor:'廠商名稱',amount:'含稅金額'},cards=[];let filled=0;
+ for(const [key,label] of Object.entries(labels)){const val=detected[key];
+  if(val!==undefined&&val!==''){el(key).value=val;if(key==='vendor')$('payee').value=val;if(key==='amount')linkSingleAmount();filled++;el(key).style.outline='2px solid #7dafdf';
+   cards.push('<div><b>'+label+'（'+(key==='vendor'?esc(vendorSource):'QR code')+'）</b>'+esc(val)+'</div>')}
+  else cards.push('<div><b>'+label+'</b><span style="color:#9b3b3b">QR code 沒有這項資料，請手動填寫</span></div>')}
+ // 發票明細 → 請款項目；品項與總計對不上時，用總計一筆帶入並把品項寫進備註
+ const cl=window.EInvoiceQR.claimLines(qr);
+ singleClaimItems=cl.lines.map(l=>({description:l.description,amount:l.amount,accountCode:'',accountName:''}));
+ singleAmountLinked=cl.lines.length===1;
+ singleClaimItems.forEach(line=>updateLedgerForLine(line,ledgerContext($('dept').value,$('vendor').value,$('taxId').value)));
+ displaySingleClaimItems();
+ if(cl.itemsText&&cl.mode==='total'){const t='發票品項（QR code）：'+cl.itemsText,m=$('memo');if(!m.value.includes(t))m.value=(m.value?m.value+'\n':'')+t}
+ cards.push('<div><b>發票明細（QR code）</b>'+esc(cl.note)+'：'+esc(cl.lines.map(l=>l.description+' '+fmt(l.amount)).join('、'))+'</div>');
+ if(qr.buyerId&&qr.buyerId!=='00000000')cards.push('<div><b>買方統編</b>'+esc(qr.buyerId)+'（請確認是本公司）</div>');
+ el('ocrValues').innerHTML=cards.join('');
+ el('ocrRaw').textContent='資料來源：發票 QR code（'+(qr.hasRight?'左＋右':'只讀到左邊')+'）\n隨機碼 '+qr.randomCode+'；銷售額 '+qr.sales+'；總計額 '+qr.total+'；品項 '+qr.items.length+'/'+(qr.declaredTotal||qr.items.length);
+ el('ocrReview').classList.remove('hide');
+ show('已從發票 QR code 讀取：'+filled+'/5 欄，發票明細 '+cl.lines.length+' 筆。廠商名稱來源：'+vendorSource+'。請核對後再儲存或送出簽核。');
+ return true;
+}
+async function scan(file){if(!file||inProgress)return;const ok=/^image\/(jpeg|png|webp)$/.test(file.type)||file.type==='application/pdf';if(!ok){show('請使用 JPG、PNG、WEBP 或 PDF 檔案',true);return}if(file.size>10*1024*1024){show('單一檔案超過 10MB，請縮小後再試',true);return}inProgress=true;el('ocrStart').disabled=true;el('ocrReview').classList.add('hide');setPreview(file);show('準備辨識 '+file.name+'…');try{if(await applyQRToSingle(file))return;const target=await loadImage(file);const w=await getWorker();const enhanced=await improveImage(target);const result=await w.recognize(enhanced);let raw=result.data.text||'';let detected=extractInvoice(raw);if(!detected.invoiceNo||!detected.taxId||!detected.amount||!detected.vendor){show('正在進行第二輪英數字補強辨識…');await w.setParameters({tessedit_pageseg_mode:'11'});const secondary=await w.recognize(enhanced);await w.setParameters({tessedit_pageseg_mode:'3'});const alternative=extractInvoice(secondary.data.text||'');for(const key of ['invoiceDate','invoiceNo','taxId','amount','vendor'])if(detected[key]===undefined&&alternative[key]!==undefined)detected[key]=alternative[key];}window.lastSingleOCRVendor=detected.vendor||'';window.lastSingleOCRTax=detected.taxId||'';
 let vendorSource=detected.vendor?'OCR 自動判讀・待核對':'尚未辨識';
 if(detected.taxId){show('已辨識賣方統編 '+detected.taxId+'，正在查詢網路登記資料…');
  const lookup=await window.lookupSeller(detected.taxId,detected.vendor||'');
@@ -1228,6 +1261,7 @@ function renderBatch(){
  const root=el('batchTable');
  if(!batchRows.length){root.innerHTML='';return}
  const departments=window.companyDepartments||[];
+ const allocationDepartments=window.companyAllocationDepartments||[]; // 分攤單位：全部部門／門市（v5.4 漏了這個定義，批次登錄畫面會直接出錯）
  const categories=['原物料','包裝材料','設備器材','運費物流','差旅交通','辦公雜支','廣告行銷','其他費用'];
  const payments=['匯款','現金'];
  const makeSelect=(i,key,options,required=false)=>{const r=batchRows[i];return `<select data-bi="${i}" data-bk="${key}" ${r.saved?'disabled':''}><option value="">請選擇</option>${options.map(v=>`<option value="${safeVal(v)}" ${r.values[key]===v?'selected':''}>${safeVal(key==='dept'?(window.companyDepartmentLabels?.()[v]||v):v)}</option>`).join('')}</select>`};
@@ -1358,7 +1392,17 @@ function selectCrossChecked(rounds){
  }
  return {values,conflicts,votes};
 }
+function applyQRToBatchRow(r,qr){
+ const cl=window.EInvoiceQR.claimLines(qr);
+ r.claim.items=cl.lines.map(l=>({description:l.description,amount:l.amount,accountCode:'',accountName:''}));
+ r.claimAutoAmount=cl.lines.length===1;
+ if(cl.itemsText&&cl.mode==='total'){const t='發票品項（QR code）：'+cl.itemsText;if(!String(r.values.memo||'').includes(t))r.values.memo=(r.values.memo?r.values.memo+'\n':'')+t}
+ r.qrNote=cl.note;
+}
 async function recognizeOne(file,force=false){
+ try{const qr=await window.EInvoiceQR.scanFile(file);
+  if(qr)return {data:{invoiceDate:qr.invoiceDate,invoiceNo:qr.invoiceNo,taxId:qr.sellerId,amount:qr.total},raw:'資料來源：發票 QR code（'+(qr.hasRight?'左＋右':'只讀到左邊')+'）\n隨機碼 '+qr.randomCode+'；銷售額 '+qr.sales+'；總計額 '+qr.total+'；品項 '+qr.items.length+'/'+(qr.declaredTotal||qr.items.length),rounds:0,uncertain:[],votes:{},conflicts:[],qr}}
+ catch(e){console.warn('QR code 讀取失敗，改用文字辨識',e)}
  const w=await getWorker(),source=await loadImage(file);
  const variants=['soft','sharp','binary'];
  const rounds=[],raw=[],errors=[];
@@ -1410,10 +1454,10 @@ el('batchScan').addEventListener('click',async()=>{
  for(let i=0;i<batchRows.length;i++){
   const r=batchRows[i];batchProgress(`辨識第 ${i+1}/${files.length} 張：${r.file.name}（依序處理，請勿關閉網頁）`);
   try{const result=await recognizeOne(r.file);r.raw=result.raw;Object.assign(r.values,result.data);r.values.payee=r.values.vendor;if(r.claimAutoAmount&&r.claim.items.length===1)r.claim.items[0].amount=moneyValue(r.values.amount);
-  r.ocrVendor=result.data.vendor||'';r.uncertain=result.uncertain;
+  if(result.qr)applyQRToBatchRow(r,result.qr);r.ocrVendor=result.data.vendor||'';r.uncertain=result.uncertain;
   if(validTax(r.values.taxId)){await verifyBatchSeller(i,result.data.vendor||'');if(r.registryVerified)r.uncertain=(r.uncertain||[]).filter(k=>k!=='vendor');}
   else {r.registryVerified=false;r.vendorSource=(result.data.taxNote||'未讀到賣方統編')+'；'+(r.ocrVendor?'OCR 廠商名稱待核對':'請人工填入廠商名稱');}
-  let n=batchKeys.filter(k=>r.values[k]!==undefined&&r.values[k]!=='').length;r.note=`OCR 辨識 ${n}/5 欄（${result.rounds} 輪）${r.uncertain?.length?'；⚠ 多輪結果不一致：'+r.uncertain.map(k=>({invoiceDate:'日期',invoiceNo:'號碼',taxId:'統編',vendor:'廠商',amount:'金額'})[k]).join('、'):''}；請逐欄核對原圖`;}
+  let n=batchKeys.filter(k=>r.values[k]!==undefined&&r.values[k]!=='').length;r.note=result.qr?`發票 QR code 讀取 ${n}/5 欄（廠商名稱由統編查詢）；${r.qrNote}；請核對`:`OCR 辨識 ${n}/5 欄（${result.rounds} 輪）${r.uncertain?.length?'；⚠ 多輪結果不一致：'+r.uncertain.map(k=>({invoiceDate:'日期',invoiceNo:'號碼',taxId:'統編',vendor:'廠商',amount:'金額'})[k]).join('、'):''}；請逐欄核對原圖`;}
   catch(err){r.error='辨識失敗：'+(err.message||String(err))+'；可手動填寫';r.selected=false}
   renderBatch();
  }
