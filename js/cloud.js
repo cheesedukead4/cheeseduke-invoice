@@ -157,7 +157,10 @@
     return withRetry(function () { return request('POST', null, Object.assign({ action: action, token: state && state.s }, payload || {})).then(finish); }, 2);
   }
 
-  function postLogin(idToken) { return request('POST', null, { action: 'login', idToken: idToken }); }
+  // 登入時順便要全部資料（boot）：後端在同一次請求裡一起回傳，登入後不用再等第二趟
+  var bootPayload = null;
+  function postLogin(idToken) { return request('POST', null, { action: 'login', idToken: idToken, boot: true }); }
+  function takeBoot() { var b = bootPayload; bootPayload = null; return b; }
   function onCredential(resp) {
     if (busy || !resp || !resp.credential) return;
     busy = true;
@@ -167,6 +170,7 @@
       if (j && j.ok && j.session && j.me) {
         state = { s: j.session, exp: j.exp, email: j.me.email, name: j.me.name, role: j.me.role, dept: j.me.dept || '', pages: Array.isArray(j.me.pages) ? j.me.pages : null };
         persist();
+        bootPayload = j.boot && j.boot.stores ? j.boot : null;
         if (wasReady) { location.reload(); return; } // App 已經在跑（登入過期後重新登入）：整個重新載入最單純
         wasReady = true; resolveReady();
         return;
@@ -212,7 +216,7 @@
 
   root.InvCloud = {
     enabled: enabled, ready: ready,
-    user: user, get: get, call: call, signOut: signOut, showGate: showGate, lock: lock,
+    user: user, get: get, call: call, signOut: signOut, showGate: showGate, lock: lock, takeBoot: takeBoot,
     onMe: function (fn) { meListeners.push(fn); },
     onDenied: function (fn) { deniedListeners.push(fn); }
   };
