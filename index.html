@@ -70,6 +70,63 @@ nav#tabs{grid-area:nv;flex-direction:column;flex-wrap:nowrap;gap:6px;margin:16px
 nav#tabs .tab{width:100%;text-align:left;padding:11px 14px;border-radius:8px}
 main{grid-area:mn;width:100%;max-width:1250px;margin:16px 0 0}
 }
+#menuToggle{display:none}
+/* ===== 手機版（寬度 700px 以下）：表格改成卡片、表單單欄、按鈕加大，不用左右滑 ===== */
+@media(max-width:700px){
+html{-webkit-text-size-adjust:100%}
+body{font-size:15px}
+input,select,textarea{font-size:16px!important;min-height:42px}
+textarea{min-height:76px}
+input[type=checkbox],input[type=radio]{min-height:0;width:20px;height:20px}
+button,.btn{min-height:42px}
+header{padding:12px 14px;gap:8px}
+.sub{font-size:11px}
+nav#tabs{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin:12px 0;padding:0 12px}
+nav#tabs .tab{padding:10px 6px;text-align:center;min-height:44px;font-size:14px}
+nav#tabs[data-many="1"] #menuToggle{display:block;grid-column:1/-1;text-align:left;font-weight:700;background:var(--blue);color:#fff;border-color:var(--blue);padding:10px 14px}
+nav#tabs[data-many="1"]:not(.open) .tab{display:none}
+main{padding:0 12px 28px}
+.panel h2{font-size:17px}
+.grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+.kpi strong{font-size:20px}
+.toolbar{flex-direction:column;align-items:stretch;gap:8px}
+.toolbar select,.toolbar input,.toolbar button{width:100%}
+.actions button{flex:1 1 100%}
+
+/* 資料表格 → 卡片：欄位標題在左、內容在右；操作按鈕整排攤開 */
+.tablewrap{overflow:visible}
+.tablewrap table{display:block;min-width:0!important;width:100%;font-size:14px}
+.tablewrap thead{display:none}
+.tablewrap tbody{display:block}
+.tablewrap tr{display:block;background:#fff;border:1px solid var(--line);border-radius:10px;padding:4px 12px;margin:0 0 12px;box-shadow:0 1px 4px #20304b0f}
+.tablewrap td{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;border:0;border-bottom:1px dashed #e3e9f1;padding:8px 0;text-align:right}
+.tablewrap td:last-child{border-bottom:0}
+.tablewrap td::before{content:attr(data-label);flex:0 0 5em;text-align:left;color:var(--muted);font-size:12px;font-weight:600;padding-top:2px}
+.tablewrap td[data-label=""]::before{display:none}
+.tablewrap td .cv{flex:1;min-width:0;text-align:right}
+.tablewrap td .cv .small,.tablewrap td .cv .muted{display:block}
+.tablewrap td.act{display:block;padding:10px 0 8px}
+.tablewrap td.act::before{display:none}
+.tablewrap td.act .cv{display:flex;flex-wrap:wrap;gap:8px;text-align:left}
+.tablewrap td.act .cv>.flex{flex:1 1 100%;gap:8px}
+.tablewrap td.act button{flex:1 1 calc(50% - 8px);min-height:44px}
+.tablewrap td input:not([type=checkbox]):not([type=radio]){width:100%}
+
+/* 發票登錄表單裡的「費用明細」與「分攤」：每一列變成直式的小卡片 */
+.claim-lines,.allocate-table{min-width:0!important}
+.claim-lines thead,.allocate-table thead{display:none}
+.claim-lines,.claim-lines tbody,.claim-lines tr,.claim-lines td,.allocate-table,.allocate-table tbody,.allocate-table tr,.allocate-table td{display:block;width:100%!important}
+.claim-lines tr,.allocate-table tr{border:1px solid #d7e2f1;border-radius:10px;padding:10px 12px;margin:0 0 10px;background:#fbfdff}
+.claim-lines td,.allocate-table td{border:0!important;padding:4px 0!important;text-align:left!important}
+.claim-lines td::before,.allocate-table td::before{content:attr(data-label);display:block;font-size:12px;color:var(--muted);font-weight:600;margin-bottom:2px}
+.claim-lines td[data-label=""]::before,.allocate-table td[data-label=""]::before,.claim-lines td:first-child::before{display:none}
+.claim-lines td:first-child{font-weight:700;color:#2b5489}
+.claim-lines td:last-child button,.allocate-table td:last-child button{width:100%}
+.ledger-fields{flex-wrap:wrap}.ledger-fields .ledger-name{min-width:0;flex:1 1 100%}
+
+/* 明細視窗：手機上整個畫面 */
+dialog{width:100%;max-width:100%;height:100%;max-height:100%;margin:0;border-radius:0;padding:14px;box-sizing:border-box}
+}
 </style></head><body class="auth-locked">
 <div id="authGate" class="auth-gate" aria-live="polite">
   <div class="auth-card">
@@ -84,7 +141,7 @@ main{grid-area:mn;width:100%;max-width:1250px;margin:16px 0 0}
 </div>
 <script src="config.js"></script><script src="js/cloud.js"></script>
 <header><div><h1>公司發票登錄與帳務簽核系統</h1><div class="sub">網頁版 v6.0｜雲端共用資料・Google 登入・首次匯款存摺影本上傳／跨部門分攤</div></div><div class="role"><span id="loggedSummary">尚未登入</span><span id="syncState" class="sub">雲端：—</span><button id="syncNowBtn" type="button">🔄 同步</button><button id="logoutBtn" type="button">登出</button><select id="role" class="hide"><option value="staff">申請人</option><option value="manager">部門主管</option><option value="executive">執行長</option><option value="finance">財務人員</option><option value="admin">系統管理者</option></select><input id="actorName" class="hide" readonly aria-label="操作人員姓名"></div></header>
-<nav id="tabs"><button class="tab active" data-tab="dashboard">總覽儀表板</button><button class="tab" data-tab="entry">發票登錄／上傳</button><button class="tab" data-tab="list">發票明細</button><button class="tab" data-tab="vendors">廠商資料庫</button><button class="tab" data-tab="approval">主管簽核</button><button class="tab" data-tab="executive">執行長簽核</button><button class="tab" data-tab="finance">財務整合</button><button class="tab" data-tab="organization">部門／人員架構</button><button class="tab" data-tab="settings">資料備份／說明</button><button class="tab" data-tab="accounts">帳號／權限管理</button></nav>
+<nav id="tabs"><button type="button" id="menuToggle" aria-expanded="false">☰ 選單</button><button class="tab active" data-tab="dashboard">總覽儀表板</button><button class="tab" data-tab="entry">發票登錄／上傳</button><button class="tab" data-tab="list">發票明細</button><button class="tab" data-tab="vendors">廠商資料庫</button><button class="tab" data-tab="approval">主管簽核</button><button class="tab" data-tab="executive">執行長簽核</button><button class="tab" data-tab="finance">財務整合</button><button class="tab" data-tab="organization">部門／人員架構</button><button class="tab" data-tab="settings">資料備份／說明</button><button class="tab" data-tab="accounts">帳號／權限管理</button></nav>
 <main>
 <section id="dashboard" class="view"><div class="grid" id="metrics"></div><div class="panel" style="margin-top:16px"><h2>近期發票</h2><div class="tablewrap" id="recent"></div></div><div class="panel"><h2>建議作業流程</h2><div class="note">員工上傳並登錄發票 → 部門主管簽核（主管本人申請或執行長兼任主管的部門跳過）→ 執行長簽核 → 財務覆核 → 付款結案 → 匯出報表。簽核人員從「部門／人員架構」設定。</div><p class="muted">資料存在公司的 Google 雲端硬碟，所有同事看到同一份；系統每分鐘自動同步一次，也可以按右上角「🔄 同步」立即更新。</p></div></section>
 <section id="entry" class="view hide">
@@ -1472,4 +1529,33 @@ async function saveCSV(nextStatus){if(!canPage('entry')){status('沒有發票登
 el('csvDraft').onclick=()=>saveCSV('draft');el('csvSubmit').onclick=()=>saveCSV('pending');
 })();
 
-</script><script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script></body></html>
+</script><script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script><script>
+/* 手機版：頁籤多時收成一顆選單鈕 */
+(function(){
+ const nav=document.getElementById('tabs'),btn=document.getElementById('menuToggle');if(!nav||!btn)return;
+ function sync(){const tabs=[...nav.querySelectorAll('.tab')].filter(b=>!b.classList.contains('hide'));
+  nav.dataset.many=tabs.length>3?'1':'';const act=nav.querySelector('.tab.active');
+  btn.textContent='☰ '+(act&&!act.classList.contains('hide')?act.textContent:'選單')+(nav.classList.contains('open')?' ▴':' ▾');btn.setAttribute('aria-expanded',nav.classList.contains('open')?'true':'false')}
+ btn.addEventListener('click',()=>{nav.classList.toggle('open');sync()});
+ nav.addEventListener('click',e=>{if(e.target.closest('.tab')){nav.classList.remove('open');setTimeout(()=>{sync();window.scrollTo(0,0)},0)}});
+ new MutationObserver(()=>sync()).observe(nav,{attributes:true,subtree:true,attributeFilter:['class']});
+ sync();
+})();
+/* 手機版：表格轉卡片需要每個欄位的標題，這裡依表頭自動補上；表格被重新畫出來時也會再補一次 */
+(function(){
+ function labelTable(t){
+  const heads=[...t.querySelectorAll('thead th')].map(th=>th.textContent.trim());
+  if(!heads.length)return;
+  const wrap=!!t.closest('.tablewrap');
+  t.querySelectorAll('tbody tr').forEach(tr=>{if(tr.dataset.lb)return;tr.dataset.lb='1';
+   [...tr.children].forEach((td,i)=>{
+    td.dataset.label=heads[i]||'';
+    if(wrap){if(td.querySelector('button'))td.classList.add('act');
+     if(!td.querySelector(':scope>.cv')){const w=document.createElement('div');w.className='cv';while(td.firstChild)w.appendChild(td.firstChild);td.appendChild(w)}}
+   })})}
+ let pending=false;
+ function scan(){pending=false;document.querySelectorAll('.tablewrap table,table.claim-lines,table.allocate-table').forEach(labelTable)}
+ new MutationObserver(()=>{if(!pending){pending=true;setTimeout(scan,30)}}).observe(document.body,{childList:true,subtree:true});
+ scan();
+})();
+</script></body></html>
