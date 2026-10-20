@@ -1,0 +1,14 @@
+{
+  "name": "發票簽核系統",
+  "short_name": "發票簽核",
+  "description": "公司發票登錄與一般請款單簽核",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f4f6fa",
+  "theme_color": "#243f70",
+  "lang": "zh-Hant",
+  "icons": [
+    { "src": "icons/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}

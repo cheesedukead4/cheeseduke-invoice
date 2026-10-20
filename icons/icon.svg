@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="發票簽核">
+  <rect width="512" height="512" fill="#243f70"/>
+  <path d="M152 88h168l56 56v280H152z" fill="#ffffff"/>
+  <path d="M320 88v56h56z" fill="#c9d8f0"/>
+  <rect x="192" y="188" width="140" height="16" rx="8" fill="#9db5da"/>
+  <rect x="192" y="228" width="140" height="16" rx="8" fill="#9db5da"/>
+  <rect x="192" y="268" width="90" height="16" rx="8" fill="#9db5da"/>
+  <circle cx="300" cy="352" r="52" fill="#2f9e6b"/>
+  <path d="M276 352l18 18 32-38" fill="none" stroke="#ffffff" stroke-width="14" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>
