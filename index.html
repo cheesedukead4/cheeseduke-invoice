@@ -339,7 +339,7 @@ const deleteUser=email=>InvCloud.call('userDelete',{email});
 function canPage(page){if(page==='subjects')page='finance'; // 「會計科目」頁籤沿用財務整合的權限（財務／管理員）
  if(!authUser||!PAGE_LABELS[page])return false;
  const pg=authUser.pages||[];
- if(page==='ceoentry')return authUser.role==='executive'&&(pg.includes('ceoentry')||pg.includes('entry')); // 執行長發票上傳：只給執行長角色（有發票登錄權限的執行長自動有這個分頁）；真正能不能寫入由後端檢查是不是組織設定的執行長本人
+ if(page==='ceoentry')return authUser.role==='admin'||(authUser.role==='executive'&&(pg.includes('ceoentry')||pg.includes('entry'))); // 執行長發票上傳：只給執行長角色（有發票登錄權限的執行長自動有這個分頁）；真正能不能寫入由後端檢查是不是組織設定的執行長本人
  return authUser.role==='admin'||pg.includes(page)||(page==='entry'&&authUser.role==='executive'&&pg.includes('ceoentry'))}
 function canReadInvoice(i){if(!authUser||!i)return false;
  if(['admin','executive','finance'].includes(authUser.role))return true;
@@ -534,7 +534,7 @@ const managerDisplay=name=>{const m=departmentByName(name)?.manager||'';return m
 function applicantOptions(dept){const d=departmentByName(dept),people=(d?.employees||[]).map(e=>({name:String(e.name||'').trim(),role:'員工'})).filter(e=>e.name);
  const m=managerFor(dept);if(m&&!people.some(e=>e.name===m))people.push({name:m,role:'主管'});
  else if(m){const entry=people.find(e=>e.name===m);if(entry)entry.role='主管'}
- if(d&&isCeoUser()&&!people.some(e=>e.name===orgCEO))people.push({name:orgCEO,role:'執行長'});
+ if(d&&(isCeoUser()||(entryMode==='ceo'&&authUser&&authUser.role==='admin'&&orgCEO))&&!people.some(e=>e.name===orgCEO))people.push({name:orgCEO,role:'執行長'}); // 執行長本人、或管理員在「執行長發票上傳」代執行長上傳
  // 登入的人一定列在自己的部門裡（名冊沒收錄也一樣），申請人才會直接帶入，不用靠組織名冊
  if(authUser&&authUser.role!=='admin'&&authUser.name&&dept&&dept===authUser.dept&&!people.some(e=>e.name===authUser.name))people.push({name:authUser.name,role:authUser.role==='manager'?'主管':'員工'});
  return people;
@@ -559,7 +559,7 @@ function syncApplicantHints(){const dept=$('dept').value,d=departmentByName(dept
  $('deptMeta').textContent=d?'部門／門市編號：'+(d.code||'未設定')+'　｜　科目代號：'+(d.accountCode||'未設定'):'選擇後顯示部門／門市編號與科目代號';
  const select=$('applicant'),old=select.value;
  select.innerHTML=`<option value="">${dept?(list.length?'請選擇申請人':'請先到組織架構新增員工或主管'):'請先選擇申請部門／門市'}</option>`+list.map(p=>`<option value="${esc(p.name)}">${esc(p.name)}${p.role==='主管'?'（主管）':''}</option>`).join('');
- select.value=list.some(p=>p.name===old)?old:(authUser&&list.some(p=>p.name===authUser.name)?authUser.name:'');
+ select.value=list.some(p=>p.name===old)?old:(authUser&&list.some(p=>p.name===authUser.name)?authUser.name:(entryMode==='ceo'&&authUser&&authUser.role==='admin'&&orgCEO&&list.some(p=>p.name===orgCEO)?orgCEO:''));
  syncApplicantSubmitLabel();updateWhoChip();
 }
 // 申請部門與申請人都只有一個選項（一般員工）時，不顯示這兩個欄位，改在標題旁顯示一個小標籤
@@ -597,7 +597,7 @@ async function loadOrg(){const values=await orgAll();orgDepartments=values.filte
 function renderOrg(){const root=$('orgTree');if(!root)return;
  root.innerHTML=orgDepartments.slice().sort((a,b)=>String(a.code||'').localeCompare(String(b.code||''),'zh-Hant',{numeric:true})||a.name.localeCompare(b.name,'zh-Hant')).map(d=>`<div class="org-dept"><div class="org-head"><div><b>${esc(d.code?d.code+'｜':'')}${esc(d.name)}</b><div class="muted small">科目代號：${esc(d.accountCode||'未設定')}　｜　主管：${esc(managerDisplay(d.name))}　｜　員工 ${(d.employees||[]).length} 位</div></div><div class="flex"><button type="button" data-orgedit="${esc(d.name)}">編輯門市／主管</button><button type="button" data-orgdelete="${esc(d.name)}" class="danger">刪除部門</button></div></div><div class="org-people">${(d.employees||[]).length?d.employees.map(m=>`<div class="org-person"><span>${esc(m.name)} <span class="muted">${esc(m.title||'員工')}</span></span><button type="button" data-orgstaffedit="${esc(d.name)}" data-orgstaffname="${esc(m.name)}">編輯</button><button class="danger" type="button" data-orgstaffdelete="${esc(d.name)}" data-orgstaffname="${esc(m.name)}">移除</button></div>`).join(''):'<span class="muted">尚未建立員工</span>'}</div></div>`).join('')||'<p class="muted">請先新增部門。</p>';
 }
-$('dept').addEventListener('change',()=>{syncApplicantHints();if(!authUser||authUser.role==='admin')$('applicant').value='';syncApplicantSubmitLabel();singleClaimItems.forEach(x=>{if(!x.allocManual&&(x.allocations||[]).length<=1)x.allocations=[{dept:$('dept').value,ratio:100}]});displaySingleClaimItems();});
+$('dept').addEventListener('change',()=>{syncApplicantHints();if(!authUser||authUser.role==='admin'){$('applicant').value='';if(entryMode==='ceo'&&orgCEO&&[...$('applicant').options].some(o=>o.value===orgCEO))$('applicant').value=orgCEO}syncApplicantSubmitLabel();singleClaimItems.forEach(x=>{if(!x.allocManual&&(x.allocations||[]).length<=1)x.allocations=[{dept:$('dept').value,ratio:100}]});displaySingleClaimItems();});
 $('applicant').addEventListener('change',syncApplicantSubmitLabel);
 
 $('saveCEO').addEventListener('click',async()=>{if(!can('admin'))return toast('僅管理員可修改組織');orgCEO=$('ceoName').value.trim();const settings=(await orgAll()).find(d=>d.id==='settings')||{id:'settings'};await orgPut({...settings,ceo:orgCEO});syncApplicantHints();renderOrg();const count=await migrateCEOManagedPending();await refresh();toast('執行長姓名已儲存'+(count?'；已將 '+count+' 筆待主管紀錄轉送執行長':''))});
@@ -1251,7 +1251,7 @@ function applyEntryMode(mode){
  entryMode=mode;const ceo=mode==='ceo';
  $('entry').classList.toggle('ceo-mode',ceo);
  $('entryHomeTitle').textContent=entryBaseTitle();
- $('entryHomeDesc').textContent=ceo?'執行長的發票請在這裡上傳。申請人固定是執行長；費用屬於哪個部門，系統會依你過去申請過的紀錄（統編、廠商、支付對象、用途）自動歸類，找不到紀錄再自己選。':'單張或多張發票共用同一個上傳入口；也可以匯入 CSV 清單。';
+ $('entryHomeDesc').textContent=ceo?(authUser&&authUser.role==='admin'?'管理員代執行長上傳：申請人預設是執行長（組織設定的執行長），略過主管關卡；':'執行長的發票請在這裡上傳。申請人固定是執行長；')+'費用屬於哪個部門，系統會依你過去申請過的紀錄（統編、廠商、支付對象、用途）自動歸類，找不到紀錄再自己選。':'單張或多張發票共用同一個上傳入口；也可以匯入 CSV 清單。';
  if(!$('editId').value)$('entryTitle').textContent=entryBaseTitle();
  $('ceoDeptHint').classList.toggle('hide',!ceo);
  ceoState.sig='';
@@ -1307,7 +1307,7 @@ function ceoClassify(){
 }
 $('dept').addEventListener('change',()=>{if(!ceoState.applying&&entryMode==='ceo')ceoState.deptTouched=true});
 setInterval(()=>{
- if(!authUser||entryMode!=='ceo'||!isCeoUser()||$('entry').classList.contains('hide'))return;
+ if(!authUser||entryMode!=='ceo'||(!isCeoUser()&&authUser.role!=='admin')||$('entry').classList.contains('hide'))return;
  if(!$('singleMode').classList.contains('hide')){
   const sig=[$('taxId').value,$('vendor').value,$('payee').value,$('description').value,$('editId').value,current.length].join('|');
   if(sig!==ceoState.sig){ceoState.sig=sig;ceoClassify()}
@@ -1869,7 +1869,7 @@ function renderBatch(){
   root.querySelectorAll('[data-bia-chip]').forEach(node=>node.addEventListener('click',()=>{const r=batchRows[+node.dataset.biaChip],it=r.claim.items[+node.dataset.biaLine];it.allocations=node.dataset.alocAll?toggleAllAllocation(it.allocations,r.values.dept):toggleAllocation(it.allocations,node.dataset.alocDept);it.allocManual=true;r.error='';renderBatch()}));
   root.querySelectorAll('[data-bia-row]').forEach(node=>node.addEventListener('input',()=>{const r=batchRows[+node.dataset.biaRow],it=r.claim.items[+node.dataset.biaLine];it.allocations[+node.dataset.alocRatio].ratio=Number(node.value);it.allocManual=true;r.error='';refreshAllocationRow(+node.dataset.biaRow)}));
 
-root.querySelectorAll('[data-bi]').forEach(node=>node.addEventListener('input',()=>{const r=batchRows[Number(node.dataset.bi)];if(node.dataset.bk==='dept'){r.ceoDeptManual=true;r.values.applicant=isCeoUser()?authUser.name:'';r.claim.items.forEach(x=>{if(!x.allocManual&&(x.allocations||[]).length<=1)x.allocations=[{dept:node.value,ratio:100}]});}r.values[node.dataset.bk]=node.value;if(node.dataset.bk==='amount'&&r.claimAutoAmount&&r.claim?.items?.length===1){r.claim.items[0].amount=moneyValue(node.value);const total=el('bclaim-total-'+node.dataset.bi);if(total)total.textContent='NT$ '+fmt(claimSum(r.claim));}(r.manualFields??=new Set()).add(node.dataset.bk);r.uncertain=(r.uncertain||[]).filter(k=>k!==node.dataset.bk);if(node.dataset.bk==='vendor')r.vendorSource='人工修正・待確認';r.error='';if(['dept','applicant','payment','transferHistory'].includes(node.dataset.bk))renderBatch();if(node.dataset.bk==='amount'){refreshAllocationRow(Number(node.dataset.bi));const w=el('bclaim-warning-'+node.dataset.bi);if(w)w.textContent=Math.abs(claimSum(r.claim)-moneyValue(r.values.amount))>0.01?'⚠ 請款合計與發票總計不一致，請核對。':'';}node.removeAttribute('aria-invalid')}));
+root.querySelectorAll('[data-bi]').forEach(node=>node.addEventListener('input',()=>{const r=batchRows[Number(node.dataset.bi)];if(node.dataset.bk==='dept'){r.ceoDeptManual=true;r.values.applicant=isCeoUser()?authUser.name:(entryMode==='ceo'&&authUser?.role==='admin'?orgCEO:'');r.claim.items.forEach(x=>{if(!x.allocManual&&(x.allocations||[]).length<=1)x.allocations=[{dept:node.value,ratio:100}]});}r.values[node.dataset.bk]=node.value;if(node.dataset.bk==='amount'&&r.claimAutoAmount&&r.claim?.items?.length===1){r.claim.items[0].amount=moneyValue(node.value);const total=el('bclaim-total-'+node.dataset.bi);if(total)total.textContent='NT$ '+fmt(claimSum(r.claim));}(r.manualFields??=new Set()).add(node.dataset.bk);r.uncertain=(r.uncertain||[]).filter(k=>k!==node.dataset.bk);if(node.dataset.bk==='vendor')r.vendorSource='人工修正・待確認';r.error='';if(['dept','applicant','payment','transferHistory'].includes(node.dataset.bk))renderBatch();if(node.dataset.bk==='amount'){refreshAllocationRow(Number(node.dataset.bi));const w=el('bclaim-warning-'+node.dataset.bi);if(w)w.textContent=Math.abs(claimSum(r.claim)-moneyValue(r.values.amount))>0.01?'⚠ 請款合計與發票總計不一致，請核對。':'';}node.removeAttribute('aria-invalid')}));
  root.querySelectorAll('[data-bpassbook]').forEach(node=>node.addEventListener('change',()=>{const r=batchRows[Number(node.dataset.bpassbook)],f=node.files[0];if(f){try{validatePassbook(f);r.passbookFile=f;r.error=''}catch(e){r.passbookFile=null;r.error=e.message}}renderBatch()}));
  root.querySelectorAll('[data-bpassbook-remove]').forEach(node=>node.addEventListener('click',()=>{batchRows[Number(node.dataset.bpassbookRemove)].passbookFile=null;renderBatch()}));
  root.querySelectorAll('[data-bci]').forEach(node=>node.addEventListener('input',()=>{
@@ -1911,7 +1911,7 @@ async function verifyBatchSeller(i,ocrOverride=null){
 }
 // 執行長發票上傳：批次每一張也依過去申請紀錄自動歸類部門（使用者正在這張卡片裡打字時先不動，等離開再處理，避免畫面重畫搶走游標）
 window.ceoBatchClassify=function(){
- if(typeof isCeoUser!=='function'||!isCeoUser())return;
+ if(typeof isCeoUser!=='function'||(!isCeoUser()&&authUser.role!=='admin'))return;
  let changed=false;
  batchRows.forEach((r,i)=>{
   if(r.saved)return;
@@ -1926,7 +1926,7 @@ window.ceoBatchClassify=function(){
    set((v.taxId||v.vendor||v.payee||v.description)&&!v.dept?'沒有找到過去的申請紀錄可以歸類，請自己選部門':'');return}
   if(r.ceoDeptManual){set('依過去紀錄建議歸「'+ceoPatternText(res.pattern)+'」（你已自己選了部門，沒有自動套用）');return}
   if(v.dept!==res.dept){v.dept=res.dept;changed=true}
-  v.applicant=authUser.name;
+  v.applicant=isCeoUser()?authUser.name:orgCEO;
   const before=JSON.stringify(r.claim.items.map(x=>x.allocations));
   r.claim.items.forEach(x=>{if(!x.allocManual)x.allocations=res.pattern.map(a=>({dept:a.dept,ratio:a.ratio}))});
   if(JSON.stringify(r.claim.items.map(x=>x.allocations))!==before)changed=true;
