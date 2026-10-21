@@ -135,6 +135,82 @@
     return { mode: 'items+over', lines: lines, itemsText: itemsText, note: '品項合計 ' + lineSum + ' 比發票總計 ' + total + ' 多 ' + (-diff) + ' 元（可能有折扣），品項已逐項帶入，請自行調整金額' };
   }
 
+  // ---------- 用文字辨識（OCR）補「附餐明細」與印出的明細金額 ----------
+  // QR code 只存品名、數量、單價；證明聯下方「交易明細」才印得出：套餐底下的 (附)… 與 去冰／無糖 等加料行。
+  // 這裡以 QR 的品名當「定位點」，在 OCR 文字裡找到各品項的位置，把該品項到下一品項之間的附屬行整理起來。
+  // OCR 會有錯字，所以找不到、對不上就整個放棄（回傳 ok:false），不會亂塞資料
+  function keyOf(x) { return String(x || '').normalize('NFKC').replace(/[^\u3400-\u9fffA-Za-z0-9]/g, ''); }
+  function lev(a, b) {
+    var p = [], i, j;
+    for (j = 0; j <= b.length; j++) p[j] = j;
+    for (i = 1; i <= a.length; i++) { var prev = p[0]; p[0] = i; for (j = 1; j <= b.length; j++) { var t = p[j]; p[j] = Math.min(p[j] + 1, p[j - 1] + 1, prev + (a[i - 1] === b[j - 1] ? 0 : 1)); prev = t; } }
+    return p[b.length];
+  }
+  function simAt(a, b) { return 1 - lev(a, b) / Math.max(a.length, b.length, 1); }
+  // frag 是 K 開頭的一段（容許 OCR 錯字）
+  function prefixLike(frag, K) { if (frag.length < 2) return false; var head = K.slice(0, frag.length); return frag === head || (frag.length >= 4 && simAt(frag, head) >= 0.6); }
+  // frag 出現在 K 裡的某處（品名換行後的後半段）
+  function fuzzyIn(frag, K) {
+    if (!frag) return false; if (K.indexOf(frag) >= 0) return true; if (frag.length < 3) return false;
+    for (var i = 0; i + frag.length <= K.length; i++) if (simAt(frag, K.slice(i, i + frag.length)) >= 0.6) return true;
+    return false;
+  }
+  // 一行的「名稱部分」：去掉第一個獨立數字（數量／單價欄）以後的內容
+  function namePart(line) { return line.replace(/\s+\d[\d.,]*(\s.*)?$/, '').replace(/\s*[$＄]\s*\d.*$/, '').trim(); }
+  function hasNum(line) { return /\s\d[\d.,]*(\s|$)|[$＄]\s*\d/.test(line); }
+  var ATTACH = /^[(（]?\s*附\s*[)）]?/;
+  function enrichFromOcrText(qr, text) {
+    var fail = { ok: false, details: [], amounts: [] };
+    if (!qr || !qr.items || !qr.items.length || !text) return fail;
+    var lines = String(text).normalize('NFKC').split(/\r?\n/).map(function (l) { return l.replace(/(?<=[\u3400-\u9fff.\-\/()])[ \t]+(?=[\u3400-\u9fff.\-\/()])/g, '').replace(/\s+$/, '').replace(/^\s+/, ''); }).filter(Boolean);
+    var keys = qr.items.map(function (it) { return keyOf(it.name); }), anchors = [], prev = -1, i, L;
+    for (i = 0; i < keys.length; i++) {
+      var found = -1;
+      for (L = prev + 1; L < lines.length && found < 0; L++) if (prefixLike(keyOf(namePart(lines[L])), keys[i])) found = L;
+      if (found < 0) return fail;
+      anchors.push(found); prev = found;
+    }
+    var last = anchors[anchors.length - 1], end = Math.min(lines.length, last + 16);
+    for (L = last + 1; L < lines.length; L++) if (/^[-=_*~─－—.·\s]{6,}$/.test(lines[L]) || /^(合\s*計|小\s*計|總\s*計|發票金額|銷售額|應稅|稅額)/.test(lines[L])) { end = L; break; }
+    var details = [], amounts = [];
+    for (i = 0; i < anchors.length; i++) {
+      var m = /[$＄]\s*(\d[\d,]*)/.exec(lines[anchors[i]]); amounts.push(m ? Number(m[1].replace(/,/g, '')) : null);
+      var spanEnd = i + 1 < anchors.length ? anchors[i + 1] : end, j = anchors[i] + 1, ent = [], cur = null;
+      // 先跳過「品名換行」的行：沒有數字欄、不是 (附)，而且文字落在這個品名裡
+      while (j < spanEnd) {
+        var ln = lines[j];
+        if (ATTACH.test(ln) || hasNum(ln)) break;
+        var fk = keyOf(ln); if (!fk) { j++; continue; }
+        if (fuzzyIn(fk, keys[i])) j++; else break;
+      }
+      for (; j < spanEnd; j++) {
+        var line = lines[j], start = ATTACH.test(line) || hasNum(line), txt = namePart(line);
+        if (start || !cur) { cur = { attach: ATTACH.test(line), text: txt }; ent.push(cur); } else cur.text += txt;
+      }
+      details.push(ent.map(function (e) { return e.text.replace(ATTACH, '').replace(/[\/\s]+$/, '').trim(); }).filter(function (t) { return keyOf(t).length >= 2; }));
+    }
+    return { ok: true, details: details, amounts: amounts };
+  }
+  // 把整理好的附餐明細併進品名、必要時改用印出的明細金額，回傳新的 QR 結果（不改原物件）
+  function withDetails(qr, e) {
+    if (!e || !e.ok) return { qr: qr, changed: false, details: 0, amountsFixed: false };
+    var items = qr.items.map(function (it, i) {
+      var o = {}; for (var k in it) o[k] = it[k];
+      var d = e.details[i]; if (d && d.length) o.name = (it.name + '（附：' + d.join('、') + '）').slice(0, 200);
+      return o;
+    });
+    var detailCount = e.details.reduce(function (n, d) { return n + (d ? d.length : 0); }, 0);
+    var fixed = false;
+    // QR 的單價有時比印出的小計差 1 元（例如 QR 85、發票印 $86）。只有「印出的各項小計加總剛好等於發票總計、而 QR 的不等於」才採用
+    if (e.amounts.length === items.length && e.amounts.every(function (a) { return a !== null; })) {
+      var printed = e.amounts.reduce(function (n, a) { return n + a; }, 0), fromQr = items.reduce(function (n, it) { return n + Math.round(it.amount); }, 0);
+      if (printed === qr.total && fromQr !== qr.total) { items.forEach(function (it, i) { it.amount = e.amounts[i]; }); fixed = true; }
+    }
+    var out = {}; for (var key in qr) out[key] = qr[key];
+    out.items = items; out.complete = qr.complete || (qr.declaredTotal > 0 ? items.length >= qr.declaredTotal : true);
+    return { qr: out, changed: detailCount > 0 || fixed, details: detailCount, amountsFixed: fixed };
+  }
+
   // ---------- 讀取圖片／PDF 中的 QR code ----------
   var jsqrPromise = null;
   function ensureJsQR() {
@@ -269,5 +345,5 @@
     return result && result.ok ? result : null;
   }
 
-  return { parse: parse, claimLines: claimLines, scanFile: scanFile, scanCanvas: scanCanvas, _internal: { parseLeft: parseLeft, splitColon: splitColon, isLeft: isLeft, isRight: isRight } };
+  return { parse: parse, claimLines: claimLines, scanFile: scanFile, scanCanvas: scanCanvas, enrichFromOcrText: enrichFromOcrText, withDetails: withDetails, _internal: { parseLeft: parseLeft, splitColon: splitColon, isLeft: isLeft, isRight: isRight } };
 });
