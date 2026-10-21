@@ -164,7 +164,7 @@ dialog{width:100%;max-width:100%;height:100%;max-height:100%;margin:0;border-rad
 <div id="singleMode" class="hide"><div class="panel"><h2 id="entryTitle">發票登錄＋一般請款申請單</h2><div class="note">先拍照或上傳發票，自動填寫七項基本資料；同一頁往下填寫一般請款單（用途、項目、預定付款日、匯款方式等），一次儲存與送簽。選取多張時，每張都有同樣的請款表單。支援手機拍照／上傳發票後辨識日期、發票號碼、<b>賣方統編</b>、廠商名稱及含稅金額；會依賣方統編向財政部營業登記核對廠商名稱。無法連線或查無資料時會明確提示，請手動輸入或沿用 OCR 名稱，不會假裝已完成官方核對。可先存草稿，確認後送出簽核。</div><div class="ocr-box">
  <div class="ocr-head"><div><h3 style="margin:0">📷 發票智慧辨識（測試版）</h3><div class="muted small">手機可直接拍照；電腦可選擇圖片或 PDF。首次使用需連線載入 OCR 模組及繁體中文辨識資料。</div></div><span class="ocr-tag">本機辨識・不傳往本系統伺服器</span></div>
  <div class="toolbar" style="margin:12px 0"><label class="btn ocr-button" for="cameraInput">📸 開啟相機拍照</label><input id="cameraInput" type="file" accept="image/*" capture="environment" style="display:none"><button type="button" id="ocrStart" class="primary">🔎 辨識已上傳的附件</button><button type="button" id="ocrClear">清除辨識結果</button></div>
- <div class="ocr-preview-wrap"><img id="ocrPreview" class="ocr-preview hide" alt="等待辨識的發票影像"><div id="ocrStatus" class="muted" aria-live="polite">拍照或在下方「發票影像／PDF 附件」選好檔案後會自動辨識，不用再按按鈕。電子發票會優先讀取證明聯上的 QR code（發票號碼、日期、賣方統編、金額、品項），讀不到 QR code 才改用文字辨識。</div></div>
+ <div class="ocr-preview-wrap"><img id="ocrPreview" class="ocr-preview hide" alt="等待辨識的發票影像"><div id="ocrStatus" class="muted" aria-live="polite">拍照或在下方「發票影像／PDF 附件」選好檔案後會自動辨識，不用再按按鈕。電子發票會優先讀取證明聯上的 QR code（發票號碼、日期、賣方統編、金額），讀不到 QR code 才改用文字辨識；請款項目明細（品項、小計）不會自動帶入，請自行填寫。</div></div>
  <div id="ocrReview" class="ocr-review hide"><strong>辨識結果（已自動帶入表單，請逐項核對）</strong><div id="ocrValues" class="ocr-values"></div><div class="small muted">請特別確認辨識到的是「開立發票的賣方廠商」，不是買方／公司抬頭；不清楚的欄位請手動修改。</div><details><summary>查看 OCR 原始文字（供查核）</summary><pre id="ocrRaw"></pre></details></div>
  </div>
  <form id="invoiceForm"><input type="hidden" id="editId">
@@ -1296,6 +1296,8 @@ async function enrichQRDetails(file,qr){
   return null;
  }catch(e){console.warn('附餐明細辨識失敗，維持 QR code 的結果',e);return null}
 }
+// 判讀後是否自動把品項、小計金額帶進「請款項目明細」。false＝只填發票日期／號碼／統編／廠商名稱／金額，明細由人工填寫
+const AUTO_FILL_CLAIM_ITEMS=false;
 const claimSnapshot=items=>JSON.stringify((items||[]).map(l=>[l.description,Number(l.amount)||0]));
 function detailsMessage(res){const p=[];if(res.details)p.push('補上附餐明細 '+res.details+' 筆');if(res.amountsFixed)p.push('改用發票印出的明細金額');return '已用文字辨識'+p.join('、')+'，請核對是否有錯字。'}
 // 先讀發票上的 QR code（左：字軌、日期、統編、金額與前幾項品項；右：其餘品項）。讀到就不用跑文字辨識
@@ -1313,22 +1315,25 @@ async function applyQRToSingle(file){
  catch(e){vendorSource='查詢廠商名稱失敗，請手動輸入';el('vendorLookupStatus').textContent=vendorSource;el('vendorLookupStatus').className='lookup-note warn'}
  const labels={invoiceDate:'發票日期',invoiceNo:'發票號碼',taxId:'廠商統編',vendor:'廠商名稱',amount:'含稅金額'},cards=[];let filled=0;
  for(const [key,label] of Object.entries(labels)){const val=detected[key];
-  if(val!==undefined&&val!==''){el(key).value=val;if(key==='amount')linkSingleAmount();filled++;el(key).style.outline='2px solid #7dafdf';
+  if(val!==undefined&&val!==''){el(key).value=val;if(key==='amount'&&AUTO_FILL_CLAIM_ITEMS)linkSingleAmount();filled++;el(key).style.outline='2px solid #7dafdf';
    cards.push('<div><b>'+label+'（'+(key==='vendor'?esc(vendorSource):'QR code')+'）</b>'+esc(val)+'</div>')}
   else cards.push('<div><b>'+label+'</b><span style="color:#9b3b3b">QR code 沒有這項資料，請手動填寫</span></div>')}
  // 發票明細 → 請款項目；品項與總計對不上時，用總計一筆帶入並把品項寫進備註
  const cl=window.EInvoiceQR.claimLines(qr);
- singleClaimItems=cl.lines.map(l=>({description:l.description,amount:l.amount,accountCode:'',accountName:''}));
- singleAmountLinked=cl.lines.length===1;
- singleClaimItems.forEach(line=>updateLedgerForLine(line,ledgerContext($('dept').value,$('vendor').value,$('taxId').value)));
- displaySingleClaimItems();
- if(cl.itemsText&&cl.mode==='total'){const t='發票品項（QR code）：'+cl.itemsText,m=$('memo');if(!m.value.includes(t))m.value=(m.value?m.value+'\n':'')+t}
- cards.push('<div><b>發票明細（QR code）</b>'+esc(cl.note)+'：'+esc(cl.lines.map(l=>l.description+' '+fmt(l.amount)).join('、'))+'</div>');
+ if(AUTO_FILL_CLAIM_ITEMS){
+  singleClaimItems=cl.lines.map(l=>({description:l.description,amount:l.amount,accountCode:'',accountName:''}));
+  singleAmountLinked=cl.lines.length===1;
+  singleClaimItems.forEach(line=>updateLedgerForLine(line,ledgerContext($('dept').value,$('vendor').value,$('taxId').value)));
+  displaySingleClaimItems();
+  if(cl.itemsText&&cl.mode==='total'){const t='發票品項（QR code）：'+cl.itemsText,m=$('memo');if(!m.value.includes(t))m.value=(m.value?m.value+'\n':'')+t}
+  cards.push('<div><b>發票明細（QR code）</b>'+esc(cl.note)+'：'+esc(cl.lines.map(l=>l.description+' '+fmt(l.amount)).join('、'))+'</div>');
+ }else cards.push('<div><b>發票明細（QR code，僅供參考，未自動填入）</b>'+esc(qr.items.length?qr.items.map(i=>i.name+' ×'+i.qty+' @'+i.price).join('；'):'QR code 沒有品項資料')+'</div>');
  if(qr.buyerId&&qr.buyerId!=='00000000')cards.push('<div><b>買方統編</b>'+esc(qr.buyerId)+'（請確認是本公司）</div>');
  el('ocrValues').innerHTML=cards.join('');
  el('ocrRaw').textContent='資料來源：發票 QR code（'+(qr.hasRight?'左＋右':'只讀到左邊')+'）\n隨機碼 '+qr.randomCode+'；銷售額 '+qr.sales+'；總計額 '+qr.total+'；品項 '+qr.items.length+'/'+(qr.declaredTotal||qr.items.length);
  el('ocrReview').classList.remove('hide');
- const doneMsg='已從發票 QR code 讀取：'+filled+'/5 欄，發票明細 '+cl.lines.length+' 筆。廠商名稱來源：'+vendorSource+'。請核對後再儲存或送出簽核。';
+ const doneMsg='已從發票 QR code 讀取：'+filled+'/5 欄'+(AUTO_FILL_CLAIM_ITEMS?'，發票明細 '+cl.lines.length+' 筆':'（請款項目明細請自行填寫，QR code 讀到的品項只列在下方供參考）')+'。廠商名稱來源：'+vendorSource+'。請核對後再儲存或送出簽核。';
+ if(!AUTO_FILL_CLAIM_ITEMS){show(doneMsg);return true}
  show(doneMsg+'（正在背景讀取交易明細的附餐明細…）');
  const snap=claimSnapshot(singleClaimItems),invNo=qr.invoiceNo;
  enrichQRDetails(file,qr).then(res=>{
@@ -1355,7 +1360,7 @@ if(detected.taxId){show('已辨識賣方統編 '+detected.taxId+'，正在查詢
  vendorSource=sellerLookupMessage(lookup);
  el('vendorLookupStatus').textContent=vendorSource;el('vendorLookupStatus').className='lookup-note '+(lookup.verified&&!lookup.conflict?'ok':'warn');
 }else {el('vendorLookupStatus').textContent=detected.taxNote||'未找到賣方統編，請人工核對';el('vendorLookupStatus').className='lookup-note warn';}
-const fieldMap={invoiceDate:'發票日期',invoiceNo:'發票號碼',taxId:'廠商統編',vendor:'廠商名稱',amount:'含稅金額'};let filled=0;const cards=[];for(const [key,label] of Object.entries(fieldMap)){const val=detected[key];if(val!==undefined&&val!==''){el(key).value=val;if(key==='amount')linkSingleAmount();filled++;el(key).style.outline='2px solid #7dafdf';cards.push(`<div><b>${label}${key==='vendor'?'（'+vendorSource+'）':''}</b>${String(val).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}</div>`)}else cards.push(`<div><b>${label}</b><span style="color:#9b3b3b">未能可靠辨識，請手動填寫</span></div>`)}el('ocrValues').innerHTML=cards.join('');el('ocrRaw').textContent=raw||'未取得文字';el('ocrReview').classList.remove('hide');show(`辨識完成：${filled}/5 欄。廠商名稱來源：${vendorSource}。請核對賣方名稱與統編，確認後再儲存或送出簽核。`);if(!raw.trim())show('未辨識到文字。請改善光線、讓發票平整或手動輸入。',true)}catch(e){console.error(e);show('辨識失敗：'+(e.message||String(e))+'。可直接手動登錄，照片附件仍可保存。',true);worker=null}finally{inProgress=false;el('ocrStart').disabled=false}}
+const fieldMap={invoiceDate:'發票日期',invoiceNo:'發票號碼',taxId:'廠商統編',vendor:'廠商名稱',amount:'含稅金額'};let filled=0;const cards=[];for(const [key,label] of Object.entries(fieldMap)){const val=detected[key];if(val!==undefined&&val!==''){el(key).value=val;if(key==='amount'&&AUTO_FILL_CLAIM_ITEMS)linkSingleAmount();filled++;el(key).style.outline='2px solid #7dafdf';cards.push(`<div><b>${label}${key==='vendor'?'（'+vendorSource+'）':''}</b>${String(val).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}</div>`)}else cards.push(`<div><b>${label}</b><span style="color:#9b3b3b">未能可靠辨識，請手動填寫</span></div>`)}el('ocrValues').innerHTML=cards.join('');el('ocrRaw').textContent=raw||'未取得文字';el('ocrReview').classList.remove('hide');show(`辨識完成：${filled}/5 欄。廠商名稱來源：${vendorSource}。請核對賣方名稱與統編，確認後再儲存或送出簽核。`);if(!raw.trim())show('未辨識到文字。請改善光線、讓發票平整或手動輸入。',true)}catch(e){console.error(e);show('辨識失敗：'+(e.message||String(e))+'。可直接手動登錄，照片附件仍可保存。',true);worker=null}finally{inProgress=false;el('ocrStart').disabled=false}}
 el('cameraInput').addEventListener('change',async e=>{const file=e.target.files?.[0];if(!file)return;attachCameraImage(file);await scan(file);e.target.value=''});
 // 選好多張後自動開始批次辨識。批次清單裡若還有尚未儲存的發票，重新辨識會取代它們，先請使用者確認
 function autoStartBatch(count){
@@ -1565,6 +1570,7 @@ function selectCrossChecked(rounds){
 }
 function applyQRToBatchRow(r,qr){
  const cl=window.EInvoiceQR.claimLines(qr);
+ if(!AUTO_FILL_CLAIM_ITEMS){r.qrNote='請款項目明細請自行填寫（未自動帶入 QR code 的品項）';return}
  r.claim.items=cl.lines.map(l=>({description:l.description,amount:l.amount,accountCode:'',accountName:''}));
  r.claimAutoAmount=cl.lines.length===1;
  if(cl.itemsText&&cl.mode==='total'){const t='發票品項（QR code）：'+cl.itemsText;if(!String(r.values.memo||'').includes(t))r.values.memo=(r.values.memo?r.values.memo+'\n':'')+t}
@@ -1604,7 +1610,7 @@ async function retryBatchRow(i){
  try{
   const res=await recognizeOne(r.file,true);r.raw=res.raw;
   // 保留已填內容，新增找到的缺漏；需要改正請直接編輯欄位。
-  for(const k of batchKeys)if(!r.manualFields?.has(k)&&res.data[k]!==undefined&&res.data[k]!=='')r.values[k]=res.data[k];r.ocrVendor=res.data.vendor||r.ocrVendor;r.uncertain=res.uncertain;if(r.claimAutoAmount&&r.claim.items.length===1)r.claim.items[0].amount=moneyValue(r.values.amount);
+  for(const k of batchKeys)if(!r.manualFields?.has(k)&&res.data[k]!==undefined&&res.data[k]!=='')r.values[k]=res.data[k];r.ocrVendor=res.data.vendor||r.ocrVendor;r.uncertain=res.uncertain;if(AUTO_FILL_CLAIM_ITEMS&&r.claimAutoAmount&&r.claim.items.length===1)r.claim.items[0].amount=moneyValue(r.values.amount);
   if(validTax(r.values.taxId)){await verifyBatchSeller(i,res.data.vendor||'');if(r.registryVerified)r.uncertain=(r.uncertain||[]).filter(k=>k!=='vendor');}
   else {r.vendorSource=r.values.vendor?'OCR 自動判讀・待確認':'賣方統編／名稱需人工確認';r.registryVerified=false;}
   r.note=`重新辨識 ${countFields(r.values)}/5 欄${r.uncertain?.length?'；欄位有不同辨識結果，需核對：'+r.uncertain.map(k=>({invoiceDate:'日期',invoiceNo:'號碼',taxId:'統編',vendor:'廠商',amount:'金額'})[k]).join('、'):''}`;r.selected=true;
@@ -1624,8 +1630,8 @@ el('batchScan').addEventListener('click',async()=>{
  batchURLs=files.map(f=>f.type.startsWith('image/')?URL.createObjectURL(f):'');renderBatch();
  for(let i=0;i<batchRows.length;i++){
   const r=batchRows[i];batchProgress(`辨識第 ${i+1}/${files.length} 張：${r.file.name}（依序處理，請勿關閉網頁）`);
-  try{const result=await recognizeOne(r.file);r.raw=result.raw;Object.assign(r.values,result.data);if(r.claimAutoAmount&&r.claim.items.length===1)r.claim.items[0].amount=moneyValue(r.values.amount);
-  if(result.qr){applyQRToBatchRow(r,result.qr);r.qrObj=result.qr;r.qrSnap=claimSnapshot(r.claim.items)}r.ocrVendor=result.data.vendor||'';r.uncertain=result.uncertain;
+  try{const result=await recognizeOne(r.file);r.raw=result.raw;Object.assign(r.values,result.data);if(AUTO_FILL_CLAIM_ITEMS&&r.claimAutoAmount&&r.claim.items.length===1)r.claim.items[0].amount=moneyValue(r.values.amount);
+  if(result.qr){applyQRToBatchRow(r,result.qr);if(AUTO_FILL_CLAIM_ITEMS){r.qrObj=result.qr;r.qrSnap=claimSnapshot(r.claim.items)}}r.ocrVendor=result.data.vendor||'';r.uncertain=result.uncertain;
   if(validTax(r.values.taxId)){await verifyBatchSeller(i,result.data.vendor||'');if(r.registryVerified)r.uncertain=(r.uncertain||[]).filter(k=>k!=='vendor');}
   else {r.registryVerified=false;r.vendorSource=(result.data.taxNote||'未讀到賣方統編')+'；'+(r.ocrVendor?'OCR 廠商名稱待核對':'請人工填入廠商名稱');}
   let n=batchKeys.filter(k=>r.values[k]!==undefined&&r.values[k]!=='').length;r.note=result.qr?`發票 QR code 讀取 ${n}/5 欄（廠商名稱由統編查詢）；${r.qrNote}；請核對`:`OCR 辨識 ${n}/5 欄（${result.rounds} 輪）${r.uncertain?.length?'；⚠ 多輪結果不一致：'+r.uncertain.map(k=>({invoiceDate:'日期',invoiceNo:'號碼',taxId:'統編',vendor:'廠商',amount:'金額'})[k]).join('、'):''}；請逐欄核對原圖`;}
