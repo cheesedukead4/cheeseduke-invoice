@@ -232,7 +232,7 @@ dialog{width:100%;max-width:100%;height:100%;max-height:100%;margin:0;border-rad
 <details id="chartDetails" class="fold"><summary id="chartSummaryLabel">查看科目表</summary><div class="toolbar" style="margin-top:8px"><input id="chartSearch" placeholder="搜尋科目代號或名稱"><select id="chartGroup"><option value="">全部類別</option><option value="bs">資產負債</option><option value="pl">損益</option></select></div>
 <div class="tablewrap" id="chartTable"></div></details></div>
 <div class="panel" id="ledgerDataPanel"><h2>📚 歷史會計科目對照庫（財務／管理員）</h2>
-<p class="muted">上傳過往「費用項目說明＋會計科目」紀錄後，發票的每一筆費用明細會根據歷史案例建議科目。<b>這和上面的「會計科目表」不同</b>：科目表是正確的科目清單，這裡只是過去「說明 → 科目」的案例，用來建議；建議出來的科目代號必須在科目表內才會採用。這也與門市／部門的科目代號編碼不同，不會修改既有組織資料。歷史資料由財務／管理員匯入後存在公司的雲端資料庫，所有申請人共用；不會自動傳送至外部 AI。</p>
+<p class="muted">上傳過往「費用項目說明＋會計科目」紀錄後，發票的每一筆費用明細會根據歷史案例建議科目。<b>這和上面的「會計科目表」不同</b>：科目表是正確的科目清單，這裡只是過去「說明 → 科目」的案例，用來建議；項目說明只要符合（相同，或包含 3 字以上的歷史說明）就會建議對應的科目代號；建議的代號若不在科目表內，會提醒並要求改成表內的科目才能送簽。這也與門市／部門的科目代號編碼不同，不會修改既有組織資料。歷史資料由財務／管理員匯入後存在公司的雲端資料庫，所有申請人共用；不會自動傳送至外部 AI。</p>
 <div class="toolbar" style="align-items:end"><div class="field"><label for="ledgerHistoryFile">選擇歷史科目檔案（CSV／Excel）</label><input type="file" id="ledgerHistoryFile" accept=".csv,.xlsx,.xls,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"></div>
 <div class="field"><label for="ledgerEncoding">CSV 編碼</label><select id="ledgerEncoding"><option value="utf-8">UTF-8</option><option value="big5">Big5（舊版 Excel）</option></select></div>
 <button id="ledgerTemplate" type="button">下載科目匯入範本</button><button class="primary" id="ledgerImport" type="button">匯入歷史科目</button><button id="ledgerExport" type="button">匯出科目對照 CSV</button><button id="ledgerCleanSeeds" type="button" title="先前若把科目表當成歷史科目匯入，可用這個清掉">移除「科目表匯入」的歷史項目</button><button id="ledgerFixSaved" type="button" title="歷史資料裡科目代號與名稱放錯欄（例如名稱欄其實是代號）時，把校正結果永久存回雲端">整理歷史科目（修正代號與名稱）</button></div>
@@ -671,7 +671,7 @@ function ledgerEvidence(input,ctx={}){
  const ranked=[];for(const [idx,overlap] of hit){const r=ledgerHistory[idx];if(!r?._norm||!r.accountCode&&!r.accountName)continue;
   const dice=2*overlap/(toks.length+r._tokens.length),exact=r._norm===text;
   const contains=Math.min(text.length,r._norm.length)>=3&&(text.includes(r._norm)||r._norm.includes(text));
-  const base=exact?1:Math.max(dice,contains?0.79:0);
+  const base=exact?1:Math.max(dice,contains?0.96:0);
   if(base<0.38)continue;
   let score=base*0.82;
   if(ctx.taxId&&r.taxId&&String(ctx.taxId)===r.taxId)score+=0.13;
@@ -686,8 +686,9 @@ function ledgerEvidence(input,ctx={}){
   prev.score=Math.max(prev.score,item.score);prev.total+=item.score*Math.min(Number(item.row.count)||1,20);prev.count+=Math.min(Number(item.row.count)||1,20);prev.samples++;scores.set(k,prev);
  }
  let pool=[...scores.values()];
- // 有科目表時：歷史建議的科目代號必須在科目表內，名稱以科目表為準（歷史資料裡的舊名稱不採用）
- if(accountChart.length){const byCode=new Map();for(const c of pool){const a=accountByCode.get(String(c.code||'').trim());if(!a)continue;c.name=a.name;const o=byCode.get(a.code);if(!o)byCode.set(a.code,c);else{o.score=Math.max(o.score,c.score);o.total+=c.total;o.count+=c.count;o.samples+=c.samples}}pool=[...byCode.values()]}
+ // 有科目表時：歷史建議的代號若在表內，名稱以科目表為準；只有名稱沒有代號就用名稱到科目表找（同名依部門前綴）。
+ // 代號不在科目表內的歷史建議仍然保留（畫面會提醒「不在科目表內」），不再整個丟掉
+ if(accountChart.length){const merged=new Map();for(const c of pool){let code=String(c.code||'').trim(),name=String(c.name||'').trim();const a=accountByCode.get(code);if(a)name=a.name;else if(!code){const hits=chartFindByName(name,deptPrefix);if(hits.length===1){code=hits[0].code;name=hits[0].name}}c.code=code;c.name=name;const k=code||('n:'+name),o=merged.get(k);if(!o)merged.set(k,c);else{o.score=Math.max(o.score,c.score);o.total+=c.total;o.count+=c.count;o.samples+=c.samples}}pool=[...merged.values()]}
  const choices=pool.sort((a,b)=>b.score-a.score||b.total-a.total);if(!choices.length)return chartFallback(text,input,deptPrefix)||{status:'none',label:accountChart.length?'找不到接近的科目，請從科目表選擇':'找不到接近的歷史科目，請手動確認'};
  const best=choices[0],other=choices[1],ambiguous=!!(other&&other.score>best.score-0.075&&other.total>best.total*0.55);
  const confident=best.score>=0.78&&!ambiguous;
