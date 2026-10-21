@@ -6,7 +6,7 @@
  *     總計額 8（十六進位）、買方統編 8、賣方統編 8、加密驗證資訊 24；之後是「:」分隔的營業人自行使用區、
  *     本碼品目筆數、發票總品目筆數、中文編碼（0 Big5／1 UTF-8／2 Base64）、再接「品名:數量:單價」。
  *   右邊：以「**」開頭，接續其餘品項「品名:數量:單價」。
- * 這支程式負責：從圖片或 PDF 找出 QR code（jsQR，需連網載入）→ 解析 → 對帳（品項合計是否等於發票總計）。
+ * 這支程式負責：從圖片或 PDF 找出 QR code（先用 jsQR，沒找齊左右兩個再用 zxing；兩者都從 CDN 載入）→ 解析 → 對帳（品項合計是否等於發票總計）。
  * QR 沒有賣方名稱，網頁會再用賣方統編去查廠商名稱。
  */
 (function (root, factory) {
@@ -16,6 +16,9 @@
 })(typeof window !== 'undefined' ? window : globalThis, function (root) {
   'use strict';
   var JSQR_URL = 'https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js';
+  // 第二道解碼器（zxing-cpp 的 WebAssembly 版）：jsQR 讀不到時才載入，約 1MB。實測手機拍的發票照片，
+  // 左邊那個密度較高的 QR code jsQR 讀不到，zxing 放大 2 倍後讀得到
+  var ZXING_BASE = 'https://cdn.jsdelivr.net/npm/zxing-wasm@3.0.3/dist/';
 
   // ---------- 解析 ----------
   function asBytes(x) {
@@ -129,6 +132,21 @@
     });
     return jsqrPromise;
   }
+  var zxingPromise = null;
+  function ensureZXing() {
+    if (root.ZXingWASM) return Promise.resolve(root.ZXingWASM);
+    if (!zxingPromise) zxingPromise = new Promise(function (resolve, reject) {
+      var s = document.createElement('script'); s.src = ZXING_BASE + 'iife/reader/index.js'; s.async = true;
+      s.onload = function () {
+        if (!root.ZXingWASM) return reject(new Error('QR 解碼模組載入失敗'));
+        root.ZXingWASM.setZXingModuleOverrides({ locateFile: function (path, prefix) { return path.slice(-5) === '.wasm' ? ZXING_BASE + 'reader/' + path : prefix + path; } });
+        resolve(root.ZXingWASM);
+      };
+      s.onerror = function () { zxingPromise = null; s.remove(); reject(new Error('無法載入 QR 解碼模組，請確認網路連線')); };
+      document.head.appendChild(s);
+    });
+    return zxingPromise;
+  }
   function newCanvas(w, h) { var c = document.createElement('canvas'); c.width = Math.max(1, Math.round(w)); c.height = Math.max(1, Math.round(h)); return c; }
   // 找到一個之後，把它在畫面上塗白，再找下一個（發票上有兩個 QR code）
   function mask(d, w, h, loc) {
@@ -153,6 +171,29 @@
     }
     c.width = c.height = 0;
   }
+  // 第二道：zxing。同樣由粗到細，放大一律用整數倍；找齊（左＋右）就停
+  async function scanWithZXing(canvas, found, done) {
+    var Z = await ensureZXing(), W = canvas.width, H = canvas.height, S = Math.max(W, H);
+    // 原始像素（長邊超過 4000 才縮）→ 小圖放大 2 倍 → 大圖切四塊 → 中間橫帶。每一輪先用預設的區域二值化，
+    // 沒找齊再用全域直方圖二值化（實測有些照片只有其中一種讀得到）
+    var base = S > 4000 ? 4000 / S : 1, passes = [[0, 0, W, H, base]];
+    if (S <= 2000) passes.push([0, 0, W, H, 2]);
+    else [[0, 0], [0.4, 0], [0, 0.4], [0.4, 0.4]].forEach(function (o) { passes.push([W * o[0], H * o[1], W * 0.6, H * 0.6, Math.min(1, 3000 / (0.6 * S))]); });
+    passes.push([W * 0.05, H * 0.2, W * 0.9, H * 0.6, S * 0.9 <= 2000 ? 2 : 1]);
+    for (var i = 0; i < passes.length && !done(); i++) {
+      var p = passes[i], c = newCanvas(p[2] * p[4], p[3] * p[4]), ctx = c.getContext('2d', { willReadFrequently: true });
+      ctx.imageSmoothingEnabled = p[4] < 1; ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, c.width, c.height);
+      ctx.drawImage(canvas, p[0], p[1], p[2], p[3], 0, 0, c.width, c.height);
+      var img = ctx.getImageData(0, 0, c.width, c.height);
+      for (var j = 0; j < 2 && !done(); j++) {
+        try {
+          var res = await Z.readBarcodes(img, { formats: ['QRCode'], binarizer: j ? 'GlobalHistogram' : 'LocalAverage', tryHarder: true, tryRotate: true, tryInvert: true, tryDownscale: true, maxNumberOfSymbols: 4 });
+          res.forEach(function (r) { if (r.isValid && r.bytes && r.bytes.length) addUnique(found, Uint8Array.from(r.bytes)); });
+        } catch (e) { /* 這一輪失敗就換下一輪 */ }
+      }
+      c.width = c.height = 0;
+    }
+  }
   function addUnique(list, bytes) { var k = Array.prototype.join.call(bytes, ','); if (!list._seen) list._seen = {}; if (!list._seen[k]) { list._seen[k] = 1; list.push(bytes); } }
 
   // 由粗到細，找齊（左＋右）就提早結束：
@@ -174,6 +215,10 @@
       try { scanRegion(jsQR, canvas, p[0], p[1], p[2], p[3], p[4], p[5], tmp); } catch (e) { /* 這一輪失敗就換下一輪 */ }
       tmp.forEach(function (b) { addUnique(found, b); });
       await new Promise(function (r) { setTimeout(r, 0); }); // 讓畫面有機會更新
+    }
+    // 第二道：zxing（jsQR 沒找齊左右兩個、或品項不完整時才載入）
+    if (!done()) {
+      try { await scanWithZXing(canvas, found, done); } catch (e) { console.warn('zxing 解碼失敗', e); }
     }
     // 備援：瀏覽器內建的 BarcodeDetector（Android Chrome 等）。它只給文字，中文品名若是 Big5 可能亂碼
     if (!parse(found) && root.BarcodeDetector) {
