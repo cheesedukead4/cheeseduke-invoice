@@ -675,12 +675,18 @@ let ledgerHistory=[],ledgerInverted=new Map(),ledgerLabels=[];
 
 const ledgerNorm=v=>String(v??'').normalize('NFKC').toLowerCase().replace(/[\s\p{P}\p{S}]/gu,'');
 function ledgerTokens(text){const x=ledgerNorm(text),set=new Set();for(let k=0;k<x.length-1;k++)set.add(x.slice(k,k+2));for(const m of String(text||'').normalize('NFKC').toLowerCase().matchAll(/[a-z0-9]{2,}/g))set.add(m[0]);return [...set]}
-function rebuildLedgerIndex(){ledgerInverted=new Map();for(let i=0;i<ledgerHistory.length;i++){const row=ledgerHistory[i];{const fx=ledgerFixed(row);if(fx){row.accountCode=fx.accountCode;row.accountName=fx.accountName;row._fixed=true}}row._norm=ledgerNorm(row.description);row._tokens=ledgerTokens(row.description);for(const t of row._tokens){let list=ledgerInverted.get(t);if(!list){list=[];ledgerInverted.set(t,list)}list.push(i)}}ledgerLabels=[...new Set(ledgerHistory.map(r=>(r.accountCode||'')+'｜'+(r.accountName||'')))].sort()}
+// 部門的科目代號前綴（51／61／62／64）：優先用組織資料裡設定的；沒設定就從歷史對照庫推測（該部門的歷史紀錄最常用的代號前兩碼）
+let ledgerDeptPrefixInferred=new Map();
+function ledgerDeptPrefix(dept){const set=String(departmentByName(dept)?.accountCode||'').trim();return set||ledgerDeptPrefixInferred.get(String(dept||''))||''}
+function rebuildLedgerIndex(){ledgerInverted=new Map();for(let i=0;i<ledgerHistory.length;i++){const row=ledgerHistory[i];{const fx=ledgerFixed(row);if(fx){row.accountCode=fx.accountCode;row.accountName=fx.accountName;row._fixed=true}}row._norm=ledgerNorm(row.description);row._tokens=ledgerTokens(row.description);for(const t of row._tokens){let list=ledgerInverted.get(t);if(!list){list=[];ledgerInverted.set(t,list)}list.push(i)}}
+ {const cnt=new Map();for(const r of ledgerHistory){const d=String(r.dept||'').trim(),c=String(r.accountCode||'').trim();if(!d||!/^[56]\d{3,}$/.test(c))continue;const k=c.slice(0,2),m=cnt.get(d)||new Map();m.set(k,(m.get(k)||0)+(Number(r.count)||1));cnt.set(d,m)}
+  ledgerDeptPrefixInferred=new Map([...cnt].map(([d,m])=>[d,[...m.entries()].sort((a,b)=>b[1]-a[1])[0][0]]))}
+ ledgerLabels=[...new Set(ledgerHistory.map(r=>(r.accountCode||'')+'｜'+(r.accountName||'')))].sort()}
 function ledgerEvidence(input,ctx={}){
  if(!ledgerHistory.length&&!accountChart.length)return {status:'empty',label:'尚未匯入歷史科目資料，請由財務建立對照庫'};
  const text=ledgerNorm(input);
  if(text.length<2||text==='發票費用')return {status:'none',label:'請先填具體的費用項目說明，才能建議會計科目'};
- const deptPrefix=String(departmentByName(ctx.dept)?.accountCode||'').trim();
+ const deptPrefix=ledgerDeptPrefix(ctx.dept);
  const toks=ledgerTokens(input),hit=new Map();for(const t of toks){for(const idx of ledgerInverted.get(t)||[])hit.set(idx,(hit.get(idx)||0)+1)}
  const ranked=[];for(const [idx,overlap] of hit){const r=ledgerHistory[idx];if(!r?._norm||!r.accountCode&&!r.accountName)continue;
   const dice=2*overlap/(toks.length+r._tokens.length),exact=r._norm===text;
@@ -690,26 +696,28 @@ function ledgerEvidence(input,ctx={}){
   let score=base*0.82;
   if(ctx.taxId&&r.taxId&&String(ctx.taxId)===r.taxId)score+=0.13;
   else if(ctx.vendor&&r.vendor&&ledgerNorm(ctx.vendor)===ledgerNorm(r.vendor))score+=0.09;
-  if(ctx.dept&&r.dept&&ctx.dept===r.dept)score+=0.04;
+  const deptSame=!!(ctx.dept&&r.dept&&ctx.dept===r.dept);if(deptSame)score+=0.10;
   // 部門的「科目代號」（如 51、61、62、64）是科目表的類別前綴：同名科目（例如運費 5156／6116／6216／6416）優先選該部門類別的
-  if(deptPrefix&&String(r.accountCode||'').startsWith(deptPrefix))score+=0.12;
-  ranked.push({row:r,score:Math.min(1,score),base});
+  const prefixHit=!!(deptPrefix&&String(r.accountCode||'').startsWith(deptPrefix));if(prefixHit)score+=0.12;
+  ranked.push({row:r,score:Math.min(1,score),base,deptHit:deptSame||prefixHit});
  }
  ranked.sort((a,b)=>b.score-a.score);const scores=new Map();for(const item of ranked.slice(0,180)){
   const k=item.row.accountCode+'|'+item.row.accountName,prev=scores.get(k)||{code:item.row.accountCode,name:item.row.accountName,score:0,total:0,count:0,samples:0};
-  prev.score=Math.max(prev.score,item.score);prev.total+=item.score*Math.min(Number(item.row.count)||1,20);prev.count+=Math.min(Number(item.row.count)||1,20);prev.samples++;scores.set(k,prev);
+  prev.score=Math.max(prev.score,item.score);prev.total+=item.score*Math.min(Number(item.row.count)||1,20);prev.count+=Math.min(Number(item.row.count)||1,20);prev.samples++;prev.deptHit=prev.deptHit||item.deptHit;scores.set(k,prev);
  }
  let pool=[...scores.values()];
  // 有科目表時：歷史建議的代號若在表內，名稱以科目表為準；只有名稱沒有代號就用名稱到科目表找（同名依部門前綴）。
  // 代號不在科目表內的歷史建議仍然保留（畫面會提醒「不在科目表內」），不再整個丟掉
- if(accountChart.length){const merged=new Map();for(const c of pool){let code=String(c.code||'').trim(),name=String(c.name||'').trim();const a=accountByCode.get(code);if(a)name=a.name;else if(!code){const hits=chartFindByName(name,deptPrefix);if(hits.length===1){code=hits[0].code;name=hits[0].name}}c.code=code;c.name=name;const k=code||('n:'+name),o=merged.get(k);if(!o)merged.set(k,c);else{o.score=Math.max(o.score,c.score);o.total+=c.total;o.count+=c.count;o.samples+=c.samples}}pool=[...merged.values()]}
+ if(accountChart.length){const merged=new Map();for(const c of pool){let code=String(c.code||'').trim(),name=String(c.name||'').trim();const a=accountByCode.get(code);if(a)name=a.name;else if(!code){const hits=chartFindByName(name,deptPrefix);if(hits.length===1){code=hits[0].code;name=hits[0].name}}c.code=code;c.name=name;const k=code||('n:'+name),o=merged.get(k);if(!o)merged.set(k,c);else{o.score=Math.max(o.score,c.score);o.total+=c.total;o.count+=c.count;o.samples+=c.samples;o.deptHit=o.deptHit||c.deptHit}}pool=[...merged.values()]}
  const choices=pool.sort((a,b)=>b.score-a.score||b.total-a.total);if(!choices.length)return chartFallback(text,input,deptPrefix)||{status:'none',label:accountChart.length?'找不到接近的科目，請從科目表選擇':'找不到接近的歷史科目，請手動確認'};
+ // 搭配申請部門：歷史建議的第一名若不屬於這個部門的類別，而科目表裡有「同名、屬於該部門類別」的唯一科目，就改建議那一個
+ if(accountChart.length&&deptPrefix&&!choices[0].deptHit){const sib=chartFindByName(choices[0].name,'').filter(a=>String(a.code).startsWith(deptPrefix));if(sib.length===1&&String(sib[0].code)!==String(choices[0].code))choices[0]={code:sib[0].code,name:sib[0].name,score:choices[0].score,total:choices[0].total,count:choices[0].count,samples:choices[0].samples,deptHit:true}}
  // 候選清單：歷史對照庫對應過的科目，加上科目表裡和它們同名的其他科目（例如 6415 差旅費 → 6115、6215 差旅費）
- const cands=choices.slice(0,8).map(c=>({code:c.code,name:c.name,score:c.score}));
- if(accountChart.length){const have=new Set(cands.map(c=>String(c.code)));for(const c of choices.slice(0,3))for(const a of chartFindByName(c.name,'')){if(!have.has(String(a.code))&&cands.length<12){have.add(String(a.code));cands.push({code:a.code,name:a.name,score:0})}}}
- const best=choices[0],other=choices[1],ambiguous=!!(other&&other.score>best.score-0.075&&other.total>best.total*0.55);
+ const cands=choices.slice(0,8).map(c=>({code:c.code,name:c.name,score:c.score,dept:!!c.deptHit}));
+ if(accountChart.length){const have=new Set(cands.map(c=>String(c.code)));for(const c of choices.slice(0,3))for(const a of chartFindByName(c.name,'')){if(!have.has(String(a.code))&&cands.length<12){have.add(String(a.code));cands.push({code:a.code,name:a.name,score:0,dept:!!(deptPrefix&&String(a.code).startsWith(deptPrefix))})}}}
+ const best=choices[0],other=choices[1],ambiguous=!!(other&&other.score>best.score-0.075&&other.total>best.total*0.55&&!(best.deptHit&&!other.deptHit));
  const confident=best.score>=0.78&&!ambiguous;
- return {status:confident?'ready':'uncertain',code:best.code,name:best.name,score:best.score,ambiguous,candidates:cands,label:(confident?'歷史紀錄建議：':'⚠ 候選科目（請人工確認）：')+(best.code?best.code+' ':'')+best.name+'｜相似度 '+Math.round(best.score*100)+'%'+(ambiguous?'；多個科目相近':'')};
+ return {status:confident?'ready':'uncertain',code:best.code,name:best.name,score:best.score,ambiguous,candidates:cands,label:(confident?'歷史紀錄建議：':'⚠ 候選科目（請人工確認）：')+(best.code?best.code+' ':'')+best.name+'｜相似度 '+Math.round(best.score*100)+'%'+(ambiguous?'；多個科目相近':'')+(best.deptHit&&ctx.dept?'｜符合部門「'+ctx.dept+'」':'')};
 }
 function updateLedgerForLine(line,ctx={},force=false){if(!line||line.ledgerManual&&!force)return false;const suggestion=ledgerEvidence(line.description,ctx);line.ledgerStatus=suggestion.label;line.ledgerSource=suggestion.status==='ready'?'history_suggested':'needs_review';line.ledgerConfidence=suggestion.score||0;line.ledgerCandidates=suggestion.candidates||[];
  if(suggestion.status==='ready'){line.accountCode=suggestion.code;line.accountName=suggestion.name;return true}
@@ -721,7 +729,7 @@ function ledgerContext(dept='',vendor='',taxId=''){return {dept,vendor,taxId}}
 function ledgerCandsHtml(line){
  const c=line?.ledgerCandidates||[];
  if(!c.length||(c.length===1&&line.ledgerSource==='history_suggested'))return '';
- return '<span class="muted small">可對應的科目（共 '+c.length+' 個，點選套用）：</span>'+c.map(a=>'<button type="button" class="ledger-cand'+(String(line.accountCode||'')===String(a.code)?' on':'')+'" data-cand-code="'+esc(a.code)+'" data-cand-name="'+esc(a.name)+'">'+esc((a.code?a.code+' ':'')+a.name)+'</button>').join('');
+ return '<span class="muted small">可對應的科目（共 '+c.length+' 個，點選套用'+(c.some(a=>a.dept)?'；★＝符合申請部門':'')+'）：</span>'+c.map(a=>'<button type="button" class="ledger-cand'+(String(line.accountCode||'')===String(a.code)?' on':'')+'" data-cand-code="'+esc(a.code)+'" data-cand-name="'+esc(a.name)+'">'+esc((a.dept?'★ ':'')+(a.code?a.code+' ':'')+a.name)+'</button>').join('');
 }
 function applyLedgerCandidate(line,btn,td){
  if(!line||!td)return;
@@ -762,7 +770,7 @@ function chartFindByName(name,deptPrefix=''){const n=ledgerNorm(name);if(!n)retu
 // 歷史科目找不到建議時，改用科目表：說明剛好等於科目名稱 → 直接採用；說明裡包含某個科目名稱 → 列為候選
 function chartFallback(text,input,deptPrefix){
  if(!accountChart.length)return null;
- const toC=list=>list.slice(0,12).map(a=>({code:a.code,name:a.name,score:0}));
+ const toC=list=>list.slice(0,12).map(a=>({code:a.code,name:a.name,score:0,dept:!!(deptPrefix&&String(a.code).startsWith(deptPrefix))}));
  const exact=chartFindByName(input,deptPrefix),allExact=chartFindByName(input,'');
  // 候選：同名的全部科目，部門類別（科目代號前綴）相同的排前面
  const byPrefix=list=>deptPrefix?[...list.filter(a=>String(a.code).startsWith(deptPrefix)),...list.filter(a=>!String(a.code).startsWith(deptPrefix))]:list;
@@ -1574,7 +1582,7 @@ function renderBatch(){
   root.querySelectorAll('[data-balloc]').forEach(node=>{const handler=()=>{const r=batchRows[+node.dataset.balloc],a=r.claim.allocations[+node.dataset.ballocrow];a[node.dataset.ballocKey]=node.dataset.ballocKey==='ratio'?Number(node.value):node.value;r.error='';refreshAllocationRow(+node.dataset.balloc)};node.addEventListener('input',handler);node.addEventListener('change',handler)});
   root.querySelectorAll('[data-balloc-add]').forEach(node=>node.addEventListener('click',()=>{batchRows[+node.dataset.ballocAdd].claim.allocations.push({dept:'',ratio:0});renderBatch()}));
   root.querySelectorAll('[data-balloc-remove]').forEach(node=>node.addEventListener('click',()=>{const a=batchRows[+node.dataset.ballocRemove].claim.allocations;if(a.length<=1)return;a.splice(+node.dataset.ballocIndex,1);if(a.length===1)a[0].ratio=100;renderBatch()}));
-  root.querySelectorAll('[data-bi]').forEach(node=>node.addEventListener('input',()=>{const r=batchRows[Number(node.dataset.bi)];if(node.dataset.bk==='dept'){r.values.applicant='';if(r.claim.allocations.length===1)r.claim.allocations[0].dept=node.value;}r.values[node.dataset.bk]=node.value;if(node.dataset.bk==='amount'&&r.claimAutoAmount&&r.claim?.items?.length===1){r.claim.items[0].amount=moneyValue(node.value);const total=el('bclaim-total-'+node.dataset.bi);if(total)total.textContent='NT$ '+fmt(claimSum(r.claim));}(r.manualFields??=new Set()).add(node.dataset.bk);r.uncertain=(r.uncertain||[]).filter(k=>k!==node.dataset.bk);if(node.dataset.bk==='vendor')r.vendorSource='人工修正・待確認';r.error='';if(['dept','applicant','payment','transferHistory'].includes(node.dataset.bk))renderBatch();if(node.dataset.bk==='amount'){refreshAllocationRow(Number(node.dataset.bi));const w=el('bclaim-warning-'+node.dataset.bi);if(w)w.textContent=Math.abs(claimSum(r.claim)-moneyValue(r.values.amount))>0.01?'⚠ 請款合計與發票總計不一致，請核對。':'';}node.removeAttribute('aria-invalid')}));
+  root.querySelectorAll('[data-bi]').forEach(node=>node.addEventListener('input',()=>{const r=batchRows[Number(node.dataset.bi)];if(node.dataset.bk==='dept'){r.values.applicant='';if(r.claim.allocations.length===1)r.claim.allocations[0].dept=node.value;}r.values[node.dataset.bk]=node.value;if(node.dataset.bk==='dept')r.claim.items.forEach(line=>updateLedgerForLine(line,ledgerContext(r.values.dept,r.values.vendor,r.values.taxId)));if(node.dataset.bk==='amount'&&r.claimAutoAmount&&r.claim?.items?.length===1){r.claim.items[0].amount=moneyValue(node.value);const total=el('bclaim-total-'+node.dataset.bi);if(total)total.textContent='NT$ '+fmt(claimSum(r.claim));}(r.manualFields??=new Set()).add(node.dataset.bk);r.uncertain=(r.uncertain||[]).filter(k=>k!==node.dataset.bk);if(node.dataset.bk==='vendor')r.vendorSource='人工修正・待確認';r.error='';if(['dept','applicant','payment','transferHistory'].includes(node.dataset.bk))renderBatch();if(node.dataset.bk==='amount'){refreshAllocationRow(Number(node.dataset.bi));const w=el('bclaim-warning-'+node.dataset.bi);if(w)w.textContent=Math.abs(claimSum(r.claim)-moneyValue(r.values.amount))>0.01?'⚠ 請款合計與發票總計不一致，請核對。':'';}node.removeAttribute('aria-invalid')}));
  root.querySelectorAll('[data-bpassbook]').forEach(node=>node.addEventListener('change',()=>{const r=batchRows[Number(node.dataset.bpassbook)],f=node.files[0];if(f){try{validatePassbook(f);r.passbookFile=f;r.error=''}catch(e){r.passbookFile=null;r.error=e.message}}renderBatch()}));
  root.querySelectorAll('[data-bpassbook-remove]').forEach(node=>node.addEventListener('click',()=>{batchRows[Number(node.dataset.bpassbookRemove)].passbookFile=null;renderBatch()}));
  root.querySelectorAll('[data-bci]').forEach(node=>node.addEventListener('input',()=>{
