@@ -22,6 +22,7 @@
 .batch-card .batch-sum{font-size:13px;color:#334155;margin-top:2px;overflow-wrap:anywhere}.batch-card:not(.collapsed) .batch-sum{display:none}
 .batch-card.collapsed{padding-top:12px;padding-bottom:12px}.batch-card.collapsed .batch-card-head{margin-bottom:0;padding-bottom:0;border-bottom:0}
 .batch-collapse-bar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:10px 0 0}
+details.fold{border:1px solid #dce3ed;border-radius:8px;padding:8px 12px;margin-top:10px;background:#fbfdff}details.fold>summary{cursor:pointer;font-weight:600;color:var(--blue)}
 .batch-card .actions{margin-top:16px}.batch-card .batch-state{font-size:12px;color:#64748b}
 .batch-card .batch-state.error{color:#b42330;font-weight:600}
 .batch-card .batch-extra{margin-top:12px}.batch-card .wide{grid-column:span 2}
@@ -228,8 +229,8 @@ dialog{width:100%;max-width:100%;height:100%;max-height:100%;margin:0;border-rad
 <div class="field"><label for="chartEncoding">CSV 編碼</label><select id="chartEncoding"><option value="utf-8">UTF-8</option><option value="big5">Big5（舊版 Excel）</option></select></div>
 <button class="primary" id="chartImport" type="button">匯入科目表（以檔案為準）</button><button id="chartExport" type="button">匯出科目表 CSV</button></div>
 <div id="chartStatus" class="note" aria-live="polite">目前尚未載入科目表。</div>
-<div class="toolbar"><input id="chartSearch" placeholder="搜尋科目代號或名稱"><select id="chartGroup"><option value="">全部類別</option><option value="bs">資產負債</option><option value="pl">損益</option></select></div>
-<div class="tablewrap" id="chartTable"></div></div>
+<details id="chartDetails" class="fold"><summary id="chartSummaryLabel">查看科目表</summary><div class="toolbar" style="margin-top:8px"><input id="chartSearch" placeholder="搜尋科目代號或名稱"><select id="chartGroup"><option value="">全部類別</option><option value="bs">資產負債</option><option value="pl">損益</option></select></div>
+<div class="tablewrap" id="chartTable"></div></details></div>
 <div class="panel" id="ledgerDataPanel"><h2>📚 歷史會計科目對照庫（財務／管理員）</h2>
 <p class="muted">上傳過往「費用項目說明＋會計科目」紀錄後，發票的每一筆費用明細會根據歷史案例建議科目。<b>這和上面的「會計科目表」不同</b>：科目表是正確的科目清單，這裡只是過去「說明 → 科目」的案例，用來建議；建議出來的科目代號必須在科目表內才會採用。這也與門市／部門的科目代號編碼不同，不會修改既有組織資料。歷史資料由財務／管理員匯入後存在公司的雲端資料庫，所有申請人共用；不會自動傳送至外部 AI。</p>
 <div class="toolbar" style="align-items:end"><div class="field"><label for="ledgerHistoryFile">選擇歷史科目檔案（CSV／Excel）</label><input type="file" id="ledgerHistoryFile" accept=".csv,.xlsx,.xls,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"></div>
@@ -237,7 +238,7 @@ dialog{width:100%;max-width:100%;height:100%;max-height:100%;margin:0;border-rad
 <button id="ledgerTemplate" type="button">下載科目匯入範本</button><button class="primary" id="ledgerImport" type="button">匯入歷史科目</button><button id="ledgerExport" type="button">匯出科目對照 CSV</button><button id="ledgerCleanSeeds" type="button" title="先前若把科目表當成歷史科目匯入，可用這個清掉">移除「科目表匯入」的歷史項目</button></div>
 <div id="ledgerImportStatus" class="note" aria-live="polite">目前尚未讀取科目名錄。</div>
 <div class="small muted">必要欄位：費用項目說明、會計科目代號（或科目名稱）；可選：廠商名稱、統編、部門。重複記錄只建立一組規則；不會覆寫舊發票或員工／帳號資料。Excel 解析模組需連線載入，若無法載入請另存 CSV。</div>
-<div class="tablewrap" id="ledgerSummary" style="margin-top:10px"></div></div></section>
+<details id="ledgerDetails" class="fold" style="margin-top:10px"><summary id="ledgerSummaryLabel">查看歷史科目統計</summary><div class="tablewrap" id="ledgerSummary" style="margin-top:8px"></div></details></div></section>
 <section id="organization" class="view hide"><div class="panel"><h2>部門／門市編號、主管與員工架構</h2><div class="note">組織資料存在雲端，只有管理員可以修改。第一次使用請由管理員到「資料備份／說明」匯入「組織名冊_種子資料.json」，或在這一頁手動新增部門與員工。主管欄若為「執行長」，表示由執行長兼任，請先填妥上方執行長實際姓名。未提供主管或員工的門市保持空白。簽核順序為員工 → 部門主管 → 執行長 → 財務；若申請人就是部門主管，或部門主管由執行長兼任，直接送執行長，避免重複或自我簽核。</div><div class="note" id="orgRetentionNotice"><b>資料保留模式：</b>使用已建立的部門、門市編號、主管、員工及科目代號。系統升級不會重新匯入內建名冊，也不會覆寫現有組織資料。<span class="muted small" id="orgSeedInfo"></span></div>
  <div class="formgrid"><div class="field"><label for="ceoName">執行長姓名</label><input id="ceoName" placeholder="例如：陳○○"></div><div class="field" style="justify-content:end"><button type="button" class="primary" id="saveCEO">儲存執行長</button></div></div>
  <h3>新增／編輯部門及門市</h3><div class="formgrid"><div class="field"><label for="orgDeptCode">部門／門市編號</label><input id="orgDeptCode" maxlength="20" placeholder="如 002、A01（保留前導零）"></div><div class="field"><label for="orgDeptName">部門／門市名稱</label><input id="orgDeptName" placeholder="例如：永康東橋"></div><div class="field"><label for="orgAccountCode">科目代號編碼</label><input id="orgAccountCode" maxlength="20" placeholder="如 61、64"></div><div class="field"><label for="orgManagerName">主管姓名／職務</label><input id="orgManagerName" placeholder="例如：林○○；兼任可填 執行長"></div></div><div class="actions"><button type="button" class="primary" id="saveOrgDept">新增／更新部門與主管</button></div>
@@ -740,6 +741,7 @@ function renderAccountChart(){
  if(codes)codes.innerHTML=accountChart.map(a=>'<option value="'+esc(a.code)+'" label="'+esc(a.name)+'"></option>').join('');
  if(names)names.innerHTML=[...new Set(accountChart.map(a=>a.name))].map(n=>'<option value="'+esc(n)+'"></option>').join('');
  const status=$('chartStatus');if(!status)return;
+ const lbl=$('chartSummaryLabel');if(lbl)lbl.textContent=accountChart.length?'查看科目表（共 '+accountChart.length+' 個，點此展開／收合）':'查看科目表（尚未匯入）';
  const bs=accountChart.filter(a=>a.group==='bs').length,pl=accountChart.filter(a=>a.group==='pl').length,other=accountChart.length-bs-pl;
  status.textContent=accountChart.length?'科目表：共 '+accountChart.length+' 個科目（資產負債 '+bs+'、損益 '+pl+(other?'、未分類 '+other:'')+'）。請款項目的科目欄只能選表內的科目。':'目前尚未載入科目表。請由財務／管理員匯入；匯入後，請款項目的科目欄就只能選表內的科目。';
  const q=($('chartSearch')?.value||'').trim().toLowerCase(),g=$('chartGroup')?.value||'';
@@ -793,7 +795,7 @@ $('ledgerCleanSeeds').onclick=async()=>{
  try{for(let k=0;k<seeds.length;k+=2000)await InvCloud.call('del',{store:'ledger',keys:seeds.slice(k,k+2000).map(r=>r.id)});await syncStores(['ledger']);await loadLedgerHistory();$('ledgerImportStatus').textContent='已移除 '+seeds.length+' 筆由科目表匯入的歷史項目。'}
  catch(e){$('ledgerImportStatus').textContent='清理失敗：'+e.message}
 };
-function renderLedgerSummary(){if(!$('ledgerImportStatus'))return;$('ledgerImportStatus').textContent='歷史科目資料：'+ledgerHistory.length+' 組獨立對照規則，共 '+ledgerHistory.reduce((n,x)=>n+(Number(x.count)||1),0)+' 筆原始紀錄；以下建議僅供人工核對。';const codes=new Map();for(const r of ledgerHistory){const k=(r.accountCode||'')+'｜'+(r.accountName||'');codes.set(k,(codes.get(k)||0)+(Number(r.count)||1))}const entries=[...codes.entries()].sort((a,b)=>b[1]-a[1]).slice(0,12);$('ledgerSummary').innerHTML=entries.length?'<table><thead><tr><th>歷史科目</th><th>資料筆數</th></tr></thead><tbody>'+entries.map(([name,num])=>`<tr><td>${esc(name)}</td><td>${num}</td></tr>`).join('')+'</tbody></table>':'<p class="muted">尚無科目紀錄。請先下載範本，或等待匯入你提供的歷史分類資料。</p>'}
+function renderLedgerSummary(){if(!$('ledgerImportStatus'))return;const ll=$('ledgerSummaryLabel');if(ll)ll.textContent='查看歷史科目統計（'+ledgerHistory.length+' 組對照規則，點此展開／收合）';$('ledgerImportStatus').textContent='歷史科目資料：'+ledgerHistory.length+' 組獨立對照規則，共 '+ledgerHistory.reduce((n,x)=>n+(Number(x.count)||1),0)+' 筆原始紀錄；以下建議僅供人工核對。';const codes=new Map();for(const r of ledgerHistory){const k=(r.accountCode||'')+'｜'+(r.accountName||'');codes.set(k,(codes.get(k)||0)+(Number(r.count)||1))}const entries=[...codes.entries()].sort((a,b)=>b[1]-a[1]).slice(0,12);$('ledgerSummary').innerHTML=entries.length?'<table><thead><tr><th>歷史科目</th><th>資料筆數</th></tr></thead><tbody>'+entries.map(([name,num])=>`<tr><td>${esc(name)}</td><td>${num}</td></tr>`).join('')+'</tbody></table>':'<p class="muted">尚無科目紀錄。請先下載範本，或等待匯入你提供的歷史分類資料。</p>'}
 $('ledgerTemplate').onclick=()=>{const lines=[['費用項目說明','會計科目代號','會計科目名稱','廠商名稱','廠商統編','申請部門'],['此列為格式示範，匯入前請刪除','','','','','']];download('會計科目歷史資料匯入範本.csv','\ufeff'+lines.map(a=>a.map(x=>'"'+String(x).replace(/"/g,'""')+'"').join(',')).join('\r\n'),'text/csv;charset=utf-8')};
 $('ledgerExport').onclick=()=>{if(!can('finance','admin'))return toast('限財務／管理員匯出');const heads=['費用項目說明','會計科目代號','會計科目名稱','廠商名稱','廠商統編','申請部門','歷史筆數'];const quote=s=>'"'+String(s??'').replace(/^[=+\-@\t\r]/,'\u0027$&').replace(/"/g,'""')+'"';const rows=ledgerHistory.map(r=>[r.description,r.accountCode,r.accountName,r.vendor,r.taxId,r.dept,r.count]);download('歷史科目資料庫_'+claimToday()+'.csv','\ufeff'+[heads,...rows].map(a=>a.map(quote).join(',')).join('\r\n'),'text/csv;charset=utf-8')};
 $('ledgerImport').onclick=async()=>{
