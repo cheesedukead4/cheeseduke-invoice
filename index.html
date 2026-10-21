@@ -48,6 +48,11 @@ details.fold{border:1px solid #dce3ed;border-radius:8px;padding:8px 12px;margin-
 @media(max-width:900px){.cgrid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 .claim-lines{min-width:0!important}.claim-lines th:nth-child(2),.claim-lines th:nth-child(3){min-width:0!important}
 #finReviewBody .claim-lines td:last-child{width:auto!important;text-align:left!important}#finReviewBody .claim-lines th:nth-child(4){min-width:300px!important}
+#suggestBox{position:fixed;z-index:3000;background:#fff;border:1px solid #b9c6d6;border-radius:8px;box-shadow:0 8px 24px #13233d33;overflow:auto;padding:4px;box-sizing:border-box}
+#suggestBox[hidden]{display:none}
+#suggestBox button{display:flex;justify-content:space-between;align-items:center;gap:10px;width:100%;text-align:left;border:0;background:transparent;padding:8px 10px;min-height:0;border-radius:6px;font-size:14px;color:var(--ink);cursor:pointer}
+#suggestBox button.on,#suggestBox button:hover{background:#edf3fc}
+#suggestBox small{color:var(--muted);white-space:nowrap;font-size:12px}
 .item-alloc{margin-top:6px;padding:6px 8px;border:1px dashed #cbd5e1;border-radius:8px;background:#f8fafc}
 .item-alloc .alloc-label{font-size:12px;color:var(--muted);margin-bottom:4px}
 .item-alloc .alloc-chip{padding:2px 10px;min-height:28px;font-size:12px}
@@ -1070,7 +1075,9 @@ $('addClaimItem').onclick=()=>{singleClaimItems.push({description:'',amount:0,ac
  $('claimItemsBody').addEventListener('click',e=>{const b=e.target.closest('[data-ia-chip]');if(!b)return;const line=singleClaimItems[+b.dataset.iaChip];line.allocations=toggleAllocation(line.allocations,b.dataset.alocDept);line.allocManual=true;displaySingleClaimItems()});
  $('claimItemsBody').addEventListener('input',e=>{const x=e.target;if(x.dataset.iaRow===undefined)return;const i=+x.dataset.iaRow,line=singleClaimItems[i];line.allocations[+x.dataset.alocRatio].ratio=Number(x.value);line.allocManual=true;refreshItemAlloc($('claimItemsBody').querySelector(`[data-ia-host="${i}"]`),line)});
 $('amount').addEventListener('input',linkSingleAmount);
-$('description').addEventListener('input',()=>{if(singleClaimItems.length===1&&singleClaimItems[0].description==='發票費用'){singleClaimItems[0].description=$('description').value||'發票費用';const line=$('claimItemsBody').querySelector('[data-ck=description]');if(line)line.value=singleClaimItems[0].description;}});
+// 只有一個請款項目、項目說明還是預設（或還跟著用途）時，項目說明跟著用途一起變；一旦自己改過項目說明就不再連動
+let purposeSynced='發票費用';
+$('description').addEventListener('input',()=>{if(singleClaimItems.length===1&&(singleClaimItems[0].description==='發票費用'||singleClaimItems[0].description===purposeSynced)){purposeSynced=$('description').value||'發票費用';singleClaimItems[0].description=purposeSynced;const line=$('claimItemsBody').querySelector('[data-ck=description]');if(line)line.value=purposeSynced;}});
 
 $('files').addEventListener('change',updateSingleClaimTotal);
 $('payment').addEventListener('change',updateTransferMode);$('transferHistory').addEventListener('change',updateTransferMode);
@@ -1984,4 +1991,89 @@ el('csvDraft').onclick=()=>saveCSV('draft');el('csvSubmit').onclick=()=>saveCSV(
  new MutationObserver(()=>{if(!pending){pending=true;setTimeout(scan,30)}}).observe(document.body,{childList:true,subtree:true});
  scan();
 })();
-</script></body></html>
+</script>
+<script>
+/* 「用途」「支付對象」：輸入第一個字就列出過去填寫過的紀錄供點選（只列這個帳號看得到的發票，員工只有自己的）。單筆、批次、CSV 預覽都適用 */
+(function(){
+ const KINDS=[
+  {key:'purpose',sel:'#description,[data-bk="description"],[data-csv-col="description"]',get:i=>(i.claim&&i.claim.purpose)||i.description||''},
+  {key:'payee',sel:'#payee,[data-bk="payee"],[data-csv-col="payee"]',get:i=>(i.claim&&i.claim.payee)||''}
+ ];
+ const norm=s=>String(s||'').normalize('NFKC').toLowerCase().replace(/\s+/g,'');
+ const escHtml=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+ const cache={sig:'',data:{}};
+ // 過去的紀錄：同樣的文字合併成一筆，記次數與最近一次使用的時間
+ function pool(kind){
+  let list=[];try{list=visibleInvoices(current)}catch(e){list=[]}
+  const sig=list.length+'|'+(list[0]&&list[0].id)+'|'+(list[0]&&list[0].updatedAt);
+  if(cache.sig!==sig){cache.sig=sig;cache.data={}}
+  if(cache.data[kind.key])return cache.data[kind.key];
+  const map=new Map();
+  for(const i of list){
+   const text=String(kind.get(i)||'').trim();if(!text||text.length>120)continue;
+   const k=norm(text),at=String(i.updatedAt||i.createdAt||i.invoiceDate||''),o=map.get(k);
+   if(!o)map.set(k,{text,count:1,at});else{o.count++;if(at>o.at){o.at=at;o.text=text}}
+  }
+  return cache.data[kind.key]=[...map.values()];
+ }
+ // 包含輸入的字就列出（開頭相符的排前面），再依使用次數、最近使用排序；和輸入完全一樣的不列
+ function match(kind,q){
+  const nq=norm(q);if(!nq)return [];
+  const out=[];
+  for(const it of pool(kind)){const n=norm(it.text),p=n.indexOf(nq);if(p<0||n===nq)continue;out.push({it,pre:p===0?0:1})}
+  out.sort((a,b)=>a.pre-b.pre||b.it.count-a.it.count||(a.it.at<b.it.at?1:a.it.at>b.it.at?-1:0));
+  return out.slice(0,8).map(x=>x.it);
+ }
+ let box=null,active=null,kind=null,items=[],idx=-1,picking=false;
+ function ensureBox(){
+  if(box)return box;
+  box=document.createElement('div');box.id='suggestBox';box.setAttribute('role','listbox');box.hidden=true;document.body.appendChild(box);
+  box.addEventListener('pointerdown',e=>{const b=e.target.closest('[data-sug]');if(!b)return;e.preventDefault();pick(+b.dataset.sug)});
+  return box;
+ }
+ function close(){if(box)box.hidden=true;items=[];idx=-1}
+ function render(){
+  ensureBox().innerHTML=items.map((it,k)=>`<button type="button" role="option" class="${k===idx?'on':''}" data-sug="${k}" aria-selected="${k===idx}"><span>${escHtml(it.text)}</span>${it.count>1?`<small>${it.count} 次</small>`:''}</button>`).join('');
+ }
+ function place(){
+  if(!box||box.hidden||!active)return;
+  if(!document.body.contains(active)){close();return}
+  const r=active.getBoundingClientRect();
+  if(!r.width&&!r.height){close();return} // 欄位被隱藏（換了頁面或模式）就不顯示
+  const w=Math.min(Math.max(r.width,240),innerWidth-16);
+  box.style.width=w+'px';box.style.left=Math.max(8,Math.min(r.left,innerWidth-8-w))+'px';
+  const below=innerHeight-r.bottom-10,above=r.top-10;
+  box.style.maxHeight='';
+  const h=Math.min(box.scrollHeight+10,320);
+  if(below>=Math.min(h,160)||below>=above){box.style.top=(r.bottom+2)+'px';box.style.bottom='auto';box.style.maxHeight=Math.max(100,Math.min(320,below))+'px'}
+  else{box.style.bottom=(innerHeight-r.top+2)+'px';box.style.top='auto';box.style.maxHeight=Math.max(100,Math.min(320,above))+'px'}
+ }
+ function update(el,k){
+  const list=match(k,el.value);
+  if(!list.length){close();return}
+  active=el;kind=k;items=list;idx=-1;render();ensureBox().hidden=false;place();
+ }
+ function pick(n){
+  const it=items[n];if(!it||!active)return;
+  const el=active;picking=true;
+  try{el.value=it.text;el.dispatchEvent(new Event('input',{bubbles:true}));el.dispatchEvent(new Event('change',{bubbles:true}))}finally{picking=false}
+  close();el.focus();
+ }
+ const kindOf=el=>{if(!el||!el.matches)return null;for(const k of KINDS)if(el.matches(k.sel))return k;return null};
+ document.addEventListener('focusin',e=>{const k=kindOf(e.target);if(k)e.target.setAttribute('autocomplete','off')});
+ document.addEventListener('input',e=>{if(picking||e.isComposing)return;const k=kindOf(e.target);if(k)update(e.target,k);else if(box&&!box.hidden&&e.target!==active)close()},true);
+ document.addEventListener('compositionend',e=>{const k=kindOf(e.target);if(k)update(e.target,k)},true);
+ document.addEventListener('focusout',e=>{if(e.target===active)setTimeout(close,0)});
+ document.addEventListener('keydown',e=>{
+  if(!box||box.hidden||e.target!==active||e.isComposing)return;
+  if(e.key==='ArrowDown'||e.key==='ArrowUp'){
+   e.preventDefault();idx=e.key==='ArrowDown'?(idx+1)%items.length:(idx<=0?items.length-1:idx-1);render();
+   const on=box.querySelector('button.on');if(on&&on.scrollIntoView)on.scrollIntoView({block:'nearest'});
+  }else if(e.key==='Enter'&&idx>=0){e.preventDefault();pick(idx)}
+  else if(e.key==='Escape'){close()}
+  else if(e.key==='Tab'){close()}
+ },true);
+ window.addEventListener('scroll',place,true);window.addEventListener('resize',place);
+})();
+</script>
+</body></html>
