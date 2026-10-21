@@ -235,7 +235,7 @@ dialog{width:100%;max-width:100%;height:100%;max-height:100%;margin:0;border-rad
 <p class="muted">上傳過往「費用項目說明＋會計科目」紀錄後，發票的每一筆費用明細會根據歷史案例建議科目。<b>這和上面的「會計科目表」不同</b>：科目表是正確的科目清單，這裡只是過去「說明 → 科目」的案例，用來建議；建議出來的科目代號必須在科目表內才會採用。這也與門市／部門的科目代號編碼不同，不會修改既有組織資料。歷史資料由財務／管理員匯入後存在公司的雲端資料庫，所有申請人共用；不會自動傳送至外部 AI。</p>
 <div class="toolbar" style="align-items:end"><div class="field"><label for="ledgerHistoryFile">選擇歷史科目檔案（CSV／Excel）</label><input type="file" id="ledgerHistoryFile" accept=".csv,.xlsx,.xls,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"></div>
 <div class="field"><label for="ledgerEncoding">CSV 編碼</label><select id="ledgerEncoding"><option value="utf-8">UTF-8</option><option value="big5">Big5（舊版 Excel）</option></select></div>
-<button id="ledgerTemplate" type="button">下載科目匯入範本</button><button class="primary" id="ledgerImport" type="button">匯入歷史科目</button><button id="ledgerExport" type="button">匯出科目對照 CSV</button><button id="ledgerCleanSeeds" type="button" title="先前若把科目表當成歷史科目匯入，可用這個清掉">移除「科目表匯入」的歷史項目</button></div>
+<button id="ledgerTemplate" type="button">下載科目匯入範本</button><button class="primary" id="ledgerImport" type="button">匯入歷史科目</button><button id="ledgerExport" type="button">匯出科目對照 CSV</button><button id="ledgerCleanSeeds" type="button" title="先前若把科目表當成歷史科目匯入，可用這個清掉">移除「科目表匯入」的歷史項目</button><button id="ledgerFixSaved" type="button" title="歷史資料裡科目代號與名稱放錯欄（例如名稱欄其實是代號）時，把校正結果永久存回雲端">整理歷史科目（修正代號與名稱）</button></div>
 <div id="ledgerImportStatus" class="note" aria-live="polite">目前尚未讀取科目名錄。</div>
 <div class="small muted">必要欄位：費用項目說明、會計科目代號（或科目名稱）；可選：廠商名稱、統編、部門。重複記錄只建立一組規則；不會覆寫舊發票或員工／帳號資料。Excel 解析模組需連線載入，若無法載入請另存 CSV。</div>
 <details id="ledgerDetails" class="fold" style="margin-top:10px"><summary id="ledgerSummaryLabel">查看歷史科目統計</summary><div class="toolbar" style="margin-top:8px"><input id="ledgerSearch" placeholder="搜尋項目說明、科目代號或科目名稱"></div><div class="tablewrap" id="ledgerSummary" style="margin-top:8px"></div></details></div></section>
@@ -661,7 +661,7 @@ let ledgerHistory=[],ledgerInverted=new Map(),ledgerLabels=[];
 
 const ledgerNorm=v=>String(v??'').normalize('NFKC').toLowerCase().replace(/[\s\p{P}\p{S}]/gu,'');
 function ledgerTokens(text){const x=ledgerNorm(text),set=new Set();for(let k=0;k<x.length-1;k++)set.add(x.slice(k,k+2));for(const m of String(text||'').normalize('NFKC').toLowerCase().matchAll(/[a-z0-9]{2,}/g))set.add(m[0]);return [...set]}
-function rebuildLedgerIndex(){ledgerInverted=new Map();for(let i=0;i<ledgerHistory.length;i++){const row=ledgerHistory[i];row._norm=ledgerNorm(row.description);row._tokens=ledgerTokens(row.description);for(const t of row._tokens){let list=ledgerInverted.get(t);if(!list){list=[];ledgerInverted.set(t,list)}list.push(i)}}ledgerLabels=[...new Set(ledgerHistory.map(r=>(r.accountCode||'')+'｜'+(r.accountName||'')))].sort()}
+function rebuildLedgerIndex(){ledgerInverted=new Map();for(let i=0;i<ledgerHistory.length;i++){const row=ledgerHistory[i];{const fx=ledgerFixed(row);if(fx){row.accountCode=fx.accountCode;row.accountName=fx.accountName;row._fixed=true}}row._norm=ledgerNorm(row.description);row._tokens=ledgerTokens(row.description);for(const t of row._tokens){let list=ledgerInverted.get(t);if(!list){list=[];ledgerInverted.set(t,list)}list.push(i)}}ledgerLabels=[...new Set(ledgerHistory.map(r=>(r.accountCode||'')+'｜'+(r.accountName||'')))].sort()}
 function ledgerEvidence(input,ctx={}){
  if(!ledgerHistory.length&&!accountChart.length)return {status:'empty',label:'尚未匯入歷史科目資料，請由財務建立對照庫'};
  const text=ledgerNorm(input);
@@ -707,12 +707,23 @@ function ledgerRowMarkup(line,i,scope='single',rowIndex=0,disabled=false){
 function parseLedgerCSV(text){const rows=[];let row=[],cell='',quotes=false;text=String(text).replace(/^\ufeff/,'');for(let i=0;i<text.length;i++){const c=text[i];if(quotes){if(c==='"'&&text[i+1]==='"'){cell+='"';i++}else if(c==='"')quotes=false;else cell+=c;}else if(c==='"')quotes=true;else if(c===','){row.push(cell);cell=''}else if(c==='\r'||c==='\n'){if(c==='\r'&&text[i+1]==='\n')i++;row.push(cell);if(row.some(x=>String(x).trim()))rows.push(row);row=[];cell='';}else cell+=c}if(quotes)throw Error('CSV 引號格式錯誤');row.push(cell);if(row.some(x=>String(x).trim()))rows.push(row);return rows}
 function ledgerFieldMap(heads){const norm=s=>ledgerNorm(s);const aliases={description:['費用項目說明','請款項目說明','項目說明','費用說明','品名','用途','摘要','description','item'],accountCode:['會計科目代號','會計科目編號','科目代號','科目編號','accountcode','accountno','glcode'],accountName:['會計科目名稱','會計科目','科目名稱','科目','accountname','glname'],vendor:['廠商名稱','供應商','賣方名稱','vendor'],taxId:['廠商統編','賣方統編','統一編號','taxid'],dept:['申請部門','分攤單位','部門','dept']};const normHeads=heads.map(norm),ix={};for(const [k,keys] of Object.entries(aliases))ix[k]=keys.map(norm).map(x=>normHeads.indexOf(x)).find(x=>x>=0)??-1;return ix}
 function ledgerStableId(r){const payload=[r.description,r.accountCode,r.accountName,r.vendor,r.taxId,r.dept].map(ledgerNorm).join('|');let h=2166136261;for(let i=0;i<payload.length;i++){h^=payload.charCodeAt(i);h=Math.imul(h,16777619)}return 'l'+(h>>>0).toString(16)+'_'+payload.length}
-function ledgerRowFromGrid(row,map){const get=k=>map[k]<0?'':String(row[map[k]]??'').trim();const result={description:get('description').slice(0,250),accountCode:get('accountCode').slice(0,60),accountName:get('accountName').slice(0,120),vendor:get('vendor').slice(0,120),taxId:get('taxId').replace(/\D/g,'').slice(0,8),dept:normalizedDepartment(get('dept')).slice(0,120)};result.id=ledgerStableId(result);result.count=1;return result}
+// 科目代號與名稱放錯欄的校正：代號欄是空的、名稱欄是純數字代號（或「6116 運費」這種合併寫法）→ 拆回代號與名稱；
+// 有代號但名稱空白或等於代號 → 名稱用科目表的。回傳校正後的 {accountCode,accountName}，不需要校正回傳 null
+function ledgerFixed(r){
+ let code=String(r.accountCode||'').trim(),name=String(r.accountName||'').trim();const c0=code,n0=name;
+ if(!code){
+  if(/^\d{3,10}$/.test(name)){code=name;name=''}
+  else{const m=/^(\d{3,10})\s*[-－–—｜|:：／/]?\s*(\S.*)$/.exec(name);if(m){code=m[1];name=m[2].trim()}}
+ }
+ if(code&&(name===''||name===code)){const cn=chartName(code);name=cn||(name===code?'':name)}
+ return code!==c0||name!==n0?{accountCode:code,accountName:name}:null;
+}
+function ledgerRowFromGrid(row,map){const get=k=>map[k]<0?'':String(row[map[k]]??'').trim();const result={description:get('description').slice(0,250),accountCode:get('accountCode').slice(0,60),accountName:get('accountName').slice(0,120),vendor:get('vendor').slice(0,120),taxId:get('taxId').replace(/\D/g,'').slice(0,8),dept:normalizedDepartment(get('dept')).slice(0,120)};const fx=ledgerFixed(result);if(fx){result.accountCode=fx.accountCode;result.accountName=fx.accountName}result.id=ledgerStableId(result);result.count=1;return result}
 async function loadLedgerHistory(){ledgerHistory=await allLedgerHistory();rebuildLedgerIndex();renderLedgerSummary()}
 // ===== 會計科目表：正確的科目代號與名稱，和歷史科目（建議用）分開存放 =====
 let accountChart=[],accountByCode=new Map();
 const allAccounts=()=>idbAll(ASTORE);
-async function loadAccountChart(){accountChart=(await allAccounts()).sort((a,b)=>String(a.code).localeCompare(String(b.code),'zh-Hant',{numeric:true}));accountByCode=new Map(accountChart.map(a=>[String(a.code),a]));renderAccountChart()}
+async function loadAccountChart(){accountChart=(await allAccounts()).sort((a,b)=>String(a.code).localeCompare(String(b.code),'zh-Hant',{numeric:true}));accountByCode=new Map(accountChart.map(a=>[String(a.code),a]));renderAccountChart();if(ledgerHistory.length){rebuildLedgerIndex();renderLedgerSummary()}}
 const chartName=code=>accountByCode.get(String(code||'').trim())?.name||'';
 // 依名稱找科目（同名科目很多，例如運費 5156／6116／6216／6416）；有部門的科目代號前綴時，優先取該類別的
 function chartFindByName(name,deptPrefix=''){const n=ledgerNorm(name);if(!n)return [];let hits=accountChart.filter(a=>ledgerNorm(a.name)===n);if(hits.length>1&&deptPrefix){const p=hits.filter(a=>String(a.code).startsWith(deptPrefix));if(p.length)hits=p}return hits}
@@ -799,6 +810,7 @@ function renderLedgerSummary(){
  if(!$('ledgerImportStatus'))return;
  const ll=$('ledgerSummaryLabel');if(ll)ll.textContent='查看歷史科目統計（'+ledgerHistory.length+' 組對照規則，點此展開／收合）';
  $('ledgerImportStatus').textContent='歷史科目資料：'+ledgerHistory.length+' 組獨立對照規則，共 '+ledgerHistory.reduce((n,x)=>n+(Number(x.count)||1),0)+' 筆原始紀錄；以下建議僅供人工核對。';
+ const nFixed=ledgerHistory.filter(r=>r._fixed).length;if(nFixed)$('ledgerImportStatus').textContent+='　⚠ 有 '+nFixed+' 筆歷史項目的科目代號與名稱放錯欄（例如名稱欄其實是代號），畫面上已自動校正；可按「整理歷史科目」永久修正。';
  // 每條歷史對照規則一列：項目說明 → 科目代號、科目名稱；筆數多的排前面
  const q=($('ledgerSearch')?.value||'').trim().toLowerCase();
  const rows=ledgerHistory.filter(r=>!q||String(r.description||'').toLowerCase().includes(q)||String(r.accountCode||'').toLowerCase().includes(q)||String(r.accountName||'').toLowerCase().includes(q))
@@ -806,6 +818,23 @@ function renderLedgerSummary(){
  $('ledgerSummary').innerHTML=ledgerHistory.length?'<table><thead><tr><th>項目說明</th><th>科目代號</th><th>科目名稱</th><th>資料筆數</th></tr></thead><tbody>'+shown.map(r=>'<tr><td>'+esc(r.description||'')+'</td><td>'+esc(r.accountCode||'')+'</td><td>'+esc(r.accountName||'')+'</td><td>'+(Number(r.count)||1)+'</td></tr>').join('')+'</tbody></table>'+(rows.length>shown.length?'<p class="muted small">只顯示前 '+shown.length+' 筆，共 '+rows.length+' 筆符合；請用上方搜尋縮小範圍。</p>':'')+(rows.length?'':'<p class="muted">沒有符合的紀錄。</p>'):'<p class="muted">尚無科目紀錄。請先下載範本，或等待匯入你提供的歷史分類資料。</p>';
 }
 $('ledgerSearch').addEventListener('input',renderLedgerSummary);
+// 歷史科目裡「科目名稱欄其實是科目代號」的項目：畫面上已自動校正，這個按鈕把校正結果永久存回雲端
+$('ledgerFixSaved').onclick=async()=>{
+ if(!can('finance','admin')||!canPage('finance'))return toast('僅財務及管理員可以整理歷史科目');
+ const fixed=ledgerHistory.filter(r=>r._fixed);
+ if(!fixed.length){$('ledgerImportStatus').textContent='沒有需要整理的歷史項目（科目代號與名稱都在正確的欄位）。';return}
+ if(!confirm('有 '+fixed.length+' 筆歷史項目的科目代號與名稱放錯欄位（例如科目名稱欄其實是代號）。\n\n要把校正後的結果存回雲端嗎？（會刪除這 '+fixed.length+' 筆舊紀錄、改存校正後的紀錄，相同的會合併筆數）'))return;
+ try{
+  const clean=r=>Object.fromEntries(Object.entries(r).filter(([k])=>!k.startsWith('_')));
+  const existing=new Map(ledgerHistory.filter(r=>!r._fixed).map(r=>[r.id,r])),merged=new Map();
+  for(const r of fixed){const n=clean(r);delete n.id;n.id=ledgerStableId(n);const prev=merged.get(n.id)||(existing.get(n.id)?clean(existing.get(n.id)):null);if(prev){prev.count=(Number(prev.count)||1)+(Number(n.count)||1);merged.set(n.id,prev)}else merged.set(n.id,n)}
+  await InvCloud.call('putMany',{store:'ledger',items:[...merged.values()]});
+  const del=fixed.map(r=>r.id).filter(id=>!merged.has(id));
+  for(let k=0;k<del.length;k+=2000)await InvCloud.call('del',{store:'ledger',keys:del.slice(k,k+2000)});
+  await syncStores(['ledger']);await loadLedgerHistory();
+  $('ledgerImportStatus').textContent='已整理 '+fixed.length+' 筆歷史項目，校正後共 '+ledgerHistory.length+' 組對照規則。';
+ }catch(e){$('ledgerImportStatus').textContent='整理失敗：'+e.message}
+};
 $('ledgerTemplate').onclick=()=>{const lines=[['費用項目說明','會計科目代號','會計科目名稱','廠商名稱','廠商統編','申請部門'],['此列為格式示範，匯入前請刪除','','','','','']];download('會計科目歷史資料匯入範本.csv','\ufeff'+lines.map(a=>a.map(x=>'"'+String(x).replace(/"/g,'""')+'"').join(',')).join('\r\n'),'text/csv;charset=utf-8')};
 $('ledgerExport').onclick=()=>{if(!can('finance','admin'))return toast('限財務／管理員匯出');const heads=['費用項目說明','會計科目代號','會計科目名稱','廠商名稱','廠商統編','申請部門','歷史筆數'];const quote=s=>'"'+String(s??'').replace(/^[=+\-@\t\r]/,'\u0027$&').replace(/"/g,'""')+'"';const rows=ledgerHistory.map(r=>[r.description,r.accountCode,r.accountName,r.vendor,r.taxId,r.dept,r.count]);download('歷史科目資料庫_'+claimToday()+'.csv','\ufeff'+[heads,...rows].map(a=>a.map(quote).join(',')).join('\r\n'),'text/csv;charset=utf-8')};
 $('ledgerImport').onclick=async()=>{
