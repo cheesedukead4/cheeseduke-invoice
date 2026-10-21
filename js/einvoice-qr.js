@@ -92,10 +92,15 @@
     var list = (codes || []).map(asBytes), left = null, rights = [];
     list.forEach(function (b) { if (!left && isLeft(b)) left = parseLeft(b); else if (isRight(b)) rights.push(b); });
     if (!left) return rights.length ? { ok: false, reason: 'only-right' } : null;
-    var seen = {}; left.items.forEach(function (it) { seen[it.name + '|' + it.qty + '|' + it.price] = 1; });
+    // 一張發票只有一個右邊 QR。同一個 QR 被讀到兩次（內容一樣）只算一次；若讀到內容不同的多個（兩個解碼器對同一個 QR
+    // 輸出略有差異），只取品項最多的那個，避免重複計入。同一個 QR 內的相同品項（例如兩罐同款飲料各一行）要保留
+    var rightItems = [], seenRight = {};
     rights.forEach(function (b) {
-      parseRight(b, left.enc).forEach(function (it) { var k = it.name + '|' + it.qty + '|' + it.price; if (!seen[k]) { seen[k] = 1; left.items.push(it); } });
+      var key = Array.prototype.join.call(b, ',');
+      if (seenRight[key]) return; seenRight[key] = 1;
+      var its = parseRight(b, left.enc); if (its.length > rightItems.length) rightItems = its;
     });
+    left.items = left.items.concat(rightItems);
     left.ok = true;
     left.hasRight = rights.length > 0;
     left.complete = left.declaredTotal > 0 ? left.items.length >= left.declaredTotal : true;
@@ -104,20 +109,30 @@
 
   // ---------- 對帳：把 QR 的品項變成請款項目 ----------
   function sumOf(items) { return items.reduce(function (s, i) { return s + (isNaN(i.amount) ? 0 : i.amount); }, 0); }
+  // 規則：品項一律逐項變成請款項目（不放進備註）。品項合計和發票總計對不上時：
+  //   品項是未稅金額 → 補一行「營業稅」；合計比總計少 → 補一行差額（品項沒讀完會寫明）；合計比總計多（可能有折扣）→ 不補，
+  //   畫面上原本就有「請款合計與發票總計不同」的提醒。請款金額不接受負數，所以多的部分只能請使用者自行調整
   function claimLines(r) {
     var items = (r.items || []).filter(function (i) { return !isNaN(i.amount) && i.name; });
-    var sum = Math.round(sumOf(items) * 100) / 100, total = r.total, sales = r.sales;
+    var total = r.total, sales = r.sales, sum = Math.round(sumOf(items) * 100) / 100;
     var itemsText = (r.items || []).map(function (i) { return i.name + ' ×' + i.qty + ' @' + i.price; }).join('；');
-    if (items.length && r.complete && Math.abs(sum - total) <= 1) {
-      return { mode: 'items', lines: items.map(function (i) { return { description: i.name, amount: Math.round(i.amount) }; }), itemsText: itemsText, note: '品項明細取自 QR code，合計與發票總計一致' };
-    }
-    if (items.length && r.complete && total > sales && Math.abs(sum - sales) <= 1) {
-      var lines = items.map(function (i) { return { description: i.name, amount: Math.round(i.amount) }; });
-      lines.push({ description: '營業稅', amount: total - Math.round(sum) });
+    if (!items.length) return { mode: 'total', lines: [{ description: '發票費用', amount: total }], itemsText: itemsText, note: 'QR code 沒有品項資料，已用發票總計一筆帶入' };
+    var lines = items.map(function (i) { return { description: i.name, amount: Math.round(i.amount) }; });
+    var lineSum = lines.reduce(function (n, l) { return n + l.amount; }, 0), diff = total - lineSum;
+    if (diff === 0) return { mode: 'items', lines: lines, itemsText: itemsText, note: '品項明細取自 QR code，合計與發票總計一致' };
+    if (r.complete && total > sales && Math.abs(sum - sales) <= 1 && diff > 0) {
+      lines.push({ description: '營業稅', amount: diff });
       return { mode: 'items+tax', lines: lines, itemsText: itemsText, note: '品項為未稅金額，已另加營業稅，合計與發票總計一致' };
     }
-    var why = !items.length ? 'QR code 沒有品項資料' : !r.complete ? '品項不完整（發票共 ' + r.declaredTotal + ' 項，只讀到 ' + r.items.length + ' 項；右邊的 QR code 可能沒拍到）' : '品項合計 ' + sum + ' 與發票總計 ' + total + ' 不一致';
-    return { mode: 'total', lines: [{ description: '發票費用', amount: total }], itemsText: itemsText, note: why + '，已用發票總計一筆帶入，品項寫在備註供參考' };
+    if (diff > 0) {
+      var incomplete = !r.complete, label = incomplete ? '其他品項（QR code 未讀完，請核對）' : diff <= 2 ? '尾差' : '差額（品項合計與發票總計不符，請核對）';
+      lines.push({ description: label, amount: diff });
+      var why = incomplete ? '品項不完整（發票共 ' + r.declaredTotal + ' 項，只讀到 ' + r.items.length + ' 項；右邊的 QR code 可能沒拍到），品項已逐項帶入，差額 ' + diff + ' 元另補一行'
+        : diff <= 2 ? '品項合計 ' + lineSum + ' 與發票總計 ' + total + ' 相差 ' + diff + ' 元（四捨五入尾差），已補一行「尾差」'
+        : '品項合計 ' + lineSum + ' 與發票總計 ' + total + ' 不一致，品項已逐項帶入，差額 ' + diff + ' 元另補一行';
+      return { mode: 'items+gap', lines: lines, itemsText: itemsText, note: why };
+    }
+    return { mode: 'items+over', lines: lines, itemsText: itemsText, note: '品項合計 ' + lineSum + ' 比發票總計 ' + total + ' 多 ' + (-diff) + ' 元（可能有折扣），品項已逐項帶入，請自行調整金額' };
   }
 
   // ---------- 讀取圖片／PDF 中的 QR code ----------
