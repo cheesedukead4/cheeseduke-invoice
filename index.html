@@ -656,6 +656,7 @@ function ledgerEvidence(input,ctx={}){
  if(!ledgerHistory.length)return {status:'empty',label:'尚未匯入歷史科目資料，請由財務建立對照庫'};
  const text=ledgerNorm(input);
  if(text.length<2||text==='發票費用')return {status:'none',label:'請先填具體的費用項目說明，才能建議會計科目'};
+ const deptPrefix=String(departmentByName(ctx.dept)?.accountCode||'').trim();
  const toks=ledgerTokens(input),hit=new Map();for(const t of toks){for(const idx of ledgerInverted.get(t)||[])hit.set(idx,(hit.get(idx)||0)+1)}
  const ranked=[];for(const [idx,overlap] of hit){const r=ledgerHistory[idx];if(!r?._norm||!r.accountCode&&!r.accountName)continue;
   const dice=2*overlap/(toks.length+r._tokens.length),exact=r._norm===text;
@@ -666,6 +667,8 @@ function ledgerEvidence(input,ctx={}){
   if(ctx.taxId&&r.taxId&&String(ctx.taxId)===r.taxId)score+=0.13;
   else if(ctx.vendor&&r.vendor&&ledgerNorm(ctx.vendor)===ledgerNorm(r.vendor))score+=0.09;
   if(ctx.dept&&r.dept&&ctx.dept===r.dept)score+=0.04;
+  // 部門的「科目代號」（如 51、61、62、64）是科目表的類別前綴：同名科目（例如運費 5156／6116／6216／6416）優先選該部門類別的
+  if(deptPrefix&&String(r.accountCode||'').startsWith(deptPrefix))score+=0.12;
   ranked.push({row:r,score:Math.min(1,score),base});
  }
  ranked.sort((a,b)=>b.score-a.score);const scores=new Map();for(const item of ranked.slice(0,180)){
