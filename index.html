@@ -612,7 +612,7 @@ const REGISTRY_APIS=[
 // 財政部營業（稅籍）登記：不需金鑰、回應允許跨網域；開發票的賣方一定有稅籍，名稱和發票上印的一致。查無資料回 404
 const FIA_REGISTRY_API='https://eip.fia.gov.tw/OAI/api/businessRegistration/';
 async function queryFia(tax){
- const controller=new AbortController();const timer=setTimeout(()=>controller.abort(),6500);
+ const controller=new AbortController();const timer=setTimeout(()=>controller.abort(),5000);
  try{const resp=await fetch(FIA_REGISTRY_API+encodeURIComponent(tax),{method:'GET',signal:controller.signal,headers:{Accept:'application/json'},cache:'no-store'});
   if(resp.status===404)return {found:false};
   if(!resp.ok)throw Error('HTTP '+resp.status);
@@ -622,7 +622,7 @@ async function queryFia(tax){
   return {found:false};
  }finally{clearTimeout(timer)}
 }
-const lookupCache=new Map();let registryUnavailableUntil=0;
+const lookupCache=new Map();let registryUnavailableUntil=0,fiaDirectSkipUntil=0;
 function registryRows(obj){if(Array.isArray(obj))return obj;if(!obj||typeof obj!=='object')return [];
  for(const k of ['data','result','results','rows','items','value'])if(Array.isArray(obj[k]))return obj[k];
  return (obj.Company_Name||obj.Business_Name||obj.Branch_Office_Name)?[obj]:[];}
@@ -651,8 +651,10 @@ async function queryRegistry(tax){
  if(proxy){const sep=proxy.includes('?')?'&':'?';const obj=await requestRegistry(proxy+sep+'taxId='+encodeURIComponent(tax));
   const rec=registryRecord(obj,tax,'登記')||(obj?.name&&(!obj.taxId||String(obj.taxId)===tax)?{taxId:tax,name:String(obj.name).trim(),source:String(obj.source||'線上登記資料')}:null);
   if(rec)return rec;return null;}
- // 先問財政部營業登記：有答案（找到或查無）就以它為準；連不上才退回經濟部（瀏覽器直連常被 CORS 擋）
- try{const r=await queryFia(tax);return r.found?r.rec:null}catch(e){/* 連線失敗，改試經濟部 */}
+ // 先問財政部營業登記：有答案（找到或查無）就以它為準。瀏覽器連不上（公司網路、防火牆、廣告攔截、逾時…）就請後端代查；
+ // 瀏覽器直連失敗後 5 分鐘內，直接用後端代查，不再每次等逾時。後端也查不到才退回經濟部（瀏覽器直連常被 CORS 擋）
+ if(Date.now()>=fiaDirectSkipUntil){try{const r=await queryFia(tax);return r.found?r.rec:null}catch(e){fiaDirectSkipUntil=Date.now()+300000}}
+ try{const o=await InvCloud.call('lookupTax',{taxId:tax});return o&&o.found&&o.name?{taxId:tax,name:String(o.name).trim(),source:'財政部營業登記，由後端代查'}:null}catch(e){/* 後端也查不到，改試經濟部 */}
  let lastError=null;
  for(const api of REGISTRY_APIS){
   const filter=encodeURIComponent(api.field+' eq '+tax);
@@ -661,7 +663,7 @@ async function queryRegistry(tax){
   try{obj=await requestRegistry(url)}catch(e){lastError=e;break}
   const record=registryRecord(obj,tax,api.name);if(record)return record;
  }
- if(lastError){registryUnavailableUntil=Date.now()+60000;throw Error('官方查詢服務無法連線／可能需要來源 IP 授權或跨網域代理');}
+ if(lastError){registryUnavailableUntil=Date.now()+20000;throw Error('財政部營業登記查詢暫時連不上（瀏覽器與後端都查不到），請稍後再按「核對」，或手動輸入廠商名稱');}
  return null;
 }
 async function cachedRegistry(tax){
