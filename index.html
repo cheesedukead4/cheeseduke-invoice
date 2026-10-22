@@ -57,6 +57,9 @@ details.fold{border:1px solid #dce3ed;border-radius:8px;padding:8px 12px;margin-
 .chip.vinfo{background:#e3efff;color:#1d4f91;border:1px solid #bcd3f3;margin-left:4px}
 .voucher-toggle{display:flex;gap:8px;align-items:center;padding:7px 10px;margin:0 0 8px;border:1px dashed #e0b66b;background:#fff9ee;border-radius:8px;font-size:13px;cursor:pointer;color:#6b4a10}
 .voucher-toggle input{width:18px;height:18px;flex:0 0 auto}
+#busyBar{position:fixed;left:50%;top:10px;transform:translateX(-50%);z-index:4000;background:#1f2d46;color:#fff;border-radius:999px;padding:7px 16px;font-size:13px;box-shadow:0 6px 18px #13233d55;pointer-events:none}
+#busyBar[hidden]{display:none}
+button.is-busy{opacity:.65;pointer-events:none}
 .item-alloc{margin-top:6px;padding:6px 8px;border:1px dashed #cbd5e1;border-radius:8px;background:#f8fafc}
 .item-alloc .alloc-label{font-size:12px;color:var(--muted);margin-bottom:4px}
 .item-alloc .alloc-chip{padding:2px 10px;min-height:28px;font-size:12px}
@@ -489,13 +492,31 @@ function noteWrite(name,v){const st=syncRead();st.v=st.v||{};if(st.v[name]!=null
 // --- 附件：檔案存在雲端，發票資料裡只放檔案代號 blobId；要看的時候才下載 ---
 const blobRefs=new WeakMap(),blobCache=new Map();
 const blobToB64=blob=>new Promise((resolve,reject)=>{const r=new FileReader();r.onload=()=>resolve(String(r.result).split(',')[1]);r.onerror=()=>reject(r.error);r.readAsDataURL(blob)});
+// 手機拍的發票照片動輒 3～10 MB，上傳前先縮成長邊 2000px 內的 JPEG（原本就很小的、PDF、縮了沒變小的維持原檔）；多個檔案同時上傳
+async function shrinkImage(blob){
+ if(!blob||!/^image\/(jpeg|png|webp)$/.test(blob.type)||blob.size<600*1024)return blob;
+ try{
+  const bmp=await createImageBitmap(blob),scale=Math.min(1,2000/Math.max(bmp.width,bmp.height)),w=Math.max(1,Math.round(bmp.width*scale)),h=Math.max(1,Math.round(bmp.height*scale));
+  const cv=document.createElement('canvas');cv.width=w;cv.height=h;
+  const ctx=cv.getContext('2d');ctx.fillStyle='#fff';ctx.fillRect(0,0,w,h);ctx.drawImage(bmp,0,0,w,h);if(bmp.close)bmp.close();
+  const out=await new Promise(r=>cv.toBlob(r,'image/jpeg',0.82));cv.width=cv.height=0;
+  return out&&out.size<blob.size*0.9?out:blob;
+ }catch(e){return blob}
+}
 async function uploadFile(f){
  if(f&&f.blobId&&!(f.blob instanceof Blob))return {name:f.name,type:f.type,size:f.size,blobId:f.blobId};
  if(!f||!(f.blob instanceof Blob))throw Error('附件「'+((f&&f.name)||'')+'」缺少檔案內容，請重新選擇檔案');
- if(!blobRefs.has(f.blob)){const r=await InvCloud.call('blobPut',{type:f.type||f.blob.type,b64:await blobToB64(f.blob)});blobRefs.set(f.blob,r.id)}
- return {name:f.name,type:f.type||f.blob.type,size:f.size,blobId:blobRefs.get(f.blob)}}
-async function invoiceForCloud(v){const c={...v};c.attachments=[];for(const f of v.attachments||[])c.attachments.push(await uploadFile(f));
- if(v.claim){c.claim={...v.claim};c.claim.passbook=v.claim.passbook?await uploadFile(v.claim.passbook):null}return c}
+ if(!blobRefs.has(f.blob)){
+  const small=await shrinkImage(f.blob),r=await InvCloud.call('blobPut',{type:small.type||f.type||f.blob.type,b64:await blobToB64(small)});
+  blobRefs.set(f.blob,{id:r.id,type:small.type||f.type||f.blob.type,size:small.size});
+ }
+ const ref=blobRefs.get(f.blob);
+ return {name:f.name,type:ref.type,size:ref.size,blobId:ref.id}}
+async function invoiceForCloud(v){
+ const c={...v},[atts,pb]=await Promise.all([Promise.all((v.attachments||[]).map(uploadFile)),v.claim&&v.claim.passbook?uploadFile(v.claim.passbook):Promise.resolve(null)]);
+ c.attachments=atts;
+ if(v.claim){c.claim={...v.claim};c.claim.passbook=pb}
+ return c}
 async function attachmentBlob(f,invoiceId){
  if(f&&f.blob instanceof Blob)return f.blob;
  if(!f||!f.blobId)throw Error('找不到附件檔案');
@@ -1123,15 +1144,17 @@ function resetForm(){$('invoiceForm').reset();$('editId').value='';$('editId').d
  // 清除（含送出簽核後）會把部門清空；一般員工只有自己的部門，直接帶回去，不用每張單重選
  try{const as=allowedDeptNames();if(authUser&&authUser.dept&&as.includes(authUser.dept))$('dept').value=authUser.dept}catch(e){}$('invoiceDate').value=claimToday();$('requestDate').value='';singlePassbookExisting=null;$('passbookFile').value='';singleClaimItems=[{description:'發票費用',amount:0,accountCode:'',accountName:'',allocations:[{dept:$('dept').value||'',ratio:100}]}];singleAmountLinked=true;displaySingleClaimItems();updateTransferMode();syncApplicantHints();syncVoucherMode();ceoResetState();window.lastSingleOCRVendor='';window.lastSingleOCRTax='';$('vendorLookupStatus').textContent='請輸入賣方統編以核對廠商名稱';$('vendorLookupStatus').className='lookup-note'}$('resetForm').onclick=resetForm;resetForm();
 async function readFiles(){const fl=Array.from($('files').files);if(fl.length>5)throw Error('一次最多上傳 5 個附件');const allowed=['image/jpeg','image/png','image/webp','application/pdf'];for(const f of fl){if(!allowed.includes(f.type))throw Error('僅支援 JPG、PNG、WEBP、PDF');if(f.size>10*1024*1024)throw Error('單一附件不得超過 10MB')}return fl.map(f=>({name:f.name,type:f.type,size:f.size,blob:f}))}
-async function saveInvoice(status){if(!canPage('entry'))return toast('沒有發票登錄權限');if(status==='pending'&&!$('invoiceForm').reportValidity())return;try{if(!canSubmitAs($('dept').value,$('applicant').value))throw Error('只能以本人姓名與所屬部門提出申請');const id=$('editId').value;const old=id?await get(id):null;if(old&&!canReadInvoice(old))throw Error('無法編輯其他人的發票');if(old&&!['draft','rejected'].includes(old.status))throw Error('此筆發票目前無法編輯');const attachments=[...(old?.attachments||[]),...(await readFiles())];if(attachments.length>5)throw Error('單筆發票最多保留 5 個附件');const claim=collectSingleClaim(attachments);claim.passbook=await getSinglePassbook();claim.requestDate=status==='pending'?claimToday():'';const issues=claimIssues(claim,Number($('amount').value),status==='pending');if(issues.length){if(issues.some(m=>/分攤/.test(m)))document.querySelector('#claimItemsBody .allocation-feedback.invalid')?.scrollIntoView({block:'center'});throw Error(issues.join('；'))}const missing=claim.voucherMissing;let invNo=$('invoiceNo').value.trim(),vendorName=$('vendor').value.trim();
+async function saveInvoiceCore(status){if(!canPage('entry'))return toast('沒有發票登錄權限');if(status==='pending'&&!$('invoiceForm').reportValidity())return;try{if(!canSubmitAs($('dept').value,$('applicant').value))throw Error('只能以本人姓名與所屬部門提出申請');const id=$('editId').value;const old=id?await get(id):null;if(old&&!canReadInvoice(old))throw Error('無法編輯其他人的發票');if(old&&!['draft','rejected'].includes(old.status))throw Error('此筆發票目前無法編輯');const attachments=[...(old?.attachments||[]),...(await readFiles())];if(attachments.length>5)throw Error('單筆發票最多保留 5 個附件');const claim=collectSingleClaim(attachments);claim.passbook=await getSinglePassbook();claim.requestDate=status==='pending'?claimToday():'';const issues=claimIssues(claim,Number($('amount').value),status==='pending');if(issues.length){if(issues.some(m=>/分攤/.test(m)))document.querySelector('#claimItemsBody .allocation-feedback.invalid')?.scrollIntoView({block:'center'});throw Error(issues.join('；'))}const missing=claim.voucherMissing;let invNo=$('invoiceNo').value.trim(),vendorName=$('vendor').value.trim();
  if(missing>0){if(!invNo)invNo='待補-'+claimToday().replace(/-/g,'')+'-'+Math.random().toString(36).slice(2,6).toUpperCase();if(!vendorName)vendorName=claim.payee||'（待補憑證）'}else if(/^待補-/.test(invNo))throw Error('請填入真正的發票號碼，或勾選「目前還沒有發票／憑證」');
  const voucherObj=missing>0?{state:'pending',placeholder:/^待補-/.test(invNo)}:(old?.voucher&&old.voucher.state!=='pending'?old.voucher:null);
  let item={id:old?.id||uid(),invoiceDate:$('invoiceDate').value,invoiceNo:invNo,vendor:vendorName,taxId:$('taxId').value.trim(),vendorSource:$('vendorLookupStatus').textContent,dept:$('dept').value,applicant:$('applicant').value.trim(),category:old?.category||'其他費用',amount:Number($('amount').value),payment:claim.paymentMethod,description:claim.purpose,memo:$('memo').value.trim(),claim,attachments,status,history:old?.history||[],createdAt:old?.createdAt||now(),updatedAt:new Date().toISOString(),...(voucherObj?{voucher:voucherObj}:{})};if(status==='pending'&&(!item.invoiceNo||!item.vendor||!(item.amount>0)||!item.dept||!item.applicant))throw Error('請填完整發票基本資料');prepareRouting(item);audit(item,status==='draft'?'儲存草稿':routingAction(item));await put(item);resetForm();if(window.clearRecognitionPanel)window.clearRecognitionPanel();await refresh();if(canPage('list'))tab('list');toast(status==='draft'?'草稿儲存成功':item.skipManagerApproval?'已送交執行長簽核':'已送交部門主管簽核')}catch(e){toast(e.message)}}$('invoiceForm').onsubmit=e=>{e.preventDefault();saveInvoice('pending')};$('saveDraft').onclick=()=>saveInvoice('draft');
 async function editItem(id){let i=await get(id);if(!canPage('entry')||!canReadInvoice(i)||!['draft','rejected'].includes(i.status))return toast('此筆無法編輯');for(const k of ['invoiceDate','invoiceNo','vendor','taxId','dept','amount','memo'])$(k).value=i[k]??'';$('editId').value=id;$('editId').dataset.existingFiles=String((i.attachments||[]).length);loadSingleClaim(i.claim,i);syncApplicantHints();$('applicant').value=i.applicant||'';syncApplicantSubmitLabel();updateWhoChip();$('entryTitle').textContent='編輯發票與請款單：'+i.invoiceNo;$('files').value='';tab(canPage('entry')?'entry':'ceoentry');setEntryMode('single')}
 async function deleteDraft(id){const i=await get(id);if(!i||i.status!=='draft')return toast('只能刪除草稿；這張已不是草稿或已不存在');
  if(!confirm('確定要刪除這張草稿嗎？\n\n發票號碼：'+(i.invoiceNo||'（未填）')+'\n廠商：'+(i.vendor||'（未填）')+'\n金額：NT$ '+fmt(i.amount)+'\n\n刪除後無法復原。'))return;
- try{await del(id);if($('editId').value===id)resetForm();await refresh();toast('草稿已刪除')}catch(e){toast(e.message)}}
-async function act(id,action){let i=await get(id);if(!i||!canReadInvoice(i))return toast('沒有這筆發票的操作權限');if(['approve','reject'].includes(action)&&!canPage('approval'))return toast('沒有主管簽核權限');if(['execApprove','execReject'].includes(action)&&!canPage('executive'))return toast('沒有執行長簽核權限');if(['review','paid','finReject','voucherConfirm','voucherReturn'].includes(action)&&!canPage('finance'))return toast('沒有財務操作權限');let reason='';
+ try{await idbDel(STORE,id);if($('editId').value===id)resetForm();await refresh();toast('草稿已刪除');
+  try{await del(id)}catch(e){await idbPut(STORE,i);await refresh();syncStores(['invoices']).then(refresh).catch(()=>{});toast('刪除失敗，已還原：'+e.message)}
+ }catch(e){toast(e.message)}}
+async function act(id,action){let i=await get(id);const prev=i?JSON.parse(JSON.stringify(i)):null;if(!i||!canReadInvoice(i))return toast('沒有這筆發票的操作權限');if(['approve','reject'].includes(action)&&!canPage('approval'))return toast('沒有主管簽核權限');if(['execApprove','execReject'].includes(action)&&!canPage('executive'))return toast('沒有執行長簽核權限');if(['review','paid','finReject','voucherConfirm','voucherReturn'].includes(action)&&!canPage('finance'))return toast('沒有財務操作權限');let reason='';
  if(action==='approve'){if(i.status!=='pending'||!actorMatches(i.managerName||managerFor(i.dept),'manager'))return toast('必須由此部門的主管簽核');i.status='executive_pending';audit(i,'主管核准 → 送執行長')}
  else if(action==='reject'){if(i.status!=='pending'||!actorMatches(i.managerName||managerFor(i.dept),'manager'))return toast('必須由此部門的主管退回');reason=prompt('請填寫主管退回原因：');if(reason===null)return;if(!reason.trim())return toast('退回原因不可空白');i.status='rejected';audit(i,'主管退回',reason)}
  else if(action==='execApprove'){if(i.status!=='executive_pending'||!actorMatches(i.executiveName||orgCEO,'executive'))return toast('必須由執行長核准');i.status='approved';audit(i,'執行長核准 → 送財務')}
@@ -1142,7 +1165,11 @@ async function act(id,action){let i=await get(id);if(!i||!canReadInvoice(i))retu
  else if(action==='voucherConfirm'){if(!can('finance','admin')||voucherState(i)!=='submitted')return toast('權限或狀態不符');const cs=claimSum(normalizeClaim(i.claim,i));if(!confirm('確認已核對憑證與請款內容？\n\n發票號碼：'+i.invoiceNo+'\n廠商：'+i.vendor+'\n發票金額：NT$ '+fmt(i.amount)+'\n請款合計：NT$ '+fmt(cs)+(Math.abs(Number(i.amount)-cs)>0.01?'\n\n⚠ 發票金額與請款合計不同，請確認。':'')))return;i.voucher={...(i.voucher||{}),state:'confirmed',confirmedBy:authUser?.name||'',confirmedAt:new Date().toISOString()};audit(i,'財務確認憑證')}
  else if(action==='voucherReturn'){if(!can('finance','admin')||voucherState(i)!=='submitted')return toast('權限或狀態不符');reason=prompt('請填寫退回補件原因（申請人會看到，需要重新補憑證）：');if(reason===null)return;if(!reason.trim())return toast('退回原因不可空白');i.voucher={...(i.voucher||{}),state:'pending'};i.claim={...(i.claim||{}),voucherMissing:Math.max(1,Number(i.claim?.voucherMissing)||0)};audit(i,'財務退回補件',reason)}
  else return;
- i.updatedAt=new Date().toISOString();await put(i);await refresh()}
+ i.updatedAt=new Date().toISOString();
+ // 先在畫面上更新（馬上看到結果），再送到雲端；雲端拒絕或連不上就還原畫面、再從雲端重新同步，並說明原因
+ await idbPut(STORE,i);await refresh();
+ try{await put(i)}catch(e){await idbPut(STORE,prev);await refresh();syncStores(['invoices']).then(refresh).catch(()=>{});throw e}
+ await refresh()}
 // 會計科目在財務覆核時才判斷：依項目說明、申請部門、廠商自動建議，財務可以直接修改或點候選科目，確認後才覆核通過
 let finReview=null;
 function openFinanceReview(i){
@@ -1477,6 +1504,26 @@ $('ceoHistTable').addEventListener('click',async e=>{
  if(!confirm('刪除這筆歷史歸類資料？'))return;
  try{await InvCloud.call('del',{store:'ceohistory',key:b.dataset.chDel});await loadCeoHist(true)}catch(err){toast(err.message)}
 });
+// 雲端處理中的提示：任何一個寫入雲端的動作（送簽、核准、儲存…）超過 0.3 秒還沒回來，畫面上方就顯示「處理中」，不會讓人以為按鍵沒反應
+(function(){
+ const bar=document.createElement('div');bar.id='busyBar';bar.hidden=true;bar.setAttribute('role','status');document.body.appendChild(bar);
+ let n=0,timer=null;
+ const show=()=>{bar.textContent='⏳ 雲端處理中…'+(n>1?'（'+n+' 件）':'');bar.hidden=false};
+ const orig=InvCloud.call;
+ InvCloud.call=function(){
+  n++;if(!timer&&bar.hidden)timer=setTimeout(()=>{timer=null;if(n>0)show()},300);else if(!bar.hidden)show();
+  return Promise.resolve(orig.apply(InvCloud,arguments)).finally(()=>{n--;if(n<=0){n=0;clearTimeout(timer);timer=null;bar.hidden=true}else if(!bar.hidden)show()});
+ };
+})();
+// 送出發票（單筆）：處理中不能重複按，按鈕顯示「送出中…」
+let savingInvoice=false;
+async function saveInvoice(status){
+ if(savingInvoice)return;savingInvoice=true;
+ const btns=[$('submitInvoice'),$('saveDraft')],labels=btns.map(b=>b.textContent);
+ btns.forEach(b=>b.classList.add('is-busy'));(status==='draft'?$('saveDraft'):$('submitInvoice')).textContent='送出中…';
+ try{await saveInvoiceCore(status)}
+ finally{savingInvoice=false;btns.forEach((b,i)=>{b.classList.remove('is-busy');b.textContent=labels[i]});if(typeof syncApplicantSubmitLabel==='function')syncApplicantSubmitLabel()}
+}
 function blobURL(data){if(data instanceof Blob)return URL.createObjectURL(data);return null}async function detail(id){let i=await get(id);if(!canPage('list')&&!canPage('approval')&&!canPage('executive')&&!canPage('finance')&&!canPage('dashboard'))return;if(!canReadInvoice(i))return toast('沒有權限查看這張發票');detailURLs.forEach(URL.revokeObjectURL);detailURLs=[];if(!$('detailDialog').open){$('detailBody').innerHTML='<p class="muted">載入附件中…</p>';$('detailDialog').showModal()}
 let passbookURL=null;try{const pb=i.claim?.passbook;if(pb&&(pb.blob||pb.blobId)&&(can('finance','admin')||(authUser?.name===i.applicant&&(authUser?.dept===i.dept||isCeoUser())))){passbookURL=blobURL(await attachmentBlob(pb,i.id));if(passbookURL)detailURLs.push(passbookURL)}}catch(_){}
 let files=(await Promise.all((i.attachments||[]).map(async(f,j)=>{let u=null;try{u=blobURL(await attachmentBlob(f,i.id))}catch(_){}if(u)detailURLs.push(u);return u?`<div><a target="_blank" rel="noopener" href="${u}" download="${esc(f.name)}">附件 ${j+1}：${esc(f.name)}</a> (${(f.size/1024).toFixed(0)} KB)${f.type.startsWith('image/')?`<div><img class="receipt" alt="發票附件" src="${u}"></div>`:''}</div>`:`<div>${esc(f.name)}（無法預覽）</div>`}))).join('');$('detailBody').innerHTML=`<div class="formgrid"><div><b>發票號碼</b><div>${esc(i.invoiceNo)}</div></div><div><b>日期</b><div>${esc(i.invoiceDate)}</div></div><div><b>狀態</b><div>${badge(i.status)}</div></div><div><b>廠商</b><div>${esc(i.vendor)}</div></div><div><b>統編</b><div>${esc(i.taxId)}</div></div><div><b>金額</b><div>NT$ ${fmt(i.amount)}</div></div><div><b>部門／申請人</b><div>${esc(departmentLabel(i.dept))}／${esc(i.applicant)}</div></div><div><b>科目代號編碼</b><div>${esc(i.accountCode||departmentByName(i.dept)?.accountCode||'未設定')}</div></div><div><b>指定主管</b><div>${esc(i.skipManagerApproval?(i.ceoApplicant?'執行長本人（免主管簽核）':i.managerApplicant?'申請人本人（免主管簽核）':'執行長兼任（免主管簽核）'):(i.managerName||managerFor(i.dept)||'未設定'))}</div></div><div><b>執行長</b><div>${esc(i.executiveName||orgCEO||'未設定')}</div></div><div><b>付款方式</b><div>${esc(i.payment)}</div></div></div><h3>用途說明</h3><p>${esc(i.description)}</p><h3>備註</h3><p>${esc(i.memo)}</p><h3>一般請款單</h3><div class="formgrid"><div><b>申請日期</b><div>${esc(normalizeClaim(i.claim,i).requestDate)}</div></div><div><b>預定付款日</b><div>${esc(normalizeClaim(i.claim,i).dueDate||'未填')}</div></div><div><b>支付對象</b><div>${esc(normalizeClaim(i.claim,i).payee)}</div></div><div><b>付款方式</b><div>${esc(normalizeClaim(i.claim,i).paymentMethod)}</div></div><div><b>請款合計</b><div>NT$ ${fmt(claimSum(normalizeClaim(i.claim,i)))}</div></div><div><b>匯費</b><div>${esc(normalizeClaim(i.claim,i).feeDeduction)}</div></div></div><h3>請款項目</h3>${normalizeClaim(i.claim,i).items.map((x,j)=>`<div>${j+1}. ${esc(x.description)}　${x.accountCode||x.accountName?'｜會計科目：'+esc((x.accountCode||'')+' '+(x.accountName||'')):'｜科目由財務覆核時確認'}　NT$ ${fmt(x.amount)}${(x.allocations||[]).length?'<div class="muted small" style="margin-left:1.4em">分攤：'+x.allocations.map(a=>esc(departmentLabel(a.dept))+' '+esc(a.ratio)+'%').join('、')+'</div>':''}</div>`).join('')}<h3>費用分攤合計</h3>${calcAllocationAmounts(claimSum(normalizeClaim(i.claim,i)),normalizeClaim(i.claim,i).allocations).map(a=>`<div>${esc(departmentLabel(a.dept))}：${esc(a.ratio)}% ／ NT$ ${fmt(a.amount)}</div>`).join('')}<h3>憑證狀態</h3><div>${voucherText(i)}</div><h3>發票附件</h3><div class="filelist">${files||'無附件'}</div>${(can('finance','admin')||(authUser?.name===i.applicant&&(authUser?.dept===i.dept||isCeoUser())))?`<h3>匯款附件（限財務／申請人）</h3>${(()=>{const p=i.claim?.passbook;if(!(p?.blob||p?.blobId))return '<p class="muted">未提供存摺影本</p>';const u=passbookURL;return u?`<a href="${u}" target="_blank" rel="noopener" download="${esc(p.name)}">📎 查看／下載存摺影本：${esc(p.name)}</a>`:'檔案無法預覽';})()}`:''}<h3>操作歷程</h3>${(i.history||[]).map(h=>`<div class="audit"><b>${esc(h.action)}</b> ・ ${esc(h.actor)} ・ ${esc(h.at)}${h.reason?`<div>原因：${esc(h.reason)}</div>`:''}</div>`).join('')}`;if(!$('detailDialog').open)$('detailDialog').showModal()}
