@@ -262,7 +262,12 @@ dialog{width:100%;max-width:100%;height:100%;max-height:100%;margin:0;border-rad
 <div class="hide"><select id="batchDept"><option value=""></option></select><input id="batchApplicant"><select id="batchCategory"><option value=""></option></select><input id="batchDescription"></div>
 <div id="batchProgress" class="note" aria-live="polite">選好多張發票照片後會自動開始辨識，不用再按按鈕。電子發票會優先讀取 QR code；沒有 QR code 的才用文字辨識（首次需要下載辨識模型）。</div>
 <div class="batch-table" id="batchTable"></div><div class="actions"><button id="batchDraft" type="button">儲存勾選項目為草稿</button><button id="batchSubmit" class="primary" type="button">勾選項目送出簽核</button></div>
-<p class="muted small">批次操作會保存每筆發票原始檔作為附件。每張表單均可獨立儲存或送簽；未完成欄位的項目需修正後才能匯入；會檢查與既有紀錄及本次批次重複的發票號碼（搭配統編）。資料可見範圍與簽核權限由雲端後端檢查。</p></div></div></section>
+<p class="muted small">批次操作會保存每筆發票原始檔作為附件。每張表單均可獨立儲存或送簽；未完成欄位的項目需修正後才能匯入；會檢查與既有紀錄及本次批次重複的發票號碼（搭配統編）。資料可見範圍與簽核權限由雲端後端檢查。</p></div></div><div class="panel hide" id="ceoHistPanel"><h2>📚 歷史歸類資料庫（過去申請 → 費用部門）</h2>
+<p class="muted">這裡放執行長<b>過去申請過的紀錄</b>：統編、廠商、支付對象、用途，以及當時費用歸屬的部門（可以跨部門分攤）。上傳發票時，系統會拿這個資料庫，加上你在系統裡已送出簽核的單據，自動判斷這筆費用歸哪個部門。<b>這裡的資料只用來建議部門，不會產生任何單據，也不會進簽核流程。</b>只有執行長本人與管理員看得到。</p>
+<div class="toolbar"><div class="field" style="min-width:260px"><label for="ceoHistFile">匯入檔案（Excel 或 CSV）</label><input id="ceoHistFile" type="file" accept=".csv,.xlsx,.xls,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"></div><button id="ceoHistImport" class="primary" type="button">匯入</button><button id="ceoHistTemplate" type="button">下載範本</button><button id="ceoHistExport" type="button">匯出目前資料</button><button id="ceoHistClear" class="danger" type="button">清除全部</button></div>
+<div id="ceoHistStatus" class="note" aria-live="polite">載入中…</div>
+<details class="fold" id="ceoHistDetails"><summary>查看資料（<span id="ceoHistCount">0</span> 筆）</summary><div class="toolbar" style="margin-top:8px"><input id="ceoHistSearch" placeholder="搜尋統編、廠商、支付對象、用途、部門"></div><div class="tablewrap" id="ceoHistTable"></div></details></div>
+</section>
 <section id="list" class="view hide"><div class="panel"><h2>所有發票紀錄</h2><div id="voucherBanner" class="note hide" aria-live="polite"></div><div class="toolbar"><input id="listSearch" placeholder="搜尋號碼、廠商、申請人"><select id="listStatus"><option value="">全部狀態</option><option value="draft">草稿</option><option value="pending">待主管簽核</option><option value="executive_pending">待執行長簽核</option><option value="approved">待財務覆核</option><option value="finance_ok">已覆核／待付款</option><option value="rejected">退回</option><option value="paid">已付款</option><option value="v:pending">待補憑證</option><option value="v:submitted">憑證待財務確認</option></select><input type="month" id="listMonth"><button id="clearList">清除條件</button></div><div class="tablewrap" id="invoiceTable"></div></div></section>
 <section id="approval" class="view hide"><div class="panel"><h2>主管簽核工作台</h2><p class="muted">只有登入帳號的姓名與此張發票指定主管相符，才可核准或退回；管理員可測試所有流程。</p><div class="tablewrap" id="approvalTable"></div></div></section>
 <section id="executive" class="view hide"><div class="panel"><h2>執行長簽核工作台</h2><p class="muted">主管核准後，或申請部門由執行長直接管理時，會出現在這裡。需要以執行長帳號登入才能處理，姓名需與組織架構設定一致。</p><div class="tablewrap" id="executiveTable"></div></div></section>
@@ -1254,29 +1259,35 @@ function applyEntryMode(mode){
  $('entryHomeDesc').textContent=ceo?(authUser&&authUser.role==='admin'?'管理員代執行長上傳：申請人預設是執行長（組織設定的執行長），略過主管關卡；':'執行長的發票請在這裡上傳。申請人固定是執行長；')+'費用屬於哪個部門，系統會依你過去申請過的紀錄（統編、廠商、支付對象、用途）自動歸類，找不到紀錄再自己選。':'單張或多張發票共用同一個上傳入口；也可以匯入 CSV 清單。';
  if(!$('editId').value)$('entryTitle').textContent=entryBaseTitle();
  $('ceoDeptHint').classList.toggle('hide',!ceo);
+ $('ceoHistPanel').classList.toggle('hide',!(ceo&&canCeoHistPanel()));
+ if(ceo)loadCeoHist(false);
  ceoState.sig='';
 }
 function ceoResetState(){ceoState.deptTouched=false;ceoState.autoApplied=false;ceoState.sig='';const h=$('ceoDeptHint');if(h){h.textContent='';h.className='lookup-note'+(entryMode==='ceo'?'':' hide')}}
 // 用執行長過去申請過的發票（已送出簽核以後的）判斷這筆費用歸哪個部門：統編相同、廠商相同、支付對象相同、用途相同或相近，各有不同的分數；
 // 同樣的分攤方式（部門與比例）分數加總，最高的勝出，分數至少 2 才算有把握
 function ceoSuggestDept(ctx){
- const ceo=orgCEO;if(!ceo)return null;
  const nz=s=>String(s||'').normalize('NFKC').toLowerCase().replace(/\s+/g,'');
  const tax=String(ctx.taxId||'').trim(),vendor=nz(ctx.vendor),payee=nz(ctx.payee),purpose=nz(ctx.purpose);
  if(!tax&&!vendor&&!payee&&!purpose)return null;
+ // 比對的資料：執行長已送出簽核的單據，加上匯入的歷史歸類資料庫
+ const recs=[];
+ if(orgCEO)for(const i of current){
+  if(i.applicant!==orgCEO||i.id===ctx.excludeId||!['pending','executive_pending','approved','finance_ok','paid'].includes(i.status))continue;
+  const c=normalizeClaim(i.claim,i),pat=(c.allocations||[]).filter(a=>a.dept).map(a=>({dept:a.dept,ratio:a.ratio}));
+  recs.push({tax:String(i.taxId||'').trim(),vendor:nz(i.vendor),payee:nz(c.payee),purpose:nz(c.purpose),pattern:pat.length?pat:[{dept:i.dept,ratio:100}]});
+ }
+ for(const h of ceoHist)recs.push({tax:String(h.taxId||'').trim(),vendor:nz(h.vendor),payee:nz(h.payee),purpose:nz(h.purpose),pattern:(h.allocations||[]).map(a=>({dept:a.dept,ratio:a.ratio}))});
  const buckets=new Map();
- for(const i of current){
-  if(i.applicant!==ceo||i.id===ctx.excludeId||!['pending','executive_pending','approved','finance_ok','paid'].includes(i.status))continue;
-  const c=normalizeClaim(i.claim,i),reasons=[];let score=0;
-  if(tax&&String(i.taxId||'').trim()===tax){score+=3;reasons.push('統編相同')}
-  if(vendor&&nz(i.vendor)===vendor){score+=2;reasons.push('廠商相同')}
-  if(payee&&nz(c.payee)===payee){score+=1.5;reasons.push('支付對象相同')}
-  const p=nz(c.purpose);
-  if(purpose&&p){if(p===purpose){score+=2;reasons.push('用途相同')}else if(Math.min(p.length,purpose.length)>=3&&(p.includes(purpose)||purpose.includes(p))){score+=1.2;reasons.push('用途相近')}}
-  if(score<=0)continue;
-  const pat=(c.allocations||[]).filter(a=>a.dept).map(a=>({dept:a.dept,ratio:a.ratio})),pattern=pat.length?pat:[{dept:i.dept,ratio:100}];
-  const key=JSON.stringify(pattern.map(a=>[a.dept,a.ratio]).sort()),b=buckets.get(key)||{pattern,score:0,n:0,reasons:new Set()};
-  b.score+=score;b.n++;reasons.forEach(r=>b.reasons.add(r));buckets.set(key,b);
+ for(const r of recs){
+  const reasons=[];let score=0;
+  if(tax&&r.tax===tax){score+=3;reasons.push('統編相同')}
+  if(vendor&&r.vendor===vendor){score+=2;reasons.push('廠商相同')}
+  if(payee&&r.payee===payee){score+=1.5;reasons.push('支付對象相同')}
+  if(purpose&&r.purpose){if(r.purpose===purpose){score+=2;reasons.push('用途相同')}else if(Math.min(r.purpose.length,purpose.length)>=3&&(r.purpose.includes(purpose)||purpose.includes(r.purpose))){score+=1.2;reasons.push('用途相近')}}
+  if(score<=0||!r.pattern.length)continue;
+  const key=JSON.stringify(r.pattern.map(a=>[a.dept,a.ratio]).sort()),b=buckets.get(key)||{pattern:r.pattern,score:0,n:0,reasons:new Set()};
+  b.score+=score;b.n++;reasons.forEach(x=>b.reasons.add(x));buckets.set(key,b);
  }
  const best=[...buckets.values()].sort((a,b)=>b.score-a.score||b.n-a.n)[0];
  if(!best||best.score<2)return null;
@@ -1308,12 +1319,164 @@ function ceoClassify(){
 $('dept').addEventListener('change',()=>{if(!ceoState.applying&&entryMode==='ceo')ceoState.deptTouched=true});
 setInterval(()=>{
  if(!authUser||entryMode!=='ceo'||(!isCeoUser()&&authUser.role!=='admin')||$('entry').classList.contains('hide'))return;
+ if(Date.now()-ceoHistLast>30000){ceoHistLast=Date.now();loadCeoHist(false)}
  if(!$('singleMode').classList.contains('hide')){
-  const sig=[$('taxId').value,$('vendor').value,$('payee').value,$('description').value,$('editId').value,current.length].join('|');
+  const sig=[$('taxId').value,$('vendor').value,$('payee').value,$('description').value,$('editId').value,current.length,ceoHistV].join('|');
   if(sig!==ceoState.sig){ceoState.sig=sig;ceoClassify()}
  }
  if(window.ceoBatchClassify)window.ceoBatchClassify();
 },700);
+let ceoHistLast=0;
+// ===== 執行長歷史歸類資料庫：匯入過去的申請紀錄（統編／廠商／支付對象／用途 → 費用部門），自動歸類時和已送出的單據一起參考 =====
+let ceoHist=[],ceoHistV=null,ceoHistBusy=false,ceoHistErr='';
+const canCeoHistPanel=()=>!!authUser&&(authUser.role==='admin'||isCeoUser());
+async function loadCeoHist(force){
+ if(!canCeoHistPanel()||ceoHistBusy)return;ceoHistBusy=true;
+ try{
+  const r=await InvCloud.get({action:'list',store:'ceohistory',since:force||ceoHistV===null?'':ceoHistV});
+  ceoHistErr='';
+  if(!r.unchanged){ceoHist=r.items||[];ceoHistV=r.v;ceoState.sig=''}
+ }catch(e){ceoHistErr=/未知的資料類型/.test(e.message||'')?'歷史歸類資料庫需要新版後端（還沒部署）':'讀取失敗：'+(e.message||e)}
+ finally{ceoHistBusy=false;renderCeoHist()}
+}
+const ceoHistAllocText=a=>(a||[]).map(x=>x.dept+((a||[]).length>1?' '+x.ratio+'%':'')).join('、');
+function renderCeoHist(){
+ if(!$('ceoHistPanel'))return;
+ const rows=ceoHist,st=$('ceoHistStatus');
+ $('ceoHistCount').textContent=rows.length;
+ const latest=rows.map(r=>r.date||'').filter(Boolean).sort().pop();
+ st.textContent=ceoHistErr||(rows.length?`目前有 ${rows.length} 筆歷史紀錄${latest?'（最近一筆日期：'+latest+'）':''}。自動歸類會同時參考這些紀錄和你已送出簽核的單據。`:'目前沒有歷史紀錄。匯入過去申請的檔案（可先按「下載範本」看欄位），自動歸類第一天就有資料可以比對。');
+ const q=ledgerNorm($('ceoHistSearch').value);
+ const list=rows.filter(r=>!q||ledgerNorm([r.taxId,r.vendor,r.payee,r.purpose,ceoHistAllocText(r.allocations)].join(' ')).includes(q)).sort((a,b)=>String(b.date||'').localeCompare(String(a.date||''))).slice(0,200);
+ $('ceoHistTable').innerHTML=list.length?`<table><thead><tr><th>日期</th><th>統編</th><th>廠商</th><th>支付對象</th><th>用途</th><th>費用部門</th><th class="right">金額</th><th></th></tr></thead><tbody>${list.map(r=>`<tr><td>${esc(r.date||'')}</td><td>${esc(r.taxId||'')}</td><td>${esc(r.vendor||'')}</td><td>${esc(r.payee||'')}</td><td>${esc(r.purpose||'')}</td><td>${esc(ceoHistAllocText(r.allocations))}</td><td class="right">${r.amount?fmt(r.amount):''}</td><td><button type="button" class="danger" data-ch-del="${esc(r.id)}">刪除</button></td></tr>`).join('')}</tbody></table>${rows.length>list.length&&!q?'<p class="muted small">只列出最近 200 筆，其餘請用搜尋。</p>':''}`:'<p class="muted">沒有符合的紀錄。</p>';
+}
+// 解析一份匯入檔（第一列是欄位名稱）：欄位名稱不用完全一樣；同一筆費用分多列、每列一個部門（要有分攤比例）會合併成一筆跨部門分攤；
+// 一格寫「門市A 60%、電商 40%」也可以。回傳 {records, rejected, scaled}
+const CEO_HIST_ALIASES={date:['日期','發票日期','申請日期','請款日期','date'],taxId:['賣方統編','廠商統編','統一編號','統編','taxid'],vendor:['廠商名稱','廠商','賣方名稱','賣方','供應商','vendor'],payee:['支付對象','付款對象','收款人','收款對象','payee'],purpose:['用途','請款用途','費用項目說明','項目說明','說明','摘要','purpose'],dept:['費用部門','歸屬部門','申請部門','部門','分攤單位','單位','費用單位','dept'],ratio:['分攤比例','比例','ratio'],alloc:['分攤單位與比例','分攤明細','分攤','allocations'],amount:['含稅金額','請款金額','金額','amount']};
+function ceoHistDate(v){
+ const t=String(v||'').trim();if(!t)return '';
+ let m=/^(\d{4})[-\/.年](\d{1,2})[-\/.月](\d{1,2})/.exec(t);let y,mo,d;
+ if(m){y=+m[1];mo=+m[2];d=+m[3]}else if((m=/^(\d{2,3})[-\/.年](\d{1,2})[-\/.月](\d{1,2})/.exec(t))&&+m[1]<200){y=+m[1]+1911;mo=+m[2];d=+m[3]}else return '';
+ if(mo<1||mo>12||d<1||d>31)return '';
+ return y+'-'+String(mo).padStart(2,'0')+'-'+String(d).padStart(2,'0');
+}
+function ceoHistParseAllocText(text,isDept){
+ const out=[];
+ for(const part of String(text||'').split(/[、，,;；\/／\n]+/)){
+  const p=part.trim();if(!p)continue;
+  if(isDept&&isDept(p)){out.push({name:p,ratio:null});continue}
+  const m=/^(.*?)[\s:：=]*(\d+(?:\.\d+)?)\s*%?$/.exec(p);
+  if(m&&m[1].trim())out.push({name:m[1].trim(),ratio:Number(m[2])});else out.push({name:p,ratio:null});
+ }
+ return out;
+}
+function parseCeoHistGrid(grid){
+ if(grid.length<2)throw Error('沒有可匯入的資料（第一列要是欄位名稱）');
+ const heads=grid[0].map(h=>ledgerNorm(h)),ix={};
+ for(const [k,names] of Object.entries(CEO_HIST_ALIASES))ix[k]=names.map(ledgerNorm).map(n=>heads.indexOf(n)).find(i=>i>=0)??-1;
+ if(ix.taxId<0&&ix.vendor<0&&ix.payee<0&&ix.purpose<0)throw Error('找不到比對用的欄位：請至少有「賣方統編」「廠商名稱」「支付對象」「用途」其中一欄');
+ if(ix.dept<0&&ix.alloc<0)throw Error('找不到費用部門的欄位：請有「費用部門」（或「分攤單位與比例」）這一欄');
+ const deptNames=new Set(orgDepartments.map(d=>d.name)),get=(row,k)=>ix[k]<0?'':String(row[ix[k]]??'').trim();
+ const rejected=[],entries=[];
+ grid.slice(1).forEach((row,n)=>{
+  const line=n+2;if(!row.some(c=>String(c??'').trim()))return;
+  let tax=get(row,'taxId').replace(/\D/g,'');if(/^\d{7}$/.test(tax))tax='0'+tax;if(!/^\d{8}$/.test(tax))tax='';
+  const vendor=get(row,'vendor').slice(0,120),payee=get(row,'payee').slice(0,120),purpose=get(row,'purpose').slice(0,200),date=ceoHistDate(get(row,'date')),amount=Math.max(0,Number(get(row,'amount').replace(/,/g,''))||0);
+  if(!tax&&!vendor&&!payee&&!purpose){rejected.push({line,reason:'統編、廠商、支付對象、用途都是空的'});return}
+  // 部門：「分攤單位與比例」格 > 「費用部門」格（可以直接寫比例）
+  let parts=ceoHistParseAllocText(get(row,'alloc')||get(row,'dept'),n=>deptNames.has(normalizedDepartment(n)));
+  if(!parts.length){rejected.push({line,reason:'沒有填費用部門'});return}
+  const explicit=parts.some(p=>p.ratio!=null)||ix.ratio>=0&&get(row,'ratio')!=='';
+  if(parts.length===1&&parts[0].ratio==null&&ix.ratio>=0&&get(row,'ratio')!=='')parts[0].ratio=Number(get(row,'ratio').replace('%',''));
+  const allocs=[];let bad='';
+  for(const p of parts){
+   const name=normalizedDepartment(p.name);
+   if(!deptNames.has(name)){bad='部門「'+p.name+'」不在組織資料裡';break}
+   allocs.push({dept:name,ratio:p.ratio==null||!(p.ratio>0)?null:p.ratio});
+  }
+  if(bad){rejected.push({line,reason:bad});return}
+  entries.push({line,tax,vendor,payee,purpose,date,amount,allocs,explicit,key:[date,tax,ledgerNorm(vendor),ledgerNorm(payee),ledgerNorm(purpose),amount].join('|')});
+ });
+ // 同一筆費用分成好幾列（每列一個部門、都有寫比例）→ 合併
+ const groups=new Map();
+ for(const e of entries){if(!groups.has(e.key))groups.set(e.key,[]);groups.get(e.key).push(e)}
+ const records=[];let scaled=0;
+ const finish=(e,allocs)=>{
+  let a=allocs.map(x=>({dept:x.dept,ratio:x.ratio}));
+  const unset=a.filter(x=>x.ratio==null);
+  if(unset.length===a.length){const r=evenAllocationRatios(a.length);a=a.map((x,i)=>({dept:x.dept,ratio:r[i]}))}
+  else if(unset.length){rejected.push({line:e.line,reason:'有的部門寫了比例、有的沒寫'});return}
+  const merged=new Map();for(const x of a)merged.set(x.dept,(merged.get(x.dept)||0)+x.ratio);
+  a=[...merged].map(([dept,ratio])=>({dept,ratio:Math.round(ratio*100)/100}));
+  const sum=a.reduce((n,x)=>n+x.ratio,0);
+  if(!(sum>0)){rejected.push({line:e.line,reason:'分攤比例不是正數'});return}
+  if(Math.abs(sum-100)>0.011){a=a.map(x=>({dept:x.dept,ratio:Math.round(x.ratio/sum*10000)/100}));a[0].ratio=Math.round((a[0].ratio+100-a.reduce((n,x)=>n+x.ratio,0))*100)/100;scaled++}
+  if(a.length>12){rejected.push({line:e.line,reason:'分攤單位超過 12 個'});return}
+  const payload=[e.date,e.tax,ledgerNorm(e.vendor),ledgerNorm(e.payee),ledgerNorm(e.purpose),e.amount,a.map(x=>x.dept+':'+x.ratio).sort().join(',')].join('|');
+  let h=2166136261;for(let i=0;i<payload.length;i++){h^=payload.charCodeAt(i);h=Math.imul(h,16777619)}
+  records.push({id:'h'+(h>>>0).toString(16)+'_'+payload.length,taxId:e.tax,vendor:e.vendor,payee:e.payee,purpose:e.purpose,date:e.date,amount:e.amount,allocations:a});
+ };
+ for(const g of groups.values()){
+  if(g.length>1&&g.every(e=>e.explicit&&e.allocs.length===1&&e.allocs[0].ratio!=null&&e.allocs[0].ratio<100))finish(g[0],g.flatMap(e=>e.allocs));
+  else for(const e of g)finish(e,e.allocs);
+ }
+ return {records,rejected,scaled};
+}
+async function readCeoHistFile(f){
+ if(/\.(xlsx|xls)$/i.test(f.name)){
+  if(!window.XLSX)throw Error('Excel 解析模組無法連線，請在 Excel 另存為 CSV 後再匯入');
+  const wb=XLSX.read(await f.arrayBuffer(),{type:'array',raw:true});if(!wb.SheetNames.length)throw Error('Excel 找不到工作表');
+  return XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{header:1,defval:'',raw:false});
+ }
+ const buf=await f.arrayBuffer();let text=new TextDecoder('utf-8').decode(buf);
+ if(text.includes('�'))text=new TextDecoder('big5').decode(buf); // 舊版 Excel 存的 CSV 常是 Big5
+ return parseLedgerCSV(text);
+}
+async function importCeoHist(){
+ const f=$('ceoHistFile').files[0];if(!f)return toast('請先選擇要匯入的檔案');
+ const st=$('ceoHistStatus'),btn=$('ceoHistImport');btn.disabled=true;
+ try{
+  st.textContent='讀取檔案中…';
+  const {records,rejected,scaled}=parseCeoHistGrid(await readCeoHistFile(f));
+  if(!records.length)throw Error('沒有可以匯入的資料。'+(rejected.length?'例如第 '+rejected[0].line+' 列：'+rejected[0].reason:''));
+  const fresh=records.filter(r=>!ceoHist.some(x=>x.id===r.id));
+  if(ceoHist.length+fresh.length>5000)throw Error('歷史歸類資料最多 5000 筆，匯入後會超過（目前 '+ceoHist.length+' 筆，這次新增 '+fresh.length+' 筆）');
+  const sample=rejected.slice(0,5).map(r=>'第 '+r.line+' 列：'+r.reason).join('；');
+  if(!confirm('檔案裡有 '+records.length+' 筆可以匯入（其中 '+fresh.length+' 筆是新的、'+(records.length-fresh.length)+' 筆已經有了會略過）；'+rejected.length+' 筆有問題不匯入'+(sample?'：\n'+sample+(rejected.length>5?'\n…':''):'')+(scaled?'\n\n另有 '+scaled+' 筆分攤比例合計不是 100%，已照比例換算成 100%。':'')+'\n\n要匯入嗎？'))return;
+  st.textContent='匯入中…';
+  for(let k=0;k<fresh.length;k+=1500)await InvCloud.call('putMany',{store:'ceohistory',items:fresh.slice(k,k+1500)});
+  $('ceoHistFile').value='';await loadCeoHist(true);
+  st.textContent='匯入完成：新增 '+fresh.length+' 筆，略過重複 '+(records.length-fresh.length)+' 筆，有問題 '+rejected.length+' 筆。'+(sample?' '+sample:'')+' 目前共 '+ceoHist.length+' 筆。';
+ }catch(e){st.textContent='匯入失敗：'+(e.message||e);toast(e.message||String(e))}
+ finally{btn.disabled=false}
+}
+function ceoHistCSV(rows){
+ const heads=['日期','賣方統編','廠商名稱','支付對象','用途','費用部門','分攤比例','金額'];
+ const q=v=>'"'+String(v??'').replace(/^[=+\-@\t\r]/,'\u0027$&').replace(/"/g,'""')+'"';
+ return '\ufeff'+[heads,...rows].map(r=>r.map(q).join(',')).join('\r\n');
+}
+$('ceoHistImport').onclick=importCeoHist;
+$('ceoHistSearch').addEventListener('input',renderCeoHist);
+$('ceoHistTemplate').onclick=()=>{
+ const n=orgDepartments.map(d=>d.name),a=n[0]||'部門A',b=n[1]||n[0]||'部門B';
+ download('歷史歸類資料_範本.csv',ceoHistCSV([['2026-09-01','22555003','統一超商股份有限公司','統一超商','購買活動飲料',a,100,1200],['2026-09-12','','某餐廳','某餐廳','客戶餐敘',a,60,3200],['2026-09-12','','某餐廳','某餐廳','客戶餐敘',b,40,3200]]),'text/csv;charset=utf-8');
+ toast('範本裡有三列範例：第 2 列是單一部門；第 3、4 列是同一筆費用分攤給兩個部門（每列一個部門，要寫分攤比例）。請改成自己的資料，部門名稱要和組織資料一致。');
+};
+$('ceoHistExport').onclick=()=>{
+ if(!ceoHist.length)return toast('目前沒有資料可以匯出');
+ const rows=[];for(const r of ceoHist)for(const a of r.allocations||[])rows.push([r.date||'',r.taxId||'',r.vendor||'',r.payee||'',r.purpose||'',a.dept,a.ratio,r.amount||'']);
+ download('歷史歸類資料_'+datestr()+'.csv',ceoHistCSV(rows),'text/csv;charset=utf-8');
+};
+$('ceoHistClear').onclick=async()=>{
+ if(!ceoHist.length)return toast('目前沒有資料');
+ if(!confirm('確定要清除全部 '+ceoHist.length+' 筆歷史歸類資料嗎？\n\n清除後無法復原（你在系統裡送出的單據不受影響）。'))return;
+ try{const ids=ceoHist.map(r=>r.id);for(let k=0;k<ids.length;k+=4000)await InvCloud.call('del',{store:'ceohistory',keys:ids.slice(k,k+4000)});await loadCeoHist(true);toast('已清除')}catch(e){toast(e.message)}
+};
+$('ceoHistTable').addEventListener('click',async e=>{
+ const b=e.target.closest('[data-ch-del]');if(!b)return;
+ if(!confirm('刪除這筆歷史歸類資料？'))return;
+ try{await InvCloud.call('del',{store:'ceohistory',key:b.dataset.chDel});await loadCeoHist(true)}catch(err){toast(err.message)}
+});
 function blobURL(data){if(data instanceof Blob)return URL.createObjectURL(data);return null}async function detail(id){let i=await get(id);if(!canPage('list')&&!canPage('approval')&&!canPage('executive')&&!canPage('finance')&&!canPage('dashboard'))return;if(!canReadInvoice(i))return toast('沒有權限查看這張發票');detailURLs.forEach(URL.revokeObjectURL);detailURLs=[];if(!$('detailDialog').open){$('detailBody').innerHTML='<p class="muted">載入附件中…</p>';$('detailDialog').showModal()}
 let passbookURL=null;try{const pb=i.claim?.passbook;if(pb&&(pb.blob||pb.blobId)&&(can('finance','admin')||(authUser?.name===i.applicant&&(authUser?.dept===i.dept||isCeoUser())))){passbookURL=blobURL(await attachmentBlob(pb,i.id));if(passbookURL)detailURLs.push(passbookURL)}}catch(_){}
 let files=(await Promise.all((i.attachments||[]).map(async(f,j)=>{let u=null;try{u=blobURL(await attachmentBlob(f,i.id))}catch(_){}if(u)detailURLs.push(u);return u?`<div><a target="_blank" rel="noopener" href="${u}" download="${esc(f.name)}">附件 ${j+1}：${esc(f.name)}</a> (${(f.size/1024).toFixed(0)} KB)${f.type.startsWith('image/')?`<div><img class="receipt" alt="發票附件" src="${u}"></div>`:''}</div>`:`<div>${esc(f.name)}（無法預覽）</div>`}))).join('');$('detailBody').innerHTML=`<div class="formgrid"><div><b>發票號碼</b><div>${esc(i.invoiceNo)}</div></div><div><b>日期</b><div>${esc(i.invoiceDate)}</div></div><div><b>狀態</b><div>${badge(i.status)}</div></div><div><b>廠商</b><div>${esc(i.vendor)}</div></div><div><b>統編</b><div>${esc(i.taxId)}</div></div><div><b>金額</b><div>NT$ ${fmt(i.amount)}</div></div><div><b>部門／申請人</b><div>${esc(departmentLabel(i.dept))}／${esc(i.applicant)}</div></div><div><b>科目代號編碼</b><div>${esc(i.accountCode||departmentByName(i.dept)?.accountCode||'未設定')}</div></div><div><b>指定主管</b><div>${esc(i.skipManagerApproval?(i.ceoApplicant?'執行長本人（免主管簽核）':i.managerApplicant?'申請人本人（免主管簽核）':'執行長兼任（免主管簽核）'):(i.managerName||managerFor(i.dept)||'未設定'))}</div></div><div><b>執行長</b><div>${esc(i.executiveName||orgCEO||'未設定')}</div></div><div><b>付款方式</b><div>${esc(i.payment)}</div></div></div><h3>用途說明</h3><p>${esc(i.description)}</p><h3>備註</h3><p>${esc(i.memo)}</p><h3>一般請款單</h3><div class="formgrid"><div><b>申請日期</b><div>${esc(normalizeClaim(i.claim,i).requestDate)}</div></div><div><b>預定付款日</b><div>${esc(normalizeClaim(i.claim,i).dueDate||'未填')}</div></div><div><b>支付對象</b><div>${esc(normalizeClaim(i.claim,i).payee)}</div></div><div><b>付款方式</b><div>${esc(normalizeClaim(i.claim,i).paymentMethod)}</div></div><div><b>請款合計</b><div>NT$ ${fmt(claimSum(normalizeClaim(i.claim,i)))}</div></div><div><b>匯費</b><div>${esc(normalizeClaim(i.claim,i).feeDeduction)}</div></div></div><h3>請款項目</h3>${normalizeClaim(i.claim,i).items.map((x,j)=>`<div>${j+1}. ${esc(x.description)}　${x.accountCode||x.accountName?'｜會計科目：'+esc((x.accountCode||'')+' '+(x.accountName||'')):'｜科目由財務覆核時確認'}　NT$ ${fmt(x.amount)}${(x.allocations||[]).length?'<div class="muted small" style="margin-left:1.4em">分攤：'+x.allocations.map(a=>esc(departmentLabel(a.dept))+' '+esc(a.ratio)+'%').join('、')+'</div>':''}</div>`).join('')}<h3>費用分攤合計</h3>${calcAllocationAmounts(claimSum(normalizeClaim(i.claim,i)),normalizeClaim(i.claim,i).allocations).map(a=>`<div>${esc(departmentLabel(a.dept))}：${esc(a.ratio)}% ／ NT$ ${fmt(a.amount)}</div>`).join('')}<h3>憑證狀態</h3><div>${voucherText(i)}</div><h3>發票附件</h3><div class="filelist">${files||'無附件'}</div>${(can('finance','admin')||(authUser?.name===i.applicant&&(authUser?.dept===i.dept||isCeoUser())))?`<h3>匯款附件（限財務／申請人）</h3>${(()=>{const p=i.claim?.passbook;if(!(p?.blob||p?.blobId))return '<p class="muted">未提供存摺影本</p>';const u=passbookURL;return u?`<a href="${u}" target="_blank" rel="noopener" download="${esc(p.name)}">📎 查看／下載存摺影本：${esc(p.name)}</a>`:'檔案無法預覽';})()}`:''}<h3>操作歷程</h3>${(i.history||[]).map(h=>`<div class="audit"><b>${esc(h.action)}</b> ・ ${esc(h.actor)} ・ ${esc(h.at)}${h.reason?`<div>原因：${esc(h.reason)}</div>`:''}</div>`).join('')}`;if(!$('detailDialog').open)$('detailDialog').showModal()}
@@ -1917,7 +2080,7 @@ window.ceoBatchClassify=function(){
   if(r.saved)return;
   const card=el('batch-card-'+i),ae=document.activeElement;
   if(card&&ae&&card.contains(ae)&&/^(INPUT|TEXTAREA|SELECT)$/.test(ae.tagName))return;
-  const v=r.values,sig=[v.taxId,v.vendor,v.payee,v.description].join('|');
+  const v=r.values,sig=[v.taxId,v.vendor,v.payee,v.description,ceoHistV].join('|');
   if(r.ceoSig===sig)return;r.ceoSig=sig;
   const res=ceoSuggestDept({taxId:v.taxId,vendor:v.vendor,payee:v.payee,purpose:v.description});
   const set=t=>{if(r.ceoHint!==t){r.ceoHint=t;changed=true}};
