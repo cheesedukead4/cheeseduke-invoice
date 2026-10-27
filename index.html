@@ -232,7 +232,7 @@ nav#tabs .tab.navform{font-size:13px;padding:7px 10px 7px 18px}
   </div>
 </div>
 <datalist id="acctCodeList"></datalist><datalist id="acctNameList"></datalist><script src="config.js"></script><script src="js/cloud.js"></script><script src="js/einvoice-qr.js"></script>
-<header><div><h1>公司簽呈與簽核系統</h1><div class="sub">網頁版 v7.0｜主畫面統一入口・簽呈／發票請款・雲端共用資料・Google 登入</div></div><div class="role"><span id="loggedSummary">尚未登入</span><span id="syncState" class="sub">雲端：—</span><button id="syncNowBtn" type="button">🔄 同步</button><button id="logoutBtn" type="button">登出</button><select id="role" class="hide"><option value="staff">申請人</option><option value="manager">部門主管</option><option value="executive">執行長</option><option value="finance">財務人員</option><option value="admin">系統管理者</option></select><input id="actorName" class="hide" readonly aria-label="操作人員姓名"></div></header>
+<header><div><h1>公司簽呈與簽核系統</h1><div class="sub">網頁版 v7.0｜主畫面統一入口・表單／請款・雲端共用資料・Google 登入</div></div><div class="role"><span id="loggedSummary">尚未登入</span><span id="syncState" class="sub">雲端：—</span><button id="syncNowBtn" type="button">🔄 同步</button><button id="logoutBtn" type="button">登出</button><select id="role" class="hide"><option value="staff">申請人</option><option value="manager">部門主管</option><option value="executive">執行長</option><option value="finance">財務人員</option><option value="admin">系統管理者</option></select><input id="actorName" class="hide" readonly aria-label="操作人員姓名"></div></header>
 <nav id="tabs"><button type="button" id="menuToggle" aria-expanded="false">☰ 選單</button></nav>
 <main>
 <div id="subTabs" class="subtabs hide"></div>
@@ -387,7 +387,7 @@ const PAGE_LABELS={dashboard:'總覽儀表板',entry:'發票登錄／上傳',ceo
 const ALL_PAGES=Object.keys(PAGE_LABELS);
 const DEFAULT_PAGES={staff:['entry','list'],manager:['dashboard','entry','list','approval'],executive:['dashboard','entry','ceoentry','list','executive'],finance:['dashboard','list','finance'],admin:ALL_PAGES};
 let authUser=null,accountEditId='',authBootstrap=false,curPage='home';
-// 主畫面、待我簽核、我的申請與各種表單（form:xxx）不靠頁面權限：登入的人都能用（看得到哪些申請由後端依身分決定）；「發票請款」仍要有發票相關頁面權限
+// 主畫面、待我簽核、我的申請與各種表單（form:xxx）不靠頁面權限：登入的人都能用（看得到哪些申請由後端依身分決定）；「請款」（原發票請款）仍要有發票相關頁面權限
 // 有多個子頁面的功能群組：點進去之後，頁面變成主畫面上方的子頁籤
 const GROUPS={
  invoice:{pages:['dashboard','entry','ceoentry','list','approval','executive','finance','subjects']},
@@ -2516,7 +2516,7 @@ el('csvDraft').onclick=()=>saveCSV('draft');el('csvSubmit').onclick=()=>saveCSV(
   if(!formsLoaded)h+='<div class="nav-note">表單目錄載入中…</div>';
   else h+=cats.map(c=>{
    const list=forms.filter(f=>f.cat===c.key).map(f=>btn('form:'+f.key,esc(f.icon)+' '+esc(f.name),' navform'));
-   if(c.key==='fin'&&groupAccessible('invoice'))list.unshift(btn('form:invoice','🧾 發票請款（登錄／簽核／財務）',' navform'));
+   if(c.key==='fin'&&groupAccessible('invoice'))list.unshift(btn('form:invoice','🧾 請款',' navform'));
    if(!list.length)return '';
    const open=openCats.has(c.key)||curCat===c.key;
    return '<button type="button" class="navcat-h" data-cat="'+esc(c.key)+'">'+esc(c.icon)+' '+esc(c.name)+' <span class="navcat-n">'+list.length+'</span><span class="navcat-arrow">'+(open?'▾':'▸')+'</span></button><div class="navforms'+(open?'':' hide')+'">'+list.join('')+'</div>'}).join('');
@@ -2599,10 +2599,14 @@ el('csvDraft').onclick=()=>saveCSV('draft');el('csvSubmit').onclick=()=>saveCSV(
  // ---- 新增／編輯：依表單定義動態產生欄位 ----
  const inputType={date:'date',datetime:'datetime-local',number:'number',money:'number'};
  function itemRow(fd,r){return '<tr>'+fd.cols.map(c=>`<td><input data-ik="${c.k}" type="${c.type==='text'?'text':'number'}"${c.type==='money'?' min="0"':''} step="any" inputmode="${c.type==='text'?'text':'decimal'}" value="${esc(r[c.k]??'')}" placeholder="${esc(c.label)}"></td>`).join('')+'<td><button type="button" class="items-del" data-itemdel title="刪除這列">✕</button></td></tr>'}
+ // 連動欄位的選項：自己提出、已核准、且還沒被另一張進行中／已核准的單連動過的（編輯中的這張自己選的那個也列出）
+ function refOptions(fd,val){return memos.filter(m=>m.docType===fd.refType&&isMine(m)&&m.status==='approved'&&(m.docNo===val||!memos.some(x=>editDef&&x.docType===editDef.key&&(!editing||x.id!==editing.id)&&x.data&&x.data[fd.k]===m.docNo&&(x.status==='in_review'||x.status==='approved'))))}
  function fieldHtml(fd,val){
   const id='ff_'+fd.k,label=esc(fd.label)+(fd.req?' *':'');
   if(fd.type==='items'){const rows=Array.isArray(val)&&val.length?val:[{}];
    return `<div class="field wide" data-items="${fd.k}"><label>${label}</label><div class="tablewrap"><table class="items-table"><thead><tr>${fd.cols.map(c=>`<th>${esc(c.label)}</th>`).join('')}<th></th></tr></thead><tbody>${rows.map(r=>itemRow(fd,r)).join('')}</tbody></table></div><div><button type="button" data-itemadd="${fd.k}">＋ 新增一列</button></div></div>`}
+  if(fd.type==='ref'){const rd=defOf(fd.refType),rn=esc(rd?rd.name:fd.refType),opts=refOptions(fd,val);
+   return `<div class="field wide"><label for="${id}">${label}</label><select id="${id}" data-fk="${fd.k}" data-ref="${fd.refType}"><option value="">${opts.length?'請選擇已核准的'+rn:'（目前沒有可連動的'+rn+'）'}</option>${opts.map(m=>`<option value="${esc(m.docNo)}"${m.docNo===val?' selected':''}>${esc(m.docNo)}｜${esc(m.title)}</option>`).join('')}</select>${opts.length?'<span class="muted small">選好後會自動帶入相關欄位，可再修改。</span>':`<span class="small" style="color:#922729">要先提出「${rn}」並經核准，才能連動。</span>`}</div>`}
   let inp;
   if(fd.type==='textarea')inp=`<textarea id="${id}" data-fk="${fd.k}" rows="4" maxlength="3000">${esc(val??'')}</textarea>`;
   else if(fd.type==='select')inp=`<select id="${id}" data-fk="${fd.k}"><option value="">請選擇</option>${fd.opts.map(o=>`<option${o===val?' selected':''}>${esc(o)}</option>`).join('')}</select>`;
@@ -2685,7 +2689,7 @@ el('csvDraft').onclick=()=>saveCSV('draft');el('csvSubmit').onclick=()=>saveCSV(
   catch(e){toast('刪除失敗：'+(e.message||e))}}
 
  // ---- 明細 ----
- function fmtVal(fd,v){return fd.type==='money'?'NT$ '+fmt(v):fd.type==='datetime'?String(v).replace('T',' '):String(v)}
+ function fmtVal(fd,v){if(fd.type==='ref'){const t=memos.find(m=>m.docNo===v);return String(v)+(t?'｜'+t.title:'')}return fd.type==='money'?'NT$ '+fmt(v):fd.type==='datetime'?String(v).replace('T',' '):String(v)}
  function dataHtml(m,d){
   if(!d)return '<p class="muted">（找不到這種表單的定義）</p>';
   const rows=d.fields.filter(fd=>m.data&&m.data[fd.k]!==undefined);
@@ -2737,13 +2741,23 @@ el('csvDraft').onclick=()=>saveCSV('draft');el('csvSubmit').onclick=()=>saveCSV(
   else if(d.itemdel!==undefined){const tr=t.closest('tr'),tb=tr.parentNode;if(tb.children.length>1)tr.remove();else tr.querySelectorAll('input').forEach(i=>{i.value=''});autoSum();flowPreview()}});
  // 採購單等有「品項明細」的表單：數量×單價自動加總到金額欄位（使用者自己改過金額就不再自動覆蓋）
  function autoSum(){
-  const s=editDef&&editDef.sumItems;if(!s||amountManual)return;
-  let sum=0;document.querySelectorAll('#memoFields [data-items="'+s.items+'"] tbody tr').forEach(tr=>{const q=Number(tr.querySelector('[data-ik="'+s.qty+'"]').value),p=Number(tr.querySelector('[data-ik="'+s.price+'"]').value);if(q>0&&p>=0)sum+=q*p});
-  const el=$('memoFields').querySelector('[data-fk="'+s.into+'"]');if(el&&sum>0)el.value=Math.round(sum*100)/100}
+  if(!editDef||amountManual)return;
+  const s=editDef.sumItems,f=editDef.sumFields,fld=k=>$('memoFields').querySelector('[data-fk="'+k+'"]');
+  if(s){let sum=0;document.querySelectorAll('#memoFields [data-items="'+s.items+'"] tbody tr').forEach(tr=>{const q=Number(tr.querySelector('[data-ik="'+s.qty+'"]').value),p=Number(tr.querySelector('[data-ik="'+s.price+'"]').value);if(q>0&&p>=0)sum+=q*p});
+   const el=fld(s.into);if(el&&sum>0)el.value=Math.round(sum*100)/100}
+  // 差旅費報銷等：交通費＋住宿費＋雜支 自動加總成合計
+  if(f){let sum=0;f.from.forEach(k=>{const el=fld(k);sum+=Number(el&&el.value)||0});const el=fld(f.into);if(el&&sum>0)el.value=Math.round(sum*100)/100}}
+ // 連動欄位選了之後，把被連動的單的內容帶進這張表單（例如差旅費報銷帶入出差申請單的地點、日期、事由、預估費用）
+ function applyRefFill(sel){
+  if(!editDef||!editDef.refFill)return;
+  const t=memos.find(m=>m.docNo===sel.value);if(!t||!t.data)return;
+  for(const [from,to] of Object.entries(editDef.refFill)){const v=t.data[from];if(v===undefined)continue;const el=$('memoFields').querySelector('[data-fk="'+to+'"]');if(el)el.value=String(v).slice(0,200)}}
  $('memoFields').addEventListener('input',e=>{
   if(!editDef)return;
-  if(e.target.dataset.fk&&e.target.dataset.fk===editDef.amount)amountManual=true;
-  if(e.target.dataset.ik)autoSum();
+  const k=e.target.dataset.fk;
+  if(k&&k===editDef.amount)amountManual=true;
+  if(e.target.dataset.ref)applyRefFill(e.target);
+  if(e.target.dataset.ik||(k&&editDef.sumFields&&editDef.sumFields.from.includes(k)))autoSum();
   flowPreview()});
  $('memoNew').onclick=()=>openForm(view.mode==='form'?defOf(view.key):null);
  $('memoSearch').addEventListener('input',memoRenderPage);
