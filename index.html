@@ -213,9 +213,6 @@ nav#tabs .navcat-h{display:flex;align-items:center;gap:6px;width:100%;margin-top
 nav#tabs .tab.navform{font-size:13px;padding:7px 10px 7px 18px}
 .nav-n{display:inline-block;background:#d93636;color:#fff;border-radius:999px;font-size:11px;font-weight:700;padding:0 7px;margin-left:4px}
 .nav-note{color:var(--muted);font-size:12px;padding:8px}
-.catblock{margin-bottom:16px}.catblock h3{margin:0 0 8px}
-.form-tiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(215px,1fr));gap:10px}
-.form-tile{position:relative;display:flex;flex-direction:column;align-items:flex-start;gap:4px;padding:11px 13px;border:1px solid #d5e1f1;border-radius:10px;background:#fff;text-align:left;cursor:pointer}.form-tile:hover{background:var(--light);border-color:#9db6dc}.form-tile .ft-name{font-weight:700}.form-tile .ft-desc{color:var(--muted);font-size:12px}.form-tile .mod-n{top:8px}
 .dyn-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px 14px}.dyn-fields .wide{grid-column:1/-1}
 .items-wrap{overflow:auto}.items-table{width:100%;border-collapse:collapse}.items-table th,.items-table td{padding:4px;border:1px solid var(--line);font-size:13px}.items-table th{background:#e9f0fa;text-align:left}.items-table input{min-width:80px}.items-del{border:0;background:transparent;color:#922729;padding:2px 8px}
 .data-table{width:100%;border-collapse:collapse}.data-table>tbody>tr>th{width:150px;text-align:left;vertical-align:top;background:#f1f5fb;padding:7px 10px;border:1px solid var(--line);font-weight:600}.data-table>tbody>tr>td{padding:7px 10px;border:1px solid var(--line);vertical-align:top}
@@ -242,7 +239,6 @@ nav#tabs .tab.navform{font-size:13px;padding:7px 10px 7px 18px}
 <section id="home" class="view">
 <div class="panel home-hello"><h2 id="homeHello">歡迎回來</h2><div class="muted" id="homeSub"></div></div>
 <div class="panel"><h2>待我處理</h2><div class="home-todo" id="homeTodo"></div></div>
-<div class="panel"><h2>公司表單</h2><p class="muted small" style="margin:-8px 0 12px">全公司的表單都在這裡，左側導覽也有同樣的目錄。點一張表單進入，再按「＋ 新增」填寫。</p><div id="homeForms"></div></div>
 <div class="panel"><h2>最近的申請</h2><div class="tablewrap" id="homeRecent"></div></div>
 </section>
 <section id="memoPage" class="view hide">
@@ -2581,12 +2577,11 @@ el('csvDraft').onclick=()=>saveCSV('draft');el('csvSubmit').onclick=()=>saveCSV(
   $('memoMsg').textContent=memoErr||(memoLoaded&&formsLoaded?'':'載入中…');
   $('memoTable').innerHTML=rows(items,true,view.mode!=='form')}
 
- // ---- 主畫面：待我處理、全部表單目錄、最近的申請 ----
+ // ---- 主畫面：待我處理、最近的申請（表單目錄在左側導覽）----
  function homeRender(){const root=$('home');if(!root||root.classList.contains('hide')||!authUser)return;
   $('homeHello').textContent=authUser.name+'，您好';
   $('homeSub').textContent=(authUser.dept||'跨部門')+'｜'+(roleNames[authUser.role]||authUser.role)+'｜'+new Date().toLocaleDateString('zh-TW',{year:'numeric',month:'long',day:'numeric',weekday:'long'});
-  const todos=[],inv=visibleInvoices(current),inboxBy={};
-  memos.filter(canSignStrict).forEach(m=>{inboxBy[m.docType]=(inboxBy[m.docType]||0)+1});
+  const todos=[],inv=visibleInvoices(current);
   const inboxN=memos.filter(canSignStrict).length,rej=memos.filter(m=>isMine(m)&&m.status==='rejected').length;
   if(inboxN)todos.push({n:inboxN,t:'張表單等我簽核',go:()=>openView('inbox')});
   if(rej)todos.push({n:rej,t:'張申請被退回，待修改',go:()=>openView('mine','','rejected')});
@@ -2597,11 +2592,6 @@ el('csvDraft').onclick=()=>saveCSV('draft');el('csvSubmit').onclick=()=>saveCSV(
   addInv(inv.filter(canSupplementVoucher).length,'張發票待補憑證',()=>{tab('list');$('listStatus').value='v:pending';render()});
   homeTodos=todos;
   $('homeTodo').innerHTML=todos.length?todos.map((x,i)=>`<button type="button" class="todo" data-todo="${i}"><b>${x.n}</b><span>${esc(x.t)}</span></button>`).join(''):'<span class="muted">目前沒有待處理的事項 🎉</span>';
-  $('homeForms').innerHTML=formsLoaded?cats.map(c=>{
-   const tiles=forms.filter(f=>f.cat===c.key).map(f=>({key:f.key,icon:f.icon,name:f.name,desc:f.desc,n:inboxBy[f.key]||0}));
-   if(c.key==='fin'&&groupAccessible('invoice'))tiles.unshift({key:'invoice',icon:'🧾',name:'發票請款',desc:'發票登錄、簽核、財務覆核與付款（原本的發票系統）',n:0});
-   if(!tiles.length)return '';
-   return `<div class="catblock"><h3>${esc(c.icon)} ${esc(c.name)}</h3><div class="form-tiles">${tiles.map(t=>`<button type="button" class="form-tile" data-form="${esc(t.key)}">${t.n?`<span class="mod-n">${t.n}</span>`:''}<span class="ft-name">${esc(t.icon)} ${esc(t.name)}</span><span class="ft-desc">${esc(t.desc)}</span></button>`).join('')}</div></div>`}).join(''):'<p class="muted">表單目錄載入中…</p>';
   $('homeRecent').innerHTML=memoLoaded?rows(memos.slice(0,5),false,true):'<p class="muted">載入中…</p>'}
  function moduleRender(){homeRender();memoRenderPage()}
  window.moduleRender=moduleRender;
@@ -2733,7 +2723,7 @@ el('csvDraft').onclick=()=>saveCSV('draft');el('csvSubmit').onclick=()=>saveCSV(
   catch(e){toast('無法開啟附件：'+(e.message||e))}}
 
  // ---- 事件 ----
- document.addEventListener('click',e=>{const t=e.target.closest('[data-mview],[data-medit],[data-mdel],[data-msign],[data-mfilter],[data-matt],[data-mfrm],[data-todo],[data-form],[data-itemadd],[data-itemdel]');if(!t||!authUser)return;
+ document.addEventListener('click',e=>{const t=e.target.closest('[data-mview],[data-medit],[data-mdel],[data-msign],[data-mfilter],[data-matt],[data-mfrm],[data-todo],[data-itemadd],[data-itemdel]');if(!t||!authUser)return;
   const d=t.dataset;
   if(d.mview){openDetail(d.mview)}
   else if(d.medit){const m=memos.find(x=>x.id===d.medit);if(m&&canEditMemo(m)){if($('memoDetail').open)$('memoDetail').close();openForm(defOf(m.docType),m)}}
@@ -2743,7 +2733,6 @@ el('csvDraft').onclick=()=>saveCSV('draft');el('csvSubmit').onclick=()=>saveCSV(
   else if(d.matt!==undefined){openAtt(d.id,Number(d.matt))}
   else if(d.mfrm!==undefined){formFiles.splice(Number(d.mfrm),1);fileList()}
   else if(d.todo!==undefined){const x=homeTodos[Number(d.todo)];if(x)x.go()}
-  else if(d.form){tab('form:'+d.form)}
   else if(d.itemadd!==undefined){const fd=editDef&&editDef.fields.find(f=>f.k===d.itemadd);if(fd)document.querySelector('#memoFields [data-items="'+fd.k+'"] tbody').insertAdjacentHTML('beforeend',itemRow(fd,{}))}
   else if(d.itemdel!==undefined){const tr=t.closest('tr'),tb=tr.parentNode;if(tb.children.length>1)tr.remove();else tr.querySelectorAll('input').forEach(i=>{i.value=''});autoSum();flowPreview()}});
  // 採購單等有「品項明細」的表單：數量×單價自動加總到金額欄位（使用者自己改過金額就不再自動覆蓋）
