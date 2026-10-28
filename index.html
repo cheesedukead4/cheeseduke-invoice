@@ -2912,7 +2912,7 @@ el('csvDraft').onclick=()=>saveCSV('draft');el('csvSubmit').onclick=()=>saveCSV(
  document.addEventListener('click',e=>{const t=e.target.closest('[data-mview],[data-medit],[data-mdel],[data-msign],[data-mfilter],[data-matt],[data-mfrm],[data-todo],[data-itemadd],[data-itemdel],[data-finsave]');if(!t||!authUser)return;
   const d=t.dataset;
   if(d.mview){openDetail(d.mview)}
-  else if(d.medit){const m=memos.find(x=>x.id===d.medit);if(m&&canEditMemo(m)){if($('memoDetail').open)$('memoDetail').close();openForm(defOf(m.docType),m)}}
+  else if(d.medit){const m=memos.find(x=>x.id===d.medit);if(m&&canEditMemo(m)){const df=defOf(m.docType);if(!df)return toast('這張單的表單已經停用，不能再編輯');if($('memoDetail').open)$('memoDetail').close();openForm(df,m)}}
   else if(d.mdel){deleteMemo(d.mdel)}
   else if(d.msign){signMemo(d.id,d.msign)}
   else if(d.mfilter){memoFilter=d.mfilter;memoRenderPage()}
