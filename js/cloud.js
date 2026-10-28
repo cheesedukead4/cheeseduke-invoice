@@ -10,7 +10,7 @@
  *   window.INV_AUTH  = { clientId: 'Google OAuth 用戶端 ID' }   （本機測試時另有 mock: true）
  *   window.INV_CLOUD = { url: 'Apps Script 網頁應用程式網址（結尾 /exec）' }
  *
- * 這裡存的登入狀態（localStorage 'inv_auth'）：{ s: 工作階段, exp, email, name, role, dept, pages }
+ * 這裡存的登入狀態（localStorage 'inv_auth'）：{ s: 工作階段, exp, email, name, role, dept, pages, positions }
  */
 (function (root) {
   'use strict';
@@ -38,7 +38,7 @@
   function persist() { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) {} }
   function clearStored() { state = null; try { localStorage.removeItem(KEY); } catch (e) {} }
 
-  function user() { return state ? { email: state.email, name: state.name, role: state.role, dept: state.dept || '', pages: Array.isArray(state.pages) ? state.pages : null } : null; }
+  function user() { return state ? { email: state.email, name: state.name, role: state.role, dept: state.dept || '', pages: Array.isArray(state.pages) ? state.pages : null, positions: Array.isArray(state.positions) ? state.positions : [] } : null; }
 
   // 雲端回應帶來最新的人員資料（名字、角色、部門、頁面）與延長後的工作階段
   function applyMe(j) {
@@ -51,6 +51,8 @@
       });
       var np = Array.isArray(j.me.pages) ? j.me.pages : null;
       if (JSON.stringify(np) !== JSON.stringify(state.pages)) { state.pages = np; changed = perm = true; }
+      var nps = Array.isArray(j.me.positions) ? j.me.positions : []; // 職位（表單簽核關卡用）：後端改了就跟著更新
+      if (JSON.stringify(nps) !== JSON.stringify(state.positions || [])) { state.positions = nps; changed = perm = true; }
     }
     if (j.session && j.session !== state.s) { state.s = j.session; state.exp = j.exp; changed = true; }
     if (changed) { persist(); if (perm) emit(meListeners, user()); }
@@ -168,7 +170,7 @@
     postLogin(resp.credential).then(function (j) {
       busy = false;
       if (j && j.ok && j.session && j.me) {
-        state = { s: j.session, exp: j.exp, email: j.me.email, name: j.me.name, role: j.me.role, dept: j.me.dept || '', pages: Array.isArray(j.me.pages) ? j.me.pages : null };
+        state = { s: j.session, exp: j.exp, email: j.me.email, name: j.me.name, role: j.me.role, dept: j.me.dept || '', pages: Array.isArray(j.me.pages) ? j.me.pages : null, positions: Array.isArray(j.me.positions) ? j.me.positions : [] };
         persist();
         bootPayload = j.boot && j.boot.stores ? j.boot : null;
         if (wasReady) { location.reload(); return; } // App 已經在跑（登入過期後重新登入）：整個重新載入最單純

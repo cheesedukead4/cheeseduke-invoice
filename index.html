@@ -361,7 +361,7 @@ input.ro{background:#eef2f8;color:#334155}
 <div class="field"><label>角色 *</label><select id="accountRole"><option value="staff">員工</option><option value="manager">部門主管</option><option value="executive">執行長</option><option value="finance">財務人員</option></select></div>
 <div class="field"><label>所屬部門／門市</label><select id="accountDept"><option value="">跨部門／未指定</option></select></div>
 <div class="field"><label>狀態</label><select id="accountEnabled"><option value="yes">啟用</option><option value="no">停用</option></select></div>
-</div><h3>這個人可以看到哪些頁面？</h3><div id="accountPermissions" class="accounts-legend"></div>
+</div><h3>職位（可複選）</h3><p class="muted small" style="margin:0 0 6px">加在上面「角色」之外的簽核身分，用在表單的簽核關卡（例如藝術／設計需求申請有一關由「行銷」簽）。一個人可以同時是部門主管又擔任某個職位；沒有勾就是沒有職位。</p><div id="accountPositions" class="accounts-legend"></div><h3>這個人可以看到哪些頁面？</h3><div id="accountPermissions" class="accounts-legend"></div>
 <div class="actions"><button type="submit" class="primary">儲存人員與權限</button><button id="accountResetForm" type="button">清除／新增下一位</button><span id="accountHint" class="muted small">請先選角色，再依需要調整頁面勾選。</span></div></form>
 <h3>目前人員清單</h3><div class="tablewrap" id="accountsTable"></div>
 <p class="footer">登入由 Google 驗證；人員名單、角色與部門存在雲端後端，資料可見範圍與簽核順序由後端檢查。員工離職或調動時，請立刻到這裡停用或修改。</p>
@@ -434,7 +434,7 @@ const normalizeAccount=s=>String(s||'').trim().toLowerCase();
 // ===== 雲端人員名單（用 Gmail 登入）：只有管理員讀得到；網頁版沒有密碼 =====
 const allUsers=async()=>(await InvCloud.get({action:'users'})).users;
 const getUser=async id=>{const k=normalizeAccount(id);return (await allUsers()).find(u=>normalizeAccount(u.id)===k)};
-const putUser=u=>InvCloud.call('userSave',{email:u.email||u.id,empNo:u.empNo,name:u.name,role:u.role,dept:u.dept||'',pages:u.pages,enabled:u.enabled!==false});
+const putUser=u=>InvCloud.call('userSave',{email:u.email||u.id,empNo:u.empNo,name:u.name,role:u.role,dept:u.dept||'',pages:u.pages,positions:u.positions,enabled:u.enabled!==false});
 const deleteUser=email=>InvCloud.call('userDelete',{email});
 function canPage(page){if(page==='subjects')page='finance'; // 「會計科目」頁籤沿用財務整合的權限（財務／管理員）
  if(page==='home'||isFormPage(page))return !!authUser&&(page!=='form:invoice'||groupAccessible('invoice'));
@@ -455,7 +455,7 @@ window.invoiceCanSubmitAs=canSubmitAs;
 function allowedDeptNames(){const names=orgDepartments.map(d=>d.name).sort((a,b)=>a.localeCompare(b,'zh-Hant'));return !authUser||authUser.role==='admin'||isCeoUser()?names:(authUser.dept?[authUser.dept]:[])}
 function authLock(on){document.body.classList.toggle('auth-locked',on);$('authGate').classList.toggle('hide',!on)}
 function loginScreen(msg,bad){authUser=null;authLock(true);InvCloud.showGate(msg||'',bad)}
-const meToUser=me=>({id:me.email,email:me.email,name:me.name,role:me.role,dept:me.dept||'',enabled:true,pages:me.role==='admin'?ALL_PAGES:(Array.isArray(me.pages)?me.pages:[])});
+const meToUser=me=>({id:me.email,email:me.email,name:me.name,role:me.role,dept:me.dept||'',enabled:true,positions:Array.isArray(me.positions)?me.positions:[],pages:me.role==='admin'?ALL_PAGES:(Array.isArray(me.pages)?me.pages:[])});
 function applyAuthUser(){applyNav();
  $('role').value=authUser.role;$('actorName').value=authUser.name;$('loggedSummary').textContent=authUser.name+'｜'+(roleNames[authUser.role]||authUser.role)+'｜'+(authUser.dept||'跨部門')}
 let appStarted=false,pollTimer=null,pollBusy=false;
@@ -506,22 +506,25 @@ async function pollOnce(){if(pollBusy||!authUser)return;pollBusy=true;setSyncSta
 function startPolling(){if(pollTimer)return;pollTimer=setInterval(()=>{if(!document.hidden)pollOnce()},60000);
  document.addEventListener('visibilitychange',()=>{if(!document.hidden)pollOnce()});$('syncNowBtn').onclick=()=>pollOnce()}
 function stopPolling(){clearInterval(pollTimer);pollTimer=null}
+const positionList=()=>typeof window.memoPositions==='function'?window.memoPositions():[];
+const positionNames=keys=>(keys||[]).map(k=>(positionList().find(p=>p.key===k)||{}).name||k).join('、');
+function renderAccountPositions(sel){const box=$('accountPositions');if(!box)return;const keep=sel||[...box.querySelectorAll('input:checked')].map(n=>n.value),list=positionList();box.innerHTML=list.length?list.map(p=>`<label><input type="checkbox" value="${esc(p.key)}" ${keep.includes(p.key)?'checked':''}> ${esc(p.name)}</label>`).join(''):'<span class="muted small">（職位清單載入中…）</span>'}
 function renderAccountPermissions(pages){$('accountPermissions').innerHTML=ALL_PAGES.filter(p=>p!=='accounts'&&p!=='settings').map(p=>`<label><input type="checkbox" value="${p}" ${pages.includes(p)?'checked':''}> ${PAGE_LABELS[p]}</label>`).join('')}
-function resetAccountForm(){$('accountForm').reset();$('accountId').readOnly=false;$('accountId').value='';$('accountRole').value='staff';$('accountEnabled').value='yes';accountEditId='';renderAccountPermissions(DEFAULT_PAGES.staff);$('accountHint').textContent='新增人員請輸入他的 Gmail。編輯現有人員時 Gmail 不能改（要換 Gmail，請新增一筆再刪掉舊的）。'}
+function resetAccountForm(){$('accountForm').reset();$('accountId').readOnly=false;$('accountId').value='';$('accountRole').value='staff';$('accountEnabled').value='yes';accountEditId='';renderAccountPositions([]);renderAccountPermissions(DEFAULT_PAGES.staff);$('accountHint').textContent='新增人員請輸入他的 Gmail。編輯現有人員時 Gmail 不能改（要換 Gmail，請新增一筆再刪掉舊的）。'}
 $('accountResetForm').onclick=resetAccountForm;resetAccountForm();
 $('accountRole').onchange=()=>renderAccountPermissions(DEFAULT_PAGES[$('accountRole').value]||[]);
 function syncAccountDepartments(){const e=$('accountDept'),old=e.value;e.innerHTML='<option value="">跨部門／未指定</option>'+orgDepartments.map(d=>`<option value="${esc(d.name)}">${esc(departmentLabel(d.name))}</option>`).join('');e.value=orgDepartments.some(d=>d.name===old)?old:''}
 let accountList=[],rosterTodo=[];
-async function renderAccounts(){if(!can('admin'))return;syncAccountDepartments();const root=$('accountsTable');
+async function renderAccounts(){if(!can('admin'))return;syncAccountDepartments();renderAccountPositions();const root=$('accountsTable');
  let res;try{res=await InvCloud.get({action:'users'})}catch(err){root.innerHTML='<p class="muted">讀取人員名單失敗：'+esc(err.message)+'</p>';return}
  const users=(res.users||[]).sort((a,b)=>(a.empNo?0:1)-(b.empNo?0:1)||String(a.empNo||'').localeCompare(String(b.empNo||''),'en',{numeric:true})||a.id.localeCompare(b.id));accountList=users;
  const adminRows=(res.admins||[]).map(a=>`<tr><td>—</td><td><b>${esc(a)}</b></td><td>—</td><td>系統管理者</td><td>—</td><td class="account-summary">全部頁面</td><td>啟用</td><td class="muted small">在雲端後端設定</td></tr>`).join('');
- root.innerHTML='<table class="account-table"><thead><tr><th>工號</th><th>Gmail</th><th>姓名</th><th>角色</th><th>部門</th><th>可見頁面</th><th>狀態</th><th>操作</th></tr></thead><tbody>'+adminRows+users.map(u=>`<tr><td>${esc(u.empNo||'')}</td><td><b>${esc(u.id)}</b></td><td>${esc(u.name)}</td><td>${esc(roleNames[u.role]||u.role)}</td><td>${esc(departmentLabel(u.dept||''))}</td><td class="account-summary">${esc((u.pages||[]).map(p=>PAGE_LABELS[p]).filter(Boolean).join('、')||'無')}</td><td>${u.enabled?'啟用':'已停用'}</td><td><button type="button" data-aedit="${esc(u.id)}">編輯</button><button type="button" data-atoggle="${esc(u.id)}">${u.enabled?'停用':'啟用'}</button><button type="button" class="danger" data-adelete="${esc(u.id)}">刪除</button></td></tr>`).join('')+'</tbody></table>';
+ root.innerHTML='<table class="account-table"><thead><tr><th>工號</th><th>Gmail</th><th>姓名</th><th>角色</th><th>部門</th><th>可見頁面</th><th>狀態</th><th>操作</th></tr></thead><tbody>'+adminRows+users.map(u=>`<tr><td>${esc(u.empNo||'')}</td><td><b>${esc(u.id)}</b></td><td>${esc(u.name)}</td><td>${esc(roleNames[u.role]||u.role)}${(u.positions||[]).length?'<div class="muted small">職位：'+esc(positionNames(u.positions))+'</div>':''}</td><td>${esc(departmentLabel(u.dept||''))}</td><td class="account-summary">${esc((u.pages||[]).map(p=>PAGE_LABELS[p]).filter(Boolean).join('、')||'無')}</td><td>${u.enabled?'啟用':'已停用'}</td><td><button type="button" data-aedit="${esc(u.id)}">編輯</button><button type="button" data-atoggle="${esc(u.id)}">${u.enabled?'停用':'啟用'}</button><button type="button" class="danger" data-adelete="${esc(u.id)}">刪除</button></td></tr>`).join('')+'</tbody></table>';
  renderRosterPending(users)}
 if(!$('accountsTable').dataset.bound){$('accountsTable').dataset.bound='1';$('accountsTable').addEventListener('click',async e=>{const btn=e.target.closest('button');if(!btn||!can('admin'))return;
  const id=btn.dataset.aedit||btn.dataset.atoggle||btn.dataset.adelete,user=accountList.find(u=>u.id===id);if(!user)return;
  try{
-  if(btn.dataset.aedit){accountEditId=user.id;$('accountId').value=user.id;$('accountId').readOnly=true;$('accountEmpNo').value=user.empNo||'';$('accountName').value=user.name;$('accountRole').value=user.role;$('accountDept').value=user.dept||'';$('accountEnabled').value=user.enabled?'yes':'no';renderAccountPermissions(user.pages||[]);$('accountHint').textContent='編輯中：'+user.id+'（Gmail 不能改）';$('accountForm').scrollIntoView({behavior:'smooth'})}
+  if(btn.dataset.aedit){accountEditId=user.id;$('accountId').value=user.id;$('accountId').readOnly=true;$('accountEmpNo').value=user.empNo||'';$('accountName').value=user.name;$('accountRole').value=user.role;$('accountDept').value=user.dept||'';$('accountEnabled').value=user.enabled?'yes':'no';renderAccountPositions(user.positions||[]);renderAccountPermissions(user.pages||[]);$('accountHint').textContent='編輯中：'+user.id+'（Gmail 不能改）';$('accountForm').scrollIntoView({behavior:'smooth'})}
   else if(btn.dataset.atoggle){await putUser({...user,enabled:!user.enabled});await renderAccounts()}
   else if(btn.dataset.adelete){if(!confirm('確定從名單刪除 '+user.name+'（'+user.id+'）？\n他會立刻被登出，也無法再進入系統；已建立的發票不受影響。'))return;await deleteUser(user.id);await renderAccounts()}
  }catch(err){toast(err.message)}
@@ -534,7 +537,8 @@ $('accountForm').addEventListener('submit',async e=>{e.preventDefault();if(!can(
  if(role==='manager'&&!dept)throw Error('主管帳號須設定所屬部門');if(role==='staff'&&!dept)throw Error('員工帳號須設定所屬部門');
  const pages=[...$('accountPermissions').querySelectorAll('input:checked')].map(n=>n.value);if(!pages.length)throw Error('請至少開放一個頁面');
  const inRoster=rosterPeople().some(p=>p.name===name);if(!inRoster&&!confirm('名冊裡找不到「'+name+'」。系統用姓名比對申請人與簽核主管，姓名不一致就無法申請或簽核。\n\n仍要儲存嗎？'))return;
- await putUser({id,email:id,empNo,name,role,dept,pages,enabled});resetAccountForm();await renderAccounts();toast('人員與頁面權限已儲存')
+ const positions=[...$('accountPositions').querySelectorAll('input:checked')].map(n=>n.value);
+  await putUser({id,email:id,empNo,name,role,dept,pages,positions,enabled});resetAccountForm();await renderAccounts();toast('人員與頁面權限已儲存')
 }catch(err){toast(err.message)}});
 // 名冊裡還沒有登入帳號的人：在表格裡直接填 Gmail 加入
 function rosterPeople(){const out=[];for(const d of orgDepartments){const seen=new Set(),add=(n,role)=>{n=String(n||'').trim();if(!n||seen.has(n))return;seen.add(n);out.push({name:n,dept:d.name,role})};
@@ -2615,7 +2619,7 @@ el('csvDraft').onclick=()=>saveCSV('draft');el('csvSubmit').onclick=()=>saveCSV(
  'use strict';
  const ST={draft:'草稿',in_review:'簽核中',approved:'已核准',rejected:'已退回'},STEP_NAMES={manager:'部門主管',executive:'執行長',finance:'財務人員'};
  const DEFAULT_TIERS=[{upTo:null,steps:['manager','executive']}],FORMS_CACHE='inv_forms_v1';
- let forms=[],cats=[],formsLoaded=false,formsLoading=null;
+ let forms=[],cats=[],positions=[],formsLoaded=false,formsLoading=null;
  let roKeys=new Set(),memos=[],memoVer=null,memoLoaded=false,memoLoading=null,memoErr='';
  let view={mode:'home',key:''},memoFilter=null,openCats=new Set(),editing=null,editDef=null,formFiles=[],busy=false,detailId='',homeTodos=[],amountManual=false;
  const memoRefs=new WeakMap(),memoBlobCache=new Map();
@@ -2624,7 +2628,7 @@ el('csvDraft').onclick=()=>saveCSV('draft');el('csvSubmit').onclick=()=>saveCSV(
  const curIdx=m=>Number(m.flow&&m.flow.current)||0;
  const curStep=m=>m.status==='in_review'&&m.flow&&Array.isArray(m.flow.steps)?m.flow.steps[curIdx(m)]:null;
  const stepLabel=s=>s.key==='finance'?'財務人員':(s.who||'')+'（'+(STEP_NAMES[s.key]||s.key)+'）';
- function stepMatches(s){if(!authUser||!s)return false;if(s.key==='finance')return authUser.role==='finance';if(!s.who||authUser.name!==s.who)return false;return s.key==='executive'?authUser.role==='executive':(authUser.role==='manager'||authUser.role==='executive')}
+ function stepMatches(s){if(!authUser||!s)return false;if(s.key==='finance')return authUser.role==='finance';if(s.key.startsWith('pos:'))return (authUser.positions||[]).includes(s.key.slice(4));if(!s.who||authUser.name!==s.who)return false;return s.key==='executive'?authUser.role==='executive':(authUser.role==='manager'||authUser.role==='executive')}
  const canSignStrict=m=>{const s=curStep(m);return !!s&&m.applicant!==authUser.name&&stepMatches(s)};
  const canSign=m=>!!authUser&&!!curStep(m)&&(canSignStrict(m)||authUser.role==='admin');
  const canEditMemo=m=>isMine(m)&&(m.status==='draft'||m.status==='rejected');
@@ -2638,11 +2642,11 @@ el('csvDraft').onclick=()=>saveCSV('draft');el('csvSubmit').onclick=()=>saveCSV(
  const stepNames=a=>a.map(k=>STEP_NAMES[k]||k).join(' → ');
 
  // ---- 載入：表單目錄（後端提供，存一份在本機讓導覽馬上出現）與申請資料 ----
- function applyForms(j){forms=j.forms||[];cats=j.cats||[];formsLoaded=forms.length>0}
+ function applyForms(j){forms=j.forms||[];cats=j.cats||[];positions=Array.isArray(j.positions)?j.positions:positions;for(const p of positions)STEP_NAMES['pos:'+p.key]=p.name;formsLoaded=forms.length>0}
  try{const c=JSON.parse(localStorage.getItem(FORMS_CACHE)||'null');if(c&&c.forms&&c.forms.length)applyForms(c)}catch(e){}
  function loadForms(){
   if(formsLoading)return formsLoading;
-  formsLoading=(async()=>{try{const j=await InvCloud.get({action:'forms'});applyForms(j);try{localStorage.setItem(FORMS_CACHE,JSON.stringify({forms:j.forms,cats:j.cats}))}catch(e){}}
+  formsLoading=(async()=>{try{const j=await InvCloud.get({action:'forms'});applyForms(j);try{localStorage.setItem(FORMS_CACHE,JSON.stringify({forms:j.forms,cats:j.cats,positions:j.positions}))}catch(e){}}
    catch(e){memoErr='表單目錄載入失敗：'+(e.message||e)}finally{formsLoading=null;renderNav();moduleRender()}})();
   return formsLoading}
  function memoRefresh(force){
@@ -2656,7 +2660,7 @@ el('csvDraft').onclick=()=>saveCSV('draft');el('csvSubmit').onclick=()=>saveCSV(
   }catch(e){memoErr='申請資料載入失敗：'+(e.message||e)}finally{memoLoading=null;renderNav();moduleRender()}})();
   return memoLoading}
  function memoOnMeta(meta){if(memoLoaded&&meta&&meta.memos&&Number(meta.memos.v)!==Number(memoVer))memoRefresh()}
- window.memoRefresh=memoRefresh;window.memoOnMeta=memoOnMeta;
+ window.memoRefresh=memoRefresh;window.memoOnMeta=memoOnMeta;window.memoPositions=()=>positions;
 
  // ---- 左側導覽：主畫面／待我簽核／我的申請／各分類的表單／系統設定 ----
  function navActive(t){
@@ -2808,6 +2812,9 @@ el('csvDraft').onclick=()=>saveCSV('draft');el('csvSubmit').onclick=()=>saveCSV(
   for(const key of tier.steps){let who='';
    if(key==='manager'){who=dept?managerFor(dept):'';if(dept&&!who)return{error:'「'+dept+'」尚未設定部門主管，請洽管理員'};if(!who||who===authUser.name)continue}
    else if(key==='executive'){who=orgCEO;if(!who)return{error:'尚未設定執行長，請洽管理員'};if(who===authUser.name)continue}
+   else if(key.startsWith('pos:')){const ps=positions.find(p=>'pos:'+p.key===key),all=ps?ps.holders||[]:[],others=all.filter(n=>n!==authUser.name);
+    if(!others.length){if(all.length)continue;return{error:'尚未有人擔任「'+(ps?ps.name:key)+'」職位，請洽管理員'}}
+    who=others.join('、')}
    out.push({key,who})}
   const steps=[];for(const s of out){const p=steps[steps.length-1];if(p&&p.who&&p.who===s.who)steps[steps.length-1]=s;else steps.push(s)}
   if(!steps.length&&tier.steps.length&&orgCEO&&authUser.name!==orgCEO)steps.push({key:'executive',who:orgCEO});
