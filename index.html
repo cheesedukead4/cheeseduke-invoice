@@ -2540,8 +2540,25 @@ el('csvDraft').onclick=()=>saveCSV('draft');el('csvSubmit').onclick=()=>saveCSV(
  window.memoShow=memoShow;
  function openView(mode,key,filter){view={mode,key:key||''};memoFilter=filter||null;tab(mode==='form'?'form:'+key:mode)}
 
+ // ---- 核准後由財務回填（例如退款申請：已完成退款、已取消訂單、已作廢發票的日期）----
+ const finFields=d=>d?d.fields.filter(fd=>fd.fin):[];
+ const canFinFill=m=>!!authUser&&(authUser.role==='finance'||authUser.role==='admin')&&m.status==='approved'&&finFields(defOf(m.docType)).length>0;
+ const needFill=m=>{const fs=finFields(defOf(m.docType));return m.status==='approved'&&fs.length>0&&!fs.some(fd=>m.data&&m.data[fd.k])};
+ function finSection(m,d){
+  const fs=finFields(d);if(!fs.length)return '';
+  const body=canFinFill(m)?`<div class="dyn-fields">${fs.map(fd=>`<div class="field"><label>${esc(fd.label.replace('財務回填：',''))}</label><input type="date" data-finfill="${fd.k}" value="${esc((m.data||{})[fd.k]||'')}"></div>`).join('')}</div><div class="actions" style="margin-top:8px"><button type="button" class="primary" data-finsave="${esc(m.id)}">儲存財務回填</button></div>`
+   :`<table class="data-table"><tbody>${fs.map(fd=>`<tr><th>${esc(fd.label.replace('財務回填：',''))}</th><td>${esc((m.data||{})[fd.k]||(m.status==='approved'?'尚未回填':'核准後由財務回填'))}</td></tr>`).join('')}</tbody></table>`;
+  return '<h3 style="margin:14px 0 6px">財務回填</h3>'+body}
+ async function saveFinFill(id){
+  const m=memos.find(x=>x.id===id);if(!m||!canFinFill(m))return toast('目前不能做財務回填');
+  const data={...(m.data||{})};
+  document.querySelectorAll('#memoDetailBody [data-finfill]').forEach(i=>{if(i.value)data[i.dataset.finfill]=i.value;else delete data[i.dataset.finfill]});
+  const item={...m,data,history:[...(m.history||[]),{action:'財務回填',reason:''}]};
+  try{const r=await InvCloud.call('put',{store:'memos',item,base:Number(m._rev)||0});upsert(r.item);noteVer(r.v);renderNav();moduleRender();renderDetail(r.item);toast('已儲存財務回填')}
+  catch(e){toast('儲存失敗：'+(e.message||e));if(e.code==='conflict')memoRefresh(true)}}
+
  // ---- 清單 ----
- const L=src=>({inbox:()=>src().filter(canSignStrict),mine:()=>src().filter(isMine),board:()=>src().filter(m=>m.public===true&&m.status==='approved'),all:()=>src()});
+ const L=src=>({finfill:()=>src().filter(needFill),inbox:()=>src().filter(canSignStrict),mine:()=>src().filter(isMine),board:()=>src().filter(m=>m.public===true&&m.status==='approved'),all:()=>src()});
  function badge(m){const s=curStep(m),cls={draft:'draft',in_review:'pending',approved:'approved',rejected:'rejected'}[m.status]||'';
   return `<span class="chip ${cls}">${esc(ST[m.status]||m.status)}</span>`+(s?`<div class="muted small">待 ${esc(stepLabel(s))}（${curIdx(m)+1}/${m.flow.steps.length}）</div>`:'')}
  function rows(items,withActions,showForm){
@@ -2566,9 +2583,9 @@ el('csvDraft').onclick=()=>saveCSV('draft');el('csvSubmit').onclick=()=>saveCSV(
    chips=opts.map(o=>`<button type="button" data-mfilter="${o[0]}" class="${f===o[0]?'on':''}">${o[1]}（${o[2]().length}）</button>`).join('');
    items=(opts.find(o=>o[0]===f)||opts[0])[2]()}
   else{
-   const lists=L(()=>memos.filter(m=>m.docType===view.key)),names={inbox:'待我簽核',mine:'我提出的',board:'公司公告',all:'全部可見'};
-   if(memoFilter===null&&memoLoaded)memoFilter=lists.inbox().length?'inbox':lists.mine().length?'mine':'all';
-   const f=memoFilter||'mine',ks=Object.keys(names).filter(k=>k!=='board'||(def&&def.pub));
+   const lists=L(()=>memos.filter(m=>m.docType===view.key)),names={inbox:'待我簽核',finfill:'待財務回填',mine:'我提出的',board:'公司公告',all:'全部可見'},showFin=!!def&&finFields(def).length>0&&!!authUser&&(authUser.role==='finance'||authUser.role==='admin');
+   if(memoFilter===null&&memoLoaded)memoFilter=lists.inbox().length?'inbox':(showFin&&lists.finfill().length)?'finfill':lists.mine().length?'mine':'all';
+   const f=memoFilter||'mine',ks=Object.keys(names).filter(k=>(k!=='board'||(def&&def.pub))&&(k!=='finfill'||showFin));
    chips=ks.map(k=>`<button type="button" data-mfilter="${k}" class="${f===k?'on':''}">${names[k]}（${lists[k]().length}）</button>`).join('');
    items=lists[ks.includes(f)?f:'all']()}
   $('memoChips').innerHTML=chips;
@@ -2585,6 +2602,7 @@ el('csvDraft').onclick=()=>saveCSV('draft');el('csvSubmit').onclick=()=>saveCSV(
   const inboxN=memos.filter(canSignStrict).length,rej=memos.filter(m=>isMine(m)&&m.status==='rejected').length;
   if(inboxN)todos.push({n:inboxN,t:'張表單等我簽核',go:()=>openView('inbox')});
   if(rej)todos.push({n:rej,t:'張申請被退回，待修改',go:()=>openView('mine','','rejected')});
+  if(authUser.role==='finance'||authUser.role==='admin')forms.filter(f=>finFields(f).length).forEach(f=>{const n=memos.filter(m=>m.docType===f.key&&needFill(m)).length;if(n)todos.push({n,t:'張'+f.name+'待財務回填',go:()=>openView('form',f.key,'finfill')})});
   const addInv=(n,t,go)=>{if(n)todos.push({n,t,go})};
   if(canPage('approval'))addInv(filtered('approval').length,'張發票待主管簽核',()=>tab('approval'));
   if(canPage('executive'))addInv(filtered('executive').length,'張發票待執行長簽核',()=>tab('executive'));
@@ -2611,7 +2629,7 @@ el('csvDraft').onclick=()=>saveCSV('draft');el('csvSubmit').onclick=()=>saveCSV(
   if(fd.type==='textarea')inp=`<textarea id="${id}" data-fk="${fd.k}" rows="4" maxlength="3000">${esc(val??'')}</textarea>`;
   else if(fd.type==='select')inp=`<select id="${id}" data-fk="${fd.k}"><option value="">請選擇</option>${fd.opts.map(o=>`<option${o===val?' selected':''}>${esc(o)}</option>`).join('')}</select>`;
   else inp=`<input id="${id}" data-fk="${fd.k}" type="${inputType[fd.type]||'text'}"${fd.type==='money'?' min="0"':''}${fd.type==='number'||fd.type==='money'?' step="any" inputmode="decimal"':' maxlength="200"'} value="${esc(val??'')}">`;
-  return `<div class="field${fd.type==='textarea'?' wide':''}"><label for="${id}">${label}</label>${inp}</div>`}
+  return `<div class="field${fd.type==='textarea'||(fd.hint&&fd.hint.length>30)?' wide':''}"><label for="${id}">${label}</label>${inp}${fd.hint?`<span class="muted small">${esc(fd.hint)}</span>`:''}</div>`}
  function collectData(d){
   const data={};
   for(const fd of d.fields){
@@ -2646,7 +2664,7 @@ el('csvDraft').onclick=()=>saveCSV('draft');el('csvSubmit').onclick=()=>saveCSV(
   const rej=m&&m.status==='rejected'?[...(m.history||[])].reverse().find(h=>h.action.indexOf('退回')>=0):null;
   $('memoFormWho').innerHTML='申請人：'+esc(authUser.name)+'｜部門：'+esc(authUser.dept||'（無，跨部門）')+'　<span class="muted">'+esc(def.desc)+'</span>'+(rej?`<div style="color:#922729;margin-top:4px">退回原因：${esc(rej.reason)}（${esc(rej.actor)}）</div>`:'');
   const data=(m&&m.data)||{};
-  $('memoFields').innerHTML=def.fields.map(fd=>fieldHtml(fd,data[fd.k])).join('');
+  $('memoFields').innerHTML=def.fields.filter(fd=>!fd.fin).map(fd=>fieldHtml(fd,data[fd.k])).join('');
   $('memoPubRow').classList.toggle('hide',!def.pub);$('memoPublic').checked=!!(m&&m.public);$('memoFiles').value='';
   $('memoSubmit').textContent=m&&m.status==='rejected'?'修改後重新送出':'送出簽核';
   fileList();flowPreview();$('memoDialog').showModal()}
@@ -2692,7 +2710,7 @@ el('csvDraft').onclick=()=>saveCSV('draft');el('csvSubmit').onclick=()=>saveCSV(
  function fmtVal(fd,v){if(fd.type==='ref'){const t=memos.find(m=>m.docNo===v);return String(v)+(t?'｜'+t.title:'')}return fd.type==='money'?'NT$ '+fmt(v):fd.type==='datetime'?String(v).replace('T',' '):String(v)}
  function dataHtml(m,d){
   if(!d)return '<p class="muted">（找不到這種表單的定義）</p>';
-  const rows=d.fields.filter(fd=>m.data&&m.data[fd.k]!==undefined);
+  const rows=d.fields.filter(fd=>!fd.fin&&m.data&&m.data[fd.k]!==undefined);
   if(!rows.length)return '<p class="muted">（沒有填寫內容）</p>';
   return '<table class="data-table"><tbody>'+rows.map(fd=>{const v=m.data[fd.k];
    if(fd.type==='items')return `<tr><th>${esc(fd.label)}</th><td><div class="items-wrap"><table class="items-table"><thead><tr>${fd.cols.map(c=>`<th>${esc(c.label)}</th>`).join('')}</tr></thead><tbody>${v.map(r=>`<tr>${fd.cols.map(c=>`<td>${r[c.k]===undefined?'':esc(c.type==='money'?fmt(r[c.k]):r[c.k])}</td>`).join('')}</tr>`).join('')}</tbody></table></div></td></tr>`;
@@ -2711,7 +2729,7 @@ el('csvDraft').onclick=()=>saveCSV('draft');el('csvSubmit').onclick=()=>saveCSV(
   $('memoDetailBody').innerHTML=`<div class="flex" style="margin-bottom:10px">${badge(m)}</div>
   ${rej?`<div class="warn" style="margin-bottom:10px"><b>退回原因：</b>${esc(rej.reason)}（${esc(rej.actor)}）</div>`:''}
   <div class="memo-meta"><div><span>表單</span>${d?esc(d.icon+' '+d.name):esc(m.docType)}</div><div><span>申請人</span>${esc(m.applicant)}</div><div><span>部門</span>${esc(m.dept||'—')}</div>${d&&d.amount?`<div><span>金額</span>${money(m.amount)}</div>`:''}<div><span>建立時間</span>${esc(when(m.createdAt))}</div><div><span>最後更新</span>${esc(when(m.updatedAt))}</div>${d&&d.pub?`<div><span>公告</span>${m.public?'核准後公告全公司':'不公告'}</div>`:''}</div>
-  <h3 style="margin:8px 0 6px">申請內容</h3>${dataHtml(m,d)}
+  <h3 style="margin:8px 0 6px">申請內容</h3>${dataHtml(m,d)}${finSection(m,d)}
   ${(m.attachments||[]).length?`<h3 style="margin:14px 0 6px">附件</h3><div class="memo-files">${m.attachments.map((f,i)=>`<button type="button" class="memo-fileitem" data-matt="${i}" data-id="${esc(m.id)}">📎 ${esc(f.name)} <span class="muted small">${fmtSize(f.size)}</span></button>`).join('')}</div>`:''}
   <h3 style="margin:14px 0 6px">簽核流程</h3><div class="flowpills">${pills}</div>
   <h3 style="margin:14px 0 6px">簽核歷程</h3><div class="tablewrap">${(m.history||[]).length?`<table><thead><tr><th>時間</th><th>操作者</th><th>動作</th><th>說明</th></tr></thead><tbody>${m.history.map(h=>`<tr><td class="small">${esc(h.at)}</td><td>${esc(h.actor)}</td><td>${esc(h.action)}</td><td>${esc(h.reason)}</td></tr>`).join('')}</tbody></table>`:'<p class="muted">尚無紀錄。</p>'}</div>
@@ -2727,7 +2745,7 @@ el('csvDraft').onclick=()=>saveCSV('draft');el('csvSubmit').onclick=()=>saveCSV(
   catch(e){toast('無法開啟附件：'+(e.message||e))}}
 
  // ---- 事件 ----
- document.addEventListener('click',e=>{const t=e.target.closest('[data-mview],[data-medit],[data-mdel],[data-msign],[data-mfilter],[data-matt],[data-mfrm],[data-todo],[data-itemadd],[data-itemdel]');if(!t||!authUser)return;
+ document.addEventListener('click',e=>{const t=e.target.closest('[data-mview],[data-medit],[data-mdel],[data-msign],[data-mfilter],[data-matt],[data-mfrm],[data-todo],[data-itemadd],[data-itemdel],[data-finsave]');if(!t||!authUser)return;
   const d=t.dataset;
   if(d.mview){openDetail(d.mview)}
   else if(d.medit){const m=memos.find(x=>x.id===d.medit);if(m&&canEditMemo(m)){if($('memoDetail').open)$('memoDetail').close();openForm(defOf(m.docType),m)}}
@@ -2737,6 +2755,7 @@ el('csvDraft').onclick=()=>saveCSV('draft');el('csvSubmit').onclick=()=>saveCSV(
   else if(d.matt!==undefined){openAtt(d.id,Number(d.matt))}
   else if(d.mfrm!==undefined){formFiles.splice(Number(d.mfrm),1);fileList()}
   else if(d.todo!==undefined){const x=homeTodos[Number(d.todo)];if(x)x.go()}
+  else if(d.finsave){saveFinFill(d.finsave)}
   else if(d.itemadd!==undefined){const fd=editDef&&editDef.fields.find(f=>f.k===d.itemadd);if(fd)document.querySelector('#memoFields [data-items="'+fd.k+'"] tbody').insertAdjacentHTML('beforeend',itemRow(fd,{}))}
   else if(d.itemdel!==undefined){const tr=t.closest('tr'),tb=tr.parentNode;if(tb.children.length>1)tr.remove();else tr.querySelectorAll('input').forEach(i=>{i.value=''});autoSum();flowPreview()}});
  // 採購單等有「品項明細」的表單：數量×單價自動加總到金額欄位（使用者自己改過金額就不再自動覆蓋）
