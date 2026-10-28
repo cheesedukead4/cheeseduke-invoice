@@ -87,6 +87,9 @@ button.is-busy{opacity:.65;pointer-events:none}
 
 .lookup-note{font-size:12px;color:#586d84;line-height:1.6;margin-top:3px;word-break:break-word}
 .lookup-note.ok{color:#146c43}.lookup-note.warn{color:#9a5800}.lookup-note.fail{color:#a03a34}
+.cr-tag{display:inline-block;padding:0 7px;border-radius:9px;font-size:12px;border:1px solid currentColor;margin-right:4px}.cr-tag.cr-skip{color:#a03a34}.cr-tag.cr-confirm{color:#9a5800}.cr-tag.cr-process{color:#146c43}
+#ceoRuleBox{margin:8px 0}#ceoRuleBox .cr-line{margin-top:6px;line-height:1.7}#ceoRuleBox button{margin:2px 4px 2px 0;padding:2px 8px;font-size:12px}
+.cr-doc{white-space:pre-wrap;word-break:break-word;font-size:13px;line-height:1.7;margin:8px 0;max-height:420px;overflow:auto}
 .lookup-action{font-size:12px;width:max-content;max-width:100%;padding:5px 9px;background:#f5f8fc}
 .lookup-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .lookup-source{font-size:12px;color:#4e647e}
@@ -278,6 +281,7 @@ input.ro{background:#eef2f8;color:#334155}
 <div class="field who-field"><label for="dept">申請部門／門市 *</label><select id="dept" required><option value="">請選擇</option></select><span id="deptMeta" class="muted small">顯示門市編號及科目代號</span><span id="ceoDeptHint" class="lookup-note hide" aria-live="polite"></span></div>
 <div class="field who-field who-applicant"><label for="applicant">申請人 *</label><select id="applicant" required><option value="">請先選擇部門</option></select></div>
 </div>
+<div id="ceoRuleBox" class="note hide" aria-live="polite"></div>
 <div class="cgrid">
 <div class="field span2"><label for="description">用途 *</label><textarea id="description" rows="1" required placeholder="例如：EDM 發送－2026/09 月"></textarea></div>
 <div class="field"><label for="payee">支付對象 *</label><input id="payee" maxlength="120" autocomplete="off" placeholder="收款的廠商或個人"></div>
@@ -313,6 +317,12 @@ input.ro{background:#eef2f8;color:#334155}
 <div class="toolbar"><div class="field" style="min-width:260px"><label for="ceoHistFile">匯入檔案（Excel 或 CSV）</label><input id="ceoHistFile" type="file" accept=".csv,.xlsx,.xls,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"></div><button id="ceoHistImport" class="primary" type="button">匯入</button><button id="ceoHistTemplate" type="button">下載範本</button><button id="ceoHistExport" type="button">匯出目前資料</button><button id="ceoHistClear" class="danger" type="button">清除全部</button></div>
 <div id="ceoHistStatus" class="note" aria-live="polite">載入中…</div>
 <details class="fold" id="ceoHistDetails"><summary>查看資料（<span id="ceoHistCount">0</span> 筆）</summary><div class="toolbar" style="margin-top:8px"><input id="ceoHistSearch" placeholder="搜尋統編、廠商、支付對象、用途、部門"></div><div class="tablewrap" id="ceoHistTable"></div></details></div>
+<div class="panel hide" id="ceoRulePanel"><h2>📖 發票判斷標準（商家 → 要不要請款、附註）</h2>
+<p class="muted">這裡放執行長自己的<b>發票判斷標準</b>：哪些商家要請款（Y）、哪些是公司卡已付不請款（N）、附註要怎麼寫（Y／N-部門費用類別）、哪些是個人消費不處理、哪些還沒定案要自己確認。上傳發票時，廠商名稱、支付對象或用途只要含有規則的關鍵字，上傳畫面就會列出對應的判斷標準提醒你，並可以一鍵把附註加進備註。<b>這裡只提供建議，不會自動改單據，也不會進簽核流程。</b>只有執行長本人與管理員看得到。</p>
+<div class="toolbar"><div class="field" style="min-width:260px"><label for="ceoRuleFile">匯入標準檔（JSON）</label><input id="ceoRuleFile" type="file" accept=".json,application/json"></div><button id="ceoRuleImport" class="primary" type="button">匯入</button><button id="ceoRuleAdd" type="button">＋ 新增規則</button><button id="ceoRuleExport" type="button">匯出目前標準</button><button id="ceoRuleClear" class="danger" type="button">清除全部</button></div>
+<div id="ceoRuleStatus" class="note" aria-live="polite">載入中…</div>
+<details class="fold" id="ceoRuleDetails"><summary>查看規則（<span id="ceoRuleCount">0</span> 筆）</summary><div class="toolbar" style="margin-top:8px"><input id="ceoRuleSearch" placeholder="搜尋商家、關鍵字、附註、備註"></div><div class="tablewrap" id="ceoRuleTable"></div></details>
+<div id="ceoRuleDocs"></div></div>
 </section>
 <section id="list" class="view hide"><div class="panel"><h2>所有發票紀錄</h2><div id="voucherBanner" class="note hide" aria-live="polite"></div><div class="toolbar"><input id="listSearch" placeholder="搜尋號碼、廠商、申請人"><select id="listStatus"><option value="">全部狀態</option><option value="draft">草稿</option><option value="pending">待主管簽核</option><option value="executive_pending">待執行長簽核</option><option value="approved">待財務覆核</option><option value="finance_ok">已覆核／待付款</option><option value="rejected">退回</option><option value="paid">已付款</option><option value="v:pending">待補憑證</option><option value="v:submitted">憑證待財務確認</option></select><input type="month" id="listMonth"><button id="clearList">清除條件</button></div><div class="tablewrap" id="invoiceTable"></div></div></section>
 <section id="approval" class="view hide"><div class="panel"><h2>主管簽核工作台</h2><p class="muted">只有登入帳號的姓名與此張發票指定主管相符，才可核准或退回；管理員可測試所有流程。</p><div class="tablewrap" id="approvalTable"></div></div></section>
@@ -371,6 +381,20 @@ input.ro{background:#eef2f8;color:#334155}
 <div class="field" style="margin-top:8px"><label for="vcFiles">憑證檔案（發票照片或 PDF）*</label><input id="vcFiles" type="file" accept="image/jpeg,image/png,image/webp,application/pdf" multiple><div id="vcFileNote" class="muted small"></div></div>
 <div class="field" style="margin-top:8px"><label for="vcRemain">還缺幾張憑證</label><input id="vcRemain" type="number" min="0" step="1" value="0" style="max-width:120px"><span class="muted small">這次補齊就填 0（會送財務確認）；還有沒補的，填剩下的張數。</span></div>
 <div class="actions" style="margin-top:12px"><button class="primary" id="vcSubmit" type="button">送出補憑證</button><button type="button" id="vcCancel">取消</button></div></dialog>
+<dialog id="ceoRuleDialog"><div class="flex"><h2 style="margin:0" id="crTitle">新增規則</h2><div class="spacer"></div><button type="button" id="crClose">關閉</button></div>
+<input type="hidden" id="crId">
+<div class="cgrid">
+<div class="field span2"><label for="crName">商家／來源 *</label><input id="crName" maxlength="80"></div>
+<div class="field span2"><label for="crKeywords">比對關鍵字 *（用「、」或換行分開，最多 12 個）</label><textarea id="crKeywords" rows="2"></textarea><span class="muted small">廠商名稱、支付對象或用途含有任何一個關鍵字就算符合（不分大小寫、忽略空白與標點）。</span></div>
+<div class="field"><label for="crAction">處理方式</label><select id="crAction"><option value="process">依標準處理</option><option value="confirm">待確認（要自己判斷）</option><option value="skip">不處理（個人消費等）</option></select></div>
+<div class="field"><label for="crYn">請款</label><select id="crYn"><option value="">不適用</option><option value="Y">Y：要請款</option><option value="N">N：不請款（公司已付）</option></select></div>
+<div class="field"><label for="crCard">卡別／付款來源</label><input id="crCard" maxlength="40" placeholder="例：玉山卡、中信卡、現金代墊"></div>
+<div class="field"><label for="crTax">統編條件</label><select id="crTax"><option value="">不限</option><option value="has">要有統編才符合</option><option value="none">沒有統編才符合</option></select></div>
+<div class="field span2"><label for="crNotes">附註（每行一個；有多種情況就寫多行）</label><textarea id="crNotes" rows="2" placeholder="Y-管理部雜支"></textarea></div>
+<div class="field span2"><label for="crRemark">備註</label><textarea id="crRemark" rows="2" maxlength="400"></textarea></div>
+<div class="field"><label for="crOrder">排序（小的在前）</label><input id="crOrder" type="number" min="0" max="9999" step="1"></div>
+</div>
+<div class="actions" style="margin-top:12px"><button class="primary" id="crSave" type="button">儲存</button><button type="button" id="crCancel">取消</button></div></dialog>
 <dialog id="memoDialog" style="width:min(840px,96vw);max-width:min(840px,96vw)"><div class="flex"><h2 style="margin:0" id="memoFormTitle">新增</h2><div class="spacer"></div><button type="button" id="memoFormClose">關閉</button></div>
 <div class="muted small" id="memoFormWho" style="margin:6px 0 12px"></div>
 <div id="memoFields" class="dyn-fields"></div>
@@ -405,7 +429,7 @@ function applyNav(){if(!authUser)return;
  sub.innerHTML=pages.map(p=>'<button type="button" class="subtab'+(p===curPage?' active':'')+'" data-tab="'+p+'">'+esc(SUB_LABELS[p]||p)+'</button>').join('');
  if(window.renderNav)renderNav()}
 $('subTabs').addEventListener('click',e=>{const b=e.target.closest('.subtab');if(b)tab(b.dataset.tab)});
-let entryMode='normal';const ceoState={deptTouched:false,applying:false,sig:''};const entryBaseTitle=()=>entryMode==='ceo'?'執行長發票上傳':'發票登錄';
+let entryMode='normal';const ceoState={deptTouched:false,applying:false,sig:''};let ceoRules=[],ceoRulesV=null,ceoRulesBusy=false,ceoRulesErr='',ceoRuleMatches=[];const entryBaseTitle=()=>entryMode==='ceo'?'執行長發票上傳':'發票登錄';
 const normalizeAccount=s=>String(s||'').trim().toLowerCase();
 // ===== 雲端人員名單（用 Gmail 登入）：只有管理員讀得到；網頁版沒有密碼 =====
 const allUsers=async()=>(await InvCloud.get({action:'users'})).users;
@@ -1357,10 +1381,12 @@ function applyEntryMode(mode){
  if(!$('editId').value)$('entryTitle').textContent=entryBaseTitle();
  $('ceoDeptHint').classList.toggle('hide',!ceo);
  $('ceoHistPanel').classList.toggle('hide',!(ceo&&canCeoHistPanel()));
- if(ceo)loadCeoHist(false);
+ $('ceoRulePanel').classList.toggle('hide',!(ceo&&canCeoHistPanel()));
+ if(ceo){loadCeoHist(false);loadCeoRules(false)}
+ ceoRuleRender();
  ceoState.sig='';
 }
-function ceoResetState(){ceoState.deptTouched=false;ceoState.autoApplied=false;ceoState.sig='';const h=$('ceoDeptHint');if(h){h.textContent='';h.className='lookup-note'+(entryMode==='ceo'?'':' hide')}}
+function ceoResetState(){ceoState.deptTouched=false;ceoState.autoApplied=false;ceoState.sig='';const h=$('ceoDeptHint');if(h){h.textContent='';h.className='lookup-note'+(entryMode==='ceo'?'':' hide')}const rb=$('ceoRuleBox');if(rb){rb.innerHTML='';rb.classList.add('hide')}ceoRuleMatches=[]}
 // 用執行長過去申請過的發票（已送出簽核以後的）判斷這筆費用歸哪個部門：統編相同、廠商相同、支付對象相同、用途相同或相近，各有不同的分數；
 // 同樣的分攤方式（部門與比例）分數加總，最高的勝出，分數至少 2 才算有把握
 function ceoSuggestDept(ctx){
@@ -1416,10 +1442,10 @@ function ceoClassify(){
 $('dept').addEventListener('change',()=>{if(!ceoState.applying&&entryMode==='ceo')ceoState.deptTouched=true});
 setInterval(()=>{
  if(!authUser||entryMode!=='ceo'||(!isCeoUser()&&authUser.role!=='admin')||$('entry').classList.contains('hide'))return;
- if(Date.now()-ceoHistLast>30000){ceoHistLast=Date.now();loadCeoHist(false)}
+ if(Date.now()-ceoHistLast>30000){ceoHistLast=Date.now();loadCeoHist(false);loadCeoRules(false)}
  if(!$('singleMode').classList.contains('hide')){
-  const sig=[$('taxId').value,$('vendor').value,$('payee').value,$('description').value,$('editId').value,current.length,ceoHistV].join('|');
-  if(sig!==ceoState.sig){ceoState.sig=sig;ceoClassify()}
+  const sig=[$('taxId').value,$('vendor').value,$('payee').value,$('description').value,$('editId').value,current.length,ceoHistV,ceoRulesV].join('|');
+  if(sig!==ceoState.sig){ceoState.sig=sig;ceoClassify();ceoRuleRender()}
  }
  if(window.ceoBatchClassify)window.ceoBatchClassify();
 },700);
@@ -1573,6 +1599,131 @@ $('ceoHistTable').addEventListener('click',async e=>{
  const b=e.target.closest('[data-ch-del]');if(!b)return;
  if(!confirm('刪除這筆歷史歸類資料？'))return;
  try{await InvCloud.call('del',{store:'ceohistory',key:b.dataset.chDel});await loadCeoHist(true)}catch(err){toast(err.message)}
+});
+// ===== 執行長發票判斷標準（ceorules）：商家／關鍵字 → 要不要請款、附註（Y／N-部門費用類別）、卡別、不處理清單；上傳發票時依廠商、支付對象、用途比對後在畫面上提示（只建議，不自動改單據） =====
+const CEO_RULE_TAG={process:'依標準',confirm:'待確認',skip:'不處理'};
+async function loadCeoRules(force){
+ if(!canCeoHistPanel()||ceoRulesBusy)return;ceoRulesBusy=true;
+ try{
+  const r=await InvCloud.get({action:'list',store:'ceorules',since:force||ceoRulesV===null?'':ceoRulesV});
+  ceoRulesErr='';
+  if(!r.unchanged){ceoRules=r.items||[];ceoRulesV=r.v;ceoState.sig=''}
+ }catch(e){ceoRulesErr=/未知的資料類型/.test(e.message||'')?'發票判斷標準需要新版後端（還沒部署）':'讀取失敗：'+(e.message||e)}
+ finally{ceoRulesBusy=false;renderCeoRules()}
+}
+const ceoRuleList=()=>ceoRules.filter(r=>r.kind!=='doc').sort((a,b)=>(a.order??9999)-(b.order??9999)||String(a.name).localeCompare(String(b.name)));
+// 廠商名稱、支付對象、用途裡含有規則的任一關鍵字就符合（不分大小寫、忽略空白與標點）；統編條件：has＝要有 8 碼統編、none＝沒有統編
+function ceoMatchRules(ctx){
+ const hay=[ctx.vendor,ctx.payee,ctx.purpose].map(ledgerNorm).filter(Boolean);
+ if(!hay.length)return [];
+ const hasTax=/^\d{8}$/.test(String(ctx.taxId||'').trim());
+ return ceoRuleList().filter(r=>{
+  if(r.tax==='has'&&!hasTax)return false;
+  if(r.tax==='none'&&hasTax)return false;
+  return (r.keywords||[]).some(k=>{const n=ledgerNorm(k);return n&&hay.some(h=>h.includes(n))});
+ });
+}
+// 附註（Y-管理部雜支）裡的「管理部雜支」開頭若剛好是組織裡某個部門的名稱（取最長的），就提供「部門歸○○」按鈕；對不上就不提供，不猜
+function ceoRuleDeptFor(note){
+ const m=/^[YyNn][-－]\s*(.+)$/.exec(String(note||'').trim());if(!m)return '';
+ let best='';for(const d of orgDepartments){const n=String(d.name||'');if(n&&m[1].startsWith(n)&&n.length>best.length)best=n}
+ return best;
+}
+const ceoRuleYn=r=>r.yn==='Y'?'要請款（Y）':r.yn==='N'?'不請款（N，公司已付）':'';
+function ceoRuleShort(m){
+ const r=m&&m[0];if(!r)return '';
+ const n=(r.notes||[])[0];
+ return '判斷標準：'+CEO_RULE_TAG[r.action||'process']+'｜'+r.name+(r.yn?'｜'+(r.yn==='Y'?'要請款':'不請款'):'')+(n?'｜附註 '+n+((r.notes||[]).length>1?' 等':''):'')+(m.length>1?'（另有 '+(m.length-1)+' 條符合）':'');
+}
+function ceoRuleRender(){
+ const box=$('ceoRuleBox');if(!box)return;
+ const off=()=>{box.classList.add('hide');box.innerHTML='';ceoRuleMatches=[]};
+ if(entryMode!=='ceo'||!canCeoHistPanel()||!ceoRules.length)return off();
+ const ctx={taxId:$('taxId').value,vendor:$('vendor').value,payee:$('payee').value,purpose:$('description').value};
+ if(!ctx.vendor.trim()&&!ctx.payee.trim()&&!ctx.purpose.trim())return off();
+ const m=ceoMatchRules(ctx).slice(0,3);ceoRuleMatches=m;
+ box.classList.remove('hide');
+ if(!m.length){box.innerHTML='<span class="muted small">📖 發票判斷標準裡沒有這個商家（新商家請自己確認卡別與部門）。</span>';return}
+ box.innerHTML='<b>📖 依發票判斷標準</b>'+m.map((r,i)=>{
+  const meta=[ceoRuleYn(r),r.card?'卡別：'+r.card:''].filter(Boolean).join('｜');
+  const notes=(r.notes||[]).map((n,j)=>{const d=ceoRuleDeptFor(n);return `<div>附註：<b>${esc(n)}</b> <button type="button" data-cr-note="${i}:${j}">加到備註</button>${d?`<button type="button" data-cr-dept="${i}:${j}">部門歸「${esc(d)}」</button>`:''}</div>`}).join('');
+  return `<div class="cr-line"><span class="cr-tag cr-${esc(r.action||'process')}">${CEO_RULE_TAG[r.action||'process']}</span><b>${esc(r.name)}</b>${meta?'：'+esc(meta):''}${notes}${r.remark?`<div class="muted small">${esc(r.remark)}</div>`:''}</div>`;
+ }).join('');
+}
+$('ceoRuleBox').addEventListener('click',e=>{
+ const b=e.target.closest('button');if(!b)return;
+ const pick=v=>{const [i,j]=String(v).split(':').map(Number);return (ceoRuleMatches[i]&&ceoRuleMatches[i].notes||[])[j]||''};
+ if(b.dataset.crNote){
+  const n=pick(b.dataset.crNote);if(!n)return;
+  const m=$('memo');if(!m.value.includes(n))m.value=(m.value.trim()?m.value.trim()+'；':'')+n;
+  m.dispatchEvent(new Event('input',{bubbles:true}));toast('已把附註加到備註（在「更多選項」裡）：'+n);
+ }
+ if(b.dataset.crDept){
+  const d=ceoRuleDeptFor(pick(b.dataset.crDept)),sel=$('dept');if(!d)return;
+  if(![...sel.options].some(o=>o.value===d))return toast('申請部門選單裡沒有「'+d+'」');
+  sel.value=d;sel.dispatchEvent(new Event('change',{bubbles:true}));toast('申請部門已改成「'+d+'」');
+ }
+});
+function renderCeoRules(){
+ if(!$('ceoRulePanel'))return;
+ const rules=ceoRuleList(),docs=ceoRules.filter(r=>r.kind==='doc').sort((a,b)=>(a.order??9999)-(b.order??9999)),st=$('ceoRuleStatus');
+ $('ceoRuleCount').textContent=rules.length;
+ st.textContent=ceoRulesErr||(ceoRules.length?`目前有 ${rules.length} 條規則${docs.length?'、'+docs.length+' 份完整標準文件':''}。上傳發票時，廠商名稱、支付對象或用途含有規則的關鍵字，就會在上傳畫面列出對應的判斷標準。`:'目前沒有判斷標準。可以按「＋ 新增規則」，或匯入標準檔（JSON）。');
+ const q=ledgerNorm($('ceoRuleSearch').value);
+ const list=rules.filter(r=>!q||ledgerNorm([r.name,(r.keywords||[]).join(' '),(r.notes||[]).join(' '),r.remark,r.card].join(' ')).includes(q));
+ $('ceoRuleTable').innerHTML=list.length?`<table><thead><tr><th>處理</th><th>商家／來源</th><th>關鍵字</th><th>請款</th><th>卡別</th><th>附註</th><th>備註</th><th></th></tr></thead><tbody>${list.map(r=>`<tr><td><span class="cr-tag cr-${esc(r.action||'process')}">${CEO_RULE_TAG[r.action||'process']}</span></td><td>${esc(r.name)}${r.tax==='has'?'<div class="muted small">要有統編</div>':r.tax==='none'?'<div class="muted small">沒有統編</div>':''}</td><td>${esc((r.keywords||[]).join('、'))}</td><td>${esc(r.yn||'')}</td><td>${esc(r.card||'')}</td><td>${(r.notes||[]).map(esc).join('<br>')}</td><td>${esc(r.remark||'')}</td><td><button type="button" data-cr-edit="${esc(r.id)}">編輯</button> <button type="button" class="danger" data-cr-del="${esc(r.id)}">刪除</button></td></tr>`).join('')}</tbody></table>`:'<p class="muted">沒有符合的規則。</p>';
+ $('ceoRuleDocs').innerHTML=docs.map(d=>`<details class="fold" style="margin-top:8px"><summary>📄 ${esc(d.name)}</summary><div class="cr-doc">${esc(d.body||'')}</div><button type="button" class="danger" data-cr-del="${esc(d.id)}">刪除這份文件</button></details>`).join('');
+}
+function openCeoRuleDialog(id){
+ const r=id?ceoRules.find(x=>x.id===id):null;
+ $('crTitle').textContent=r?'編輯規則':'新增規則';$('crId').value=r?r.id:'';
+ $('crName').value=r?r.name||'':'';$('crKeywords').value=r?(r.keywords||[]).join('、'):'';$('crAction').value=r?r.action||'process':'process';$('crYn').value=r?r.yn||'':'';
+ $('crCard').value=r?r.card||'':'';$('crTax').value=r?r.tax||'':'';$('crNotes').value=r?(r.notes||[]).join('\n'):'';$('crRemark').value=r?r.remark||'':'';$('crOrder').value=r&&r.order!=null&&r.order<9999?r.order:'';
+ $('ceoRuleDialog').showModal();
+}
+$('ceoRuleAdd').onclick=()=>openCeoRuleDialog('');
+$('crClose').onclick=$('crCancel').onclick=()=>$('ceoRuleDialog').close();
+$('crSave').onclick=async()=>{
+ const split=(t,re)=>String(t||'').split(re).map(s=>s.trim()).filter(Boolean);
+ const item={id:$('crId').value||'r'+Date.now().toString(36)+Math.random().toString(36).slice(2,6),kind:'rule',name:$('crName').value.trim(),keywords:split($('crKeywords').value,/[、，,;；\n]+/),action:$('crAction').value,yn:$('crYn').value,card:$('crCard').value.trim(),tax:$('crTax').value,notes:split($('crNotes').value,/\n+/),remark:$('crRemark').value.trim(),order:$('crOrder').value===''?9999:Number($('crOrder').value)};
+ if(!item.name)return toast('請填商家／來源');
+ if(!item.keywords.length)return toast('請至少填一個比對關鍵字');
+ if(!$('crId').value&&ceoRules.length>=300)return toast('發票判斷標準最多 300 筆，請先刪除舊資料');
+ try{await InvCloud.call('put',{store:'ceorules',item});$('ceoRuleDialog').close();await loadCeoRules(true);toast('已儲存')}catch(e){toast(e.message||String(e))}
+};
+async function importCeoRules(){
+ const f=$('ceoRuleFile').files[0];if(!f)return toast('請先選擇要匯入的標準檔');
+ const st=$('ceoRuleStatus'),btn=$('ceoRuleImport');btn.disabled=true;
+ try{
+  let data;try{data=JSON.parse(await f.text())}catch(_){throw Error('檔案不是正確的 JSON')}
+  const items=(Array.isArray(data)?data:data&&Array.isArray(data.items)?data.items:[]).filter(x=>x&&typeof x==='object'&&/^[A-Za-z0-9_\-]{1,60}$/.test(String(x.id||'')));
+  if(!items.length)throw Error('檔案裡沒有可以匯入的資料（要有 items 陣列，每筆有 id）');
+  const have=new Set(ceoRules.map(r=>r.id)),fresh=items.filter(x=>!have.has(String(x.id))).length;
+  if(ceoRules.length+fresh>300)throw Error('發票判斷標準最多 300 筆，匯入後會超過（目前 '+ceoRules.length+' 筆，這次新增 '+fresh+' 筆）');
+  if(!confirm('檔案裡有 '+items.length+' 筆：新增 '+fresh+' 筆、更新 '+(items.length-fresh)+' 筆（id 相同的會用檔案內容取代）。\n\n要匯入嗎？'))return;
+  st.textContent='匯入中…';let count=0,skipped=0;
+  for(let k=0;k<items.length;k+=40){const r=await InvCloud.call('putMany',{store:'ceorules',items:items.slice(k,k+40)});count+=r.count||0;skipped+=r.skipped||0}
+  $('ceoRuleFile').value='';await loadCeoRules(true);
+  st.textContent='匯入完成：成功 '+count+' 筆，略過 '+skipped+' 筆（資料不完整）。目前共 '+ceoRules.length+' 筆。';
+ }catch(e){st.textContent='匯入失敗：'+(e.message||e);toast(e.message||String(e))}
+ finally{btn.disabled=false}
+}
+$('ceoRuleImport').onclick=importCeoRules;
+$('ceoRuleSearch').addEventListener('input',renderCeoRules);
+$('ceoRuleExport').onclick=()=>{
+ if(!ceoRules.length)return toast('目前沒有資料可以匯出');
+ download('發票判斷標準_'+datestr()+'.json',JSON.stringify({version:1,items:ceoRules.map(({_rev,...r})=>r)},null,1),'application/json;charset=utf-8');
+};
+$('ceoRuleClear').onclick=async()=>{
+ if(!ceoRules.length)return toast('目前沒有資料');
+ if(!confirm('確定要清除全部 '+ceoRules.length+' 筆發票判斷標準（含完整標準文件）嗎？\n\n清除後無法復原，建議先按「匯出目前標準」備份。'))return;
+ try{await InvCloud.call('del',{store:'ceorules',keys:ceoRules.map(r=>r.id)});await loadCeoRules(true);toast('已清除')}catch(e){toast(e.message)}
+};
+$('ceoRulePanel').addEventListener('click',async e=>{
+ const ed=e.target.closest('[data-cr-edit]');if(ed)return openCeoRuleDialog(ed.dataset.crEdit);
+ const b=e.target.closest('[data-cr-del]');if(!b)return;
+ if(!confirm('刪除這筆發票判斷標準？'))return;
+ try{await InvCloud.call('del',{store:'ceorules',key:b.dataset.crDel});await loadCeoRules(true)}catch(err){toast(err.message)}
 });
 // 雲端處理中的提示：任何一個寫入雲端的動作（送簽、核准、儲存…）超過 0.3 秒還沒回來，畫面上方就顯示「處理中」，不會讓人以為按鍵沒反應
 (function(){
@@ -2115,6 +2266,7 @@ function renderBatch(){
   else control=`<input data-bi="${i}" data-bk="${key}" type="${type==='numberZero'?'number':type}" value="${safeVal(v)}" ${type==='number'?'min="0.01" step="0.01"':type==='numberZero'?'min="0" step="1"':''} ${key==='requestDate'?'readonly title="由系統自動帶入"':''} ${key==='taxId'?'maxlength="8" inputmode="numeric"':''} ${r.saved?'disabled':''}>`;
   if(key==='dept'&&r.values.dept){const d=departmentByName(r.values.dept);if(d)control+=`<span class="muted small">編號：${safeVal(d.code||'未設定')}　科目：${safeVal(d.accountCode||'未設定')}</span>`}
   if(key==='dept'&&r.ceoHint)control+=`<span class="lookup-note ${/^依過去申請/.test(r.ceoHint)?'ok':/^沒有找到/.test(r.ceoHint)?'warn':''}">${safeVal(r.ceoHint)}</span>`;
+  if(key==='dept'&&r.ceoRuleText)control+=`<span class="lookup-note ${/^判斷標準：依標準/.test(r.ceoRuleText)?'ok':'warn'}">${safeVal(r.ceoRuleText)}</span>`;
   return `<div class="field ${other}"><label>${label}</label>${control}${key==='vendor'?`<span class="lookup-note ${r.registryVerified&&!r.registryConflict?'ok':'warn'}">${safeVal(r.vendorSource||'請確認賣方廠商')}</span>`:''}${key==='taxId'?`<button class="lookup-action" type="button" data-blookup="${i}" ${r.saved?'disabled':''}>🔎 線上核對賣方統編</button>`:''}</div>`;
  };
  const isOpen=r=>r.expanded??(batchRows.length<=1);
@@ -2197,8 +2349,10 @@ window.ceoBatchClassify=function(){
   if(r.saved)return;
   const card=el('batch-card-'+i),ae=document.activeElement;
   if(card&&ae&&card.contains(ae)&&/^(INPUT|TEXTAREA|SELECT)$/.test(ae.tagName))return;
-  const v=r.values,sig=[v.taxId,v.vendor,v.payee,v.description,ceoHistV].join('|');
+  const v=r.values,sig=[v.taxId,v.vendor,v.payee,v.description,ceoHistV,ceoRulesV].join('|');
   if(r.ceoSig===sig)return;r.ceoSig=sig;
+  const rt=ceoRuleShort(ceoMatchRules({taxId:v.taxId,vendor:v.vendor,payee:v.payee,purpose:v.description}));
+  if(r.ceoRuleText!==rt){r.ceoRuleText=rt;changed=true}
   const res=ceoSuggestDept({taxId:v.taxId,vendor:v.vendor,payee:v.payee,purpose:v.description});
   const set=t=>{if(r.ceoHint!==t){r.ceoHint=t;changed=true}};
   if(!res){
