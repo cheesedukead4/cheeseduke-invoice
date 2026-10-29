@@ -1217,7 +1217,7 @@ function displaySingleClaimItems(){
 }
 
 function updateSingleClaimTotal(){const total=claimSum({items:singleClaimItems});$('claimTotal').textContent='NT$ '+fmt(total);singleClaimItems.forEach((it,i)=>refreshItemAlloc($('claimItemsBody').querySelector('[data-ia-host="'+i+'"]'),it));
- const inv=Number($('amount').value)||0;$('claimAmountWarning').textContent=inv>0&&Math.abs(total-inv)>0.01?'⚠ 請款合計與發票總計不同，請確認是否有另計費用或拆分項目。':'';
+ const inv=Number($('amount').value)||0;$('claimAmountWarning').textContent=inv>0&&Math.abs(total-inv)>0.01?'⚠ 請款合計與發票總計不同，無法送出：請調整項目金額，讓合計等於發票總計（存草稿不受影響）。':'';
  $('voucherProvided').value=($('files').files.length+(Number($('editId').dataset.existingFiles)||0))+' 件';
 }
 function linkSingleAmount(){if(singleAmountLinked&&singleClaimItems.length===1){singleClaimItems[0].amount=moneyValue($('amount').value);displaySingleClaimItems()}else updateSingleClaimTotal()}
@@ -1239,7 +1239,10 @@ function claimIssues(c,invoiceAmount,submitting){
  if(!c.requestDate)errors.push('送單日期取得失敗');
  if(!c.payee)errors.push('請填寫支付對象');
  if(!c.purpose)errors.push('請填寫請款用途');
- if(!c.items.length||!c.items.every(x=>x.description&&x.amount>=0)||claimSum(c)<=0)errors.push('請款項目至少一筆，金額合計須大於 0');c.items.forEach((x,k)=>{const al=Array.isArray(x.allocations)&&x.allocations.length?x.allocations:c.allocations,e=allocationErrors(al);if(e)errors.push(c.items.length>1?'第 '+(k+1)+' 項：'+e:e)});
+ if(!c.items.length||!c.items.every(x=>x.description&&x.amount>=0)||claimSum(c)<=0)errors.push('請款項目至少一筆，金額合計須大於 0');
+ // 項目合計一定要等於發票總計金額才能送出（存草稿不檢查）
+ else if(Number.isFinite(invoiceAmount)&&invoiceAmount>0&&Math.abs(claimSum(c)-invoiceAmount)>0.01)errors.push('請款項目合計 NT$ '+fmt(claimSum(c))+' 與發票總計金額 NT$ '+fmt(invoiceAmount)+' 不同，無法送出，請調整項目金額或發票總計');
+c.items.forEach((x,k)=>{const al=Array.isArray(x.allocations)&&x.allocations.length?x.allocations:c.allocations,e=allocationErrors(al);if(e)errors.push(c.items.length>1?'第 '+(k+1)+' 項：'+e:e)});
  if(isFirstTransfer(c.paymentMethod,c.transferHistory)&&!(c.passbook?.blob||c.passbook?.blobId))errors.push('首次匯款須上傳存摺影本或銀行帳戶證明');
  return errors;
 }
@@ -2478,7 +2481,7 @@ function renderBatch(){
    </tbody></table></div>
    <div class="actions" style="margin:8px 0"><button type="button" data-bline-add="${i}" ${r.saved?'disabled':''}>＋ 新增項目</button></div>
    <div class="claim-total"><span>請款合計</span><strong id="bclaim-total-${i}">NT$ ${fmt(claimSum(r.claim))}</strong></div>
-    <div class="claim-notice" id="bclaim-warning-${i}">${Math.abs(claimSum(r.claim)-moneyValue(r.values.amount))>0.01?'⚠ 請款合計與發票總計不一致，請核對。':''}</div>
+    <div class="claim-notice" id="bclaim-warning-${i}">${Math.abs(claimSum(r.claim)-moneyValue(r.values.amount))>0.01?'⚠ 請款合計與發票總計不一致，無法送出，請核對。':''}</div>
     ${isFirstTransfer(r.values.payment,r.values.transferHistory)?`<div class="passbook-upload"><strong>首次匯款｜存摺影本 *</strong><div class="muted small">此附件獨立保存，不與發票影像混用。</div><label class="passbook-link" for="batchPassbook-${i}">📎 點此上傳存摺影本</label><input id="batchPassbook-${i}" class="visually-hidden-file" type="file" accept="image/jpeg,image/png,image/webp,application/pdf" data-bpassbook="${i}" ${r.saved?'disabled':''}><span class="muted small">${r.passbookFile?'已選擇：'+safeVal(r.passbookFile.name):'尚未選擇檔案'}</span>${r.passbookFile&&!r.saved?`<button type="button" data-bpassbook-remove="${i}">移除附件</button>`:''}</div>`:'<p class="muted small">非首次匯款／現金付款不需要存摺影本。</p>'}</div>
    <div class="actions"><button type="button" data-rowdraft="${i}" ${r.saved?'disabled':''}>儲存草稿</button><button class="primary" type="button" data-rowsubmit="${i}" ${r.saved?'disabled':''}>${window.companyShouldSkipManager?.(r.values.dept,r.values.applicant)?'送出執行長簽核':'送出主管簽核'}</button><button type="button" data-rowclear="${i}" ${r.saved?'disabled':''}>清除／取消編輯</button></div>
    ${r.raw?`<details class="batch-extra"><summary>查看 OCR 原始文字</summary><pre style="white-space:pre-wrap;max-height:180px;overflow:auto">${safeVal(r.raw)}</pre></details>`:''}
@@ -2495,7 +2498,7 @@ root.querySelectorAll('[data-bi]').forEach(node=>node.addEventListener('input',(
   const r=batchRows[+node.dataset.bci],line=r.claim.items[+node.dataset.bline];line[node.dataset.blinekey]=node.dataset.blinekey==='amount'?moneyValue(node.value):node.value;
   if(node.dataset.blinekey==='amount')r.claimAutoAmount=false;
   const total=el('bclaim-total-'+node.dataset.bci);if(total)total.textContent='NT$ '+fmt(claimSum(r.claim));
-  refreshAllocationRow(+node.dataset.bci);const warn=el('bclaim-warning-'+node.dataset.bci);if(warn)warn.textContent=Math.abs(claimSum(r.claim)-moneyValue(r.values.amount))>0.01?'⚠ 請款合計與發票總計不一致，請核對。':'';
+  refreshAllocationRow(+node.dataset.bci);const warn=el('bclaim-warning-'+node.dataset.bci);if(warn)warn.textContent=Math.abs(claimSum(r.claim)-moneyValue(r.values.amount))>0.01?'⚠ 請款合計與發票總計不一致，無法送出，請核對。':'';
  }));
   root.querySelectorAll('[data-bline-add]').forEach(node=>node.addEventListener('click',()=>{const r=batchRows[+node.dataset.blineAdd];r.claim.items.push({description:'',amount:0,accountCode:'',accountName:'',allocations:[{dept:r.values.dept||'',ratio:100}]});r.claimAutoAmount=false;renderBatch()}));
  root.querySelectorAll('[data-bline-remove]').forEach(node=>node.addEventListener('click',()=>{const r=batchRows[+node.dataset.blineRemove];if(r.claim.items.length<=1)return;r.claim.items.splice(+node.dataset.blineIndex,1);r.claimAutoAmount=false;renderBatch()}));
