@@ -47,7 +47,7 @@ details.fold{border:1px solid #dce3ed;border-radius:8px;padding:8px 12px;margin-
 .sticky-actions button{flex:0 0 auto}.sticky-actions .primary{flex:1 1 140px}
 @media(max-width:900px){.cgrid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 .claim-lines{min-width:0!important}.claim-lines th:nth-child(2),.claim-lines th:nth-child(3){min-width:0!important}
-#finReviewBody .claim-lines td:last-child{width:auto!important;text-align:left!important}#finReviewBody .claim-lines th:nth-child(4){min-width:300px!important}
+#finReviewBody .claim-lines td:last-child{width:auto!important;text-align:left!important}#finReviewBody .claim-lines th:nth-child(4){min-width:240px!important}#finReviewBody .claim-lines th:nth-child(5){min-width:300px!important}#finReviewBody .claim-lines td:nth-child(4){text-align:left!important}
 #suggestBox{position:fixed;z-index:3000;background:#fff;border:1px solid #b9c6d6;border-radius:8px;box-shadow:0 8px 24px #13233d33;overflow:auto;padding:4px;box-sizing:border-box}
 #suggestBox[hidden]{display:none}
 #suggestBox button{display:flex;justify-content:space-between;align-items:center;gap:10px;width:100%;text-align:left;border:0;background:transparent;padding:8px 10px;min-height:0;border-radius:6px;font-size:14px;color:var(--ink);cursor:pointer}
@@ -388,7 +388,7 @@ input.ro{background:#eef2f8;color:#334155}
 <div class="panel"><h2>變更紀錄</h2><p class="muted small">最近 100 筆調整（誰、什麼時候、哪張表單、調整前 → 調整後）。</p><div class="tablewrap" id="flowLog"></div></div></section>
 <section id="settings" class="view hide"><div class="panel"><h2>備份、還原及系統說明</h2><div class="note" id="invoiceOnlyResetInfo"><b>發票資料清空（僅管理員）</b><p id="invoiceResetCount" style="margin:5px 0">正在讀取發票筆數…</p><div class="small">本功能只清除<strong>發票草稿、已送審與已付款紀錄、附件、簽核歷程及付款紀錄</strong>。<strong>不刪除：</strong>人員名單（Gmail）、可見頁面權限、部門／門市編號、主管與員工名冊、執行長設定，以及已建檔的廠商名稱與統編。清除前請確認不需要保留發票資料，或先使用下方 JSON 備份。</div></div><div class="warn"><b>重要：</b>資料存在公司的 Google 雲端硬碟，由雲端後端檢查登入身分、可見範圍與簽核順序；每天自動備份一份（保留 30 份）。仍請：只把 Gmail 開給需要的人、員工離職或換單位時立刻停用或修改、定期下載完整備份，並避免在公用電腦登入。</div><div class="actions"><button class="primary" id="backupJSON">完整備份：發票、部門及廠商（含附件）</button><button id="restoreBtn">匯入備份 JSON（組織只補不存在的項目）</button><input id="restoreFile" class="hide" type="file" accept="application/json,.json"><button class="danger" id="clearAll">只清除全部發票（保留個人資料）</button></div><div class="note" id="upgradePreservationStatus"><b>資料保護：</b>備份還原與清空發票都不會動到人員名單（Gmail）、頁面權限、組織名冊與廠商資料。從舊的單機版（v5.4）搬資料：先在舊版「完整備份」匯出 JSON，再回到這裡以管理員身分「匯入備份 JSON」；舊版的帳號密碼不會匯入，請到「帳號／權限管理」用 Gmail 重新建立人員。</div><div class="note">完整備份包含發票、金額、附件與存摺影本，請將 JSON 視為敏感檔案妥善保存，不要放進網站資料夾或上傳到任何公開位置。</div><h3>目前功能範圍</h3><p>發票上傳與手動登錄、草稿、送主管簽核、主管核准／退回、執行長核准／退回、財務覆核、付款完成、各式查詢、請款單與發票影像同頁列印、CSV 匯出、JSON 完整備份與還原、操作歷程。</p><h3>建議交由 Claude 接續開發</h3><p>後端正式登入及伺服器端權限驗證（申請人／主管／執行長／財務／管理者）、多人即時同步、附件雲端儲存、電子發票 OCR、發票號碼及統編驗證、重複憑證提醒、簽核層級、通知與退回補件、完整不可竄改稽核軌跡、財會系統銜接、付款批次與憑證歸檔。</p></div></section>
 </main>
-<dialog id="financeReviewDialog" style="width:min(960px,96vw);max-width:min(960px,96vw)"><div class="flex"><h2 style="margin:0">財務覆核：確認會計科目</h2><div class="spacer"></div><button type="button" id="finReviewClose">關閉</button></div><div id="finReviewBody" style="margin-top:12px"></div></dialog>
+<dialog id="financeReviewDialog" style="width:min(1180px,96vw);max-width:min(1180px,96vw)"><div class="flex"><h2 style="margin:0">財務覆核：確認會計科目</h2><div class="spacer"></div><button type="button" id="finReviewClose">關閉</button></div><div id="finReviewBody" style="margin-top:12px"></div></dialog>
 <dialog id="voucherDialog"><div class="flex"><h2 style="margin:0">補上憑證</h2><div class="spacer"></div><button type="button" id="vcClose">關閉</button></div>
 <div id="vcInfo" class="muted small" style="margin:8px 0"></div>
 <div class="cgrid">
@@ -1292,28 +1292,35 @@ async function act(id,action){let i=await get(id);const prev=i?JSON.parse(JSON.s
 // 會計科目在財務覆核時才判斷：依項目說明、申請部門、廠商自動建議，財務可以直接修改或點候選科目，確認後才覆核通過
 let finReview=null;
 function openFinanceReview(i){
- const ctx=ledgerContext(i.dept,i.vendor,i.taxId),items=i.claim.items.map(x=>({...x}));
+ const ctx=ledgerContext(i.dept,i.vendor,i.taxId),items=i.claim.items.map(x=>({...x,allocations:(Array.isArray(x.allocations)?x.allocations:[]).map(a=>({dept:a.dept,ratio:a.ratio}))}));
  items.forEach(line=>{if(line.ledgerSource==='finance')return;line.ledgerManual=false;updateLedgerForLine(line,ctx,true)});
- finReview={id:i.id,items,ctx,dept:i.dept,invoice:i};renderFinanceReview();$('financeReviewDialog').showModal();
+ ensureItemAllocations(items,i.dept,i.claim.allocations);
+ finReview={id:i.id,items,ctx,dept:i.dept,invoice:i,allocBefore:items.map(allocSig)};renderFinanceReview();$('financeReviewDialog').showModal();
 }
+const allocSig=it=>JSON.stringify((it.allocations||[]).map(a=>[a.dept,Number(a.ratio)]));
 function renderFinanceReview(){
- const i=finReview.invoice,rows=finReview.items.map((x,k)=>`<tr><td>${k+1}</td><td>${esc(x.description)}</td><td class="right">NT$ ${fmt(x.amount)}</td><td>${ledgerRowMarkup(x,k,'batch',0,false)}</td></tr>`).join('');
- $('finReviewBody').innerHTML=`<div class="muted small">${esc(i.invoiceNo)}｜${esc(i.vendor)}｜${esc(departmentLabel(i.dept))}／${esc(i.applicant)}｜NT$ ${fmt(i.amount)}</div><p class="note" style="margin:8px 0">系統已依項目說明、申請部門與廠商判斷會計科目，請核對。可直接改代號或名稱，或點下方的候選科目。</p><div style="overflow-x:auto"><table class="claim-lines"><thead><tr><th>序號</th><th>項目說明</th><th>小計</th><th>會計科目（自動判斷／可修改）</th></tr></thead><tbody>${rows}</tbody></table></div><div class="actions" style="margin-top:12px"><button class="primary" type="button" id="finReviewOk">確認覆核通過</button><button type="button" id="finReviewCancel">取消</button></div>`;
+ const i=finReview.invoice,rows=finReview.items.map((x,k)=>`<tr><td>${k+1}</td><td>${esc(x.description)}</td><td class="right">NT$ ${fmt(x.amount)}</td><td>${itemAllocHtml(x,'fr'+k,`data-fr-chip="${k}"`,`data-fr-row="${k}"`,false)}</td><td>${ledgerRowMarkup(x,k,'batch',0,false)}</td></tr>`).join('');
+ $('finReviewBody').innerHTML=`<div class="muted small">${esc(i.invoiceNo)}｜${esc(i.vendor)}｜${esc(departmentLabel(i.dept))}／${esc(i.applicant)}｜NT$ ${fmt(i.amount)}</div><p class="note" style="margin:8px 0">系統已依項目說明、申請部門與廠商判斷會計科目，請核對。可直接改代號或名稱，或點下方的候選科目；<b>分攤部門</b>是申請人登錄時選的，財務可以調整（點部門按鈕選／取消，比例合計要 100%）。</p><div style="overflow-x:auto"><table class="claim-lines"><thead><tr><th>序號</th><th>項目說明</th><th>小計</th><th>分攤部門（可調整）</th><th>會計科目（自動判斷／可修改）</th></tr></thead><tbody>${rows}</tbody></table></div><div class="actions" style="margin-top:12px"><button class="primary" type="button" id="finReviewOk">確認覆核通過</button><button type="button" id="finReviewCancel">取消</button></div>`;
 }
 function finReviewLine(node){return finReview?.items[+(node.dataset.bline??node.closest('td')?.querySelector('[data-bline]')?.dataset.bline)]}
 $('finReviewClose').onclick=()=>$('financeReviewDialog').close();
 $('finReviewBody').addEventListener('input',e=>{const n=e.target,key=n.dataset.blinekey;if(key!=='accountCode'&&key!=='accountName')return;const line=finReviewLine(n);if(!line)return;line[key]=n.value;line.ledgerManual=true;line.ledgerSource='manual';chartLinkLine(line,key,n.closest('td'),finReview.dept);const hint=n.closest('td').querySelector('.ledger-hint');if(hint)hint.textContent=ledgerDisplay(line)});
+$('finReviewBody').addEventListener('input',e=>{const x=e.target;if(x.dataset.frRow===undefined)return;const line=finReview?.items[+x.dataset.frRow];if(!line)return;line.allocations[+x.dataset.alocRatio].ratio=Number(x.value);refreshItemAlloc(x.closest('.item-alloc'),line)});
 $('finReviewBody').addEventListener('click',async e=>{
  if(e.target.id==='finReviewCancel')return $('financeReviewDialog').close();
  const cand=e.target.closest('[data-cand-code]');if(cand){const td=cand.closest('td'),line=finReviewLine(td.querySelector('[data-bline]'));if(line)applyLedgerCandidate(line,cand,td);return}
  const re=e.target.closest('[data-ledger-batch]');if(re){const td=re.closest('td'),line=finReviewLine(td.querySelector('[data-bline]'));if(!line)return;line.ledgerManual=false;updateLedgerForLine(line,finReview.ctx,true);td.querySelector('[data-blinekey=accountCode]').value=line.accountCode||'';td.querySelector('[data-blinekey=accountName]').value=line.accountName||'';td.querySelector('.ledger-hint').textContent=ledgerDisplay(line);const cc=td.querySelector('.ledger-cands');if(cc)cc.innerHTML=ledgerCandsHtml(line);return}
+ const chip=e.target.closest('[data-fr-chip]');if(chip){const k=+chip.dataset.frChip,line=finReview.items[k],host=chip.closest('.item-alloc');if(!line||!host)return;line.allocations=chip.dataset.alocAll?toggleAllAllocation(line.allocations,finReview.dept):toggleAllocation(line.allocations,chip.dataset.alocDept);host.outerHTML=itemAllocHtml(line,'fr'+k,`data-fr-chip="${k}"`,`data-fr-row="${k}"`,false);return}
  if(e.target.id!=='finReviewOk')return;
  const errs=[];if(accountChart.length)finReview.items.forEach((x,k)=>{const code=String(x.accountCode||'').trim();if(!code)errs.push('第 '+(k+1)+' 項還沒有會計科目');else if(!accountByCode.has(code))errs.push('第 '+(k+1)+' 項會計科目「'+code+'」不在科目表內，請從科目表選擇')});
+ finReview.items.forEach((x,k)=>{const m=allocationErrors(x.allocations);if(m)errs.push('第 '+(k+1)+' 項分攤部門：'+m)});
  if(errs.length)return toast(errs.join('\n'));
  try{
   const i=await get(finReview.id);if(!i||i.status!=='approved'||!can('finance','admin'))return toast('權限或狀態不符');
-  finReview.items.forEach((x,k)=>{const dst=i.claim.items[k];if(!dst)return;const code=String(x.accountCode||'').trim();dst.accountCode=code;dst.accountName=chartName(code)||String(x.accountName||'').trim();dst.ledgerManual=true;dst.ledgerSource='finance';dst.ledgerConfidence=Number(x.ledgerConfidence)||0});
-  i.status='finance_ok';audit(i,'財務覆核通過（已確認會計科目）');i.updatedAt=new Date().toISOString();await put(i);
+  finReview.items.forEach((x,k)=>{const dst=i.claim.items[k];if(!dst)return;const code=String(x.accountCode||'').trim();dst.accountCode=code;dst.accountName=chartName(code)||String(x.accountName||'').trim();dst.ledgerManual=true;dst.ledgerSource='finance';dst.ledgerConfidence=Number(x.ledgerConfidence)||0;dst.allocations=x.allocations.map(a=>({dept:a.dept,ratio:Number(a.ratio)}))});
+  i.claim.allocations=aggregateAllocations(i.claim.items);
+  const allocChanged=finReview.items.some((x,k)=>allocSig(x)!==finReview.allocBefore[k]);
+  i.status='finance_ok';audit(i,'財務覆核通過（已確認會計科目'+(allocChanged?'，並調整分攤部門':'')+'）');i.updatedAt=new Date().toISOString();await put(i);
   $('financeReviewDialog').close();finReview=null;await refresh();
  }catch(err){toast(err.message)}
 });
