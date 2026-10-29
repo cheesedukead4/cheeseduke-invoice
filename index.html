@@ -89,6 +89,12 @@ button.is-busy{opacity:.65;pointer-events:none}
 .lookup-note.ok{color:#146c43}.lookup-note.warn{color:#9a5800}.lookup-note.fail{color:#a03a34}
 .cr-tag{display:inline-block;padding:0 7px;border-radius:9px;font-size:12px;border:1px solid currentColor;margin-right:4px}.cr-tag.cr-skip{color:#a03a34}.cr-tag.cr-confirm{color:#9a5800}.cr-tag.cr-process{color:#146c43}
 #ceoRuleBox{margin:8px 0}#ceoRuleBox .cr-line{margin-top:6px;line-height:1.7}#ceoRuleBox button{margin:2px 4px 2px 0;padding:2px 8px;font-size:12px}
+.flow-layout{display:grid;grid-template-columns:300px 1fr;gap:14px;align-items:start}@media(max-width:860px){.flow-layout{grid-template-columns:1fr}}
+.flow-list{max-height:640px;overflow:auto;border:1px solid var(--line,#d5dde6);border-radius:8px;padding:6px}.flow-cat{font-weight:700;margin:8px 4px 4px}.flow-item{display:block;width:100%;text-align:left;margin:3px 0;padding:6px 8px;border:1px solid transparent;border-radius:6px;background:transparent;cursor:pointer}.flow-item small{display:block;color:#6a7a8c;font-size:11px;line-height:1.4;margin-top:2px}.flow-item.on{border-color:#2f5d8c;background:#eef4fb}
+.flow-badge{display:inline-block;padding:0 6px;border-radius:9px;font-size:11px;background:#fff1d6;color:#9a5800;border:1px solid #e6c77a}.flow-badge.flow-def{background:#eef2f6;color:#5b6b7c;border-color:#cfd8e1}
+.flow-tier{border:1px solid #d5dde6;border-radius:8px;padding:10px;margin:8px 0}.flow-tier-h{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:6px}.flow-tier-h .flow-up{width:110px}.small-btn{padding:2px 8px;font-size:12px;margin-left:auto}
+.flow-steps{display:flex;align-items:center;flex-wrap:wrap;gap:4px}.flow-chip{display:inline-flex;align-items:center;gap:3px;padding:3px 6px;border:1px solid #b9c7d6;border-radius:14px;background:#f4f8fc;font-size:13px}.flow-chip i{font-style:normal;font-size:11px;background:#2f5d8c;color:#fff;border-radius:50%;width:16px;height:16px;display:inline-flex;align-items:center;justify-content:center}.flow-chip button{padding:0 4px;font-size:11px;border:0;background:transparent;cursor:pointer;color:#4a5b6d}.flow-chip button:disabled{opacity:.3;cursor:default}.flow-arrow{color:#7b8a9a}.flow-end{padding:3px 8px;border-radius:14px;background:#e4f4ea;color:#146c43;font-size:13px}
+.flow-add{display:flex;gap:6px;margin-top:8px;align-items:center}.flow-msg{margin:8px 0;padding:8px 10px;border-radius:6px;font-size:13px}.flow-msg.bad{background:#fdecea;color:#a03a34}.flow-msg.warn{background:#fff6e0;color:#9a5800}
 .cr-doc{white-space:pre-wrap;word-break:break-word;font-size:13px;line-height:1.7;margin:8px 0;max-height:420px;overflow:auto}
 .lookup-action{font-size:12px;width:max-content;max-width:100%;padding:5px 9px;background:#f5f8fc}
 .lookup-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
@@ -366,6 +372,11 @@ input.ro{background:#eef2f8;color:#334155}
 <h3>目前人員清單</h3><div class="tablewrap" id="accountsTable"></div>
 <p class="footer">登入由 Google 驗證；人員名單、角色與部門存在雲端後端，資料可見範圍與簽核順序由後端檢查。員工離職或調動時，請立刻到這裡停用或修改。</p>
 </div></section>
+<section id="flows" class="view hide"><div class="panel"><h2>簽核流程設定（後台）</h2>
+<div class="note">僅<b>系統管理員</b>看得到、改得了。這裡可以調整<b>每一張表單</b>的簽核流程：幾個金額級距、每一級要經過哪些關卡（部門主管、執行長、財務，或「採購」「行銷」這類職位）、順序怎麼排。<b>改了只影響之後送出的單</b>，已經送出、簽核中的單維持送出當時的流程。每次調整都會留下紀錄，也可以隨時還原成預設流程。</div>
+<div class="flow-layout"><div id="flowList" class="flow-list"><p class="muted">載入中…</p></div><div id="flowEditor"></div></div></div>
+<div class="panel"><h2>職位管理</h2><p class="muted">職位是加在「員工／部門主管／執行長／財務」之外的簽核身分，可以用在表單的簽核關卡。<b>要指派誰擔任</b>，到「帳號／權限管理」編輯人員、勾選職位。職位還用在某張表單的流程裡時不能刪除。</p><div class="tablewrap" id="flowPositions"></div></div>
+<div class="panel"><h2>變更紀錄</h2><p class="muted small">最近 100 筆調整（誰、什麼時候、哪張表單、調整前 → 調整後）。</p><div class="tablewrap" id="flowLog"></div></div></section>
 <section id="settings" class="view hide"><div class="panel"><h2>備份、還原及系統說明</h2><div class="note" id="invoiceOnlyResetInfo"><b>發票資料清空（僅管理員）</b><p id="invoiceResetCount" style="margin:5px 0">正在讀取發票筆數…</p><div class="small">本功能只清除<strong>發票草稿、已送審與已付款紀錄、附件、簽核歷程及付款紀錄</strong>。<strong>不刪除：</strong>人員名單（Gmail）、可見頁面權限、部門／門市編號、主管與員工名冊、執行長設定，以及已建檔的廠商名稱與統編。清除前請確認不需要保留發票資料，或先使用下方 JSON 備份。</div></div><div class="warn"><b>重要：</b>資料存在公司的 Google 雲端硬碟，由雲端後端檢查登入身分、可見範圍與簽核順序；每天自動備份一份（保留 30 份）。仍請：只把 Gmail 開給需要的人、員工離職或換單位時立刻停用或修改、定期下載完整備份，並避免在公用電腦登入。</div><div class="actions"><button class="primary" id="backupJSON">完整備份：發票、部門及廠商（含附件）</button><button id="restoreBtn">匯入備份 JSON（組織只補不存在的項目）</button><input id="restoreFile" class="hide" type="file" accept="application/json,.json"><button class="danger" id="clearAll">只清除全部發票（保留個人資料）</button></div><div class="note" id="upgradePreservationStatus"><b>資料保護：</b>備份還原與清空發票都不會動到人員名單（Gmail）、頁面權限、組織名冊與廠商資料。從舊的單機版（v5.4）搬資料：先在舊版「完整備份」匯出 JSON，再回到這裡以管理員身分「匯入備份 JSON」；舊版的帳號密碼不會匯入，請到「帳號／權限管理」用 Gmail 重新建立人員。</div><div class="note">完整備份包含發票、金額、附件與存摺影本，請將 JSON 視為敏感檔案妥善保存，不要放進網站資料夾或上傳到任何公開位置。</div><h3>目前功能範圍</h3><p>發票上傳與手動登錄、草稿、送主管簽核、主管核准／退回、執行長核准／退回、財務覆核、付款完成、各式查詢、請款單與發票影像同頁列印、CSV 匯出、JSON 完整備份與還原、操作歷程。</p><h3>建議交由 Claude 接續開發</h3><p>後端正式登入及伺服器端權限驗證（申請人／主管／執行長／財務／管理者）、多人即時同步、附件雲端儲存、電子發票 OCR、發票號碼及統編驗證、重複憑證提醒、簽核層級、通知與退回補件、完整不可竄改稽核軌跡、財會系統銜接、付款批次與憑證歸檔。</p></div></section>
 </main>
 <dialog id="financeReviewDialog" style="width:min(960px,96vw);max-width:min(960px,96vw)"><div class="flex"><h2 style="margin:0">財務覆核：確認會計科目</h2><div class="spacer"></div><button type="button" id="finReviewClose">關閉</button></div><div id="finReviewBody" style="margin-top:12px"></div></dialog>
@@ -408,7 +419,7 @@ input.ro{background:#eef2f8;color:#334155}
 'use strict';const DB='invoice_cloud_cache_v1', STORE='invoices', OSTORE='organization', ASTORE='accounts', USTORE='users', LSTORE='ledger_account_history';let database;let current=[];let detailURLs=[];const $=id=>document.getElementById(id);const fmt=v=>new Intl.NumberFormat('zh-TW',{maximumFractionDigits:2}).format(Number(v)||0);const datestr=()=>new Date().toISOString().slice(0,10);const esc=s=>String(s??'').replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));const names={draft:'草稿',pending:'待主管簽核',executive_pending:'待執行長簽核',approved:'待財務覆核',finance_ok:'已覆核／待付款',rejected:'已退回',paid:'已付款'};const roleNames={staff:'員工',manager:'部門主管',executive:'執行長',finance:'財務人員',admin:'系統管理者'};
 
 // ===== 登入身分與頁面權限（Google 登入；雲端後端另外檢查可見範圍與簽核順序）=====
-const PAGE_LABELS={dashboard:'總覽儀表板',entry:'發票登錄／上傳',ceoentry:'執行長發票上傳',list:'發票明細',approval:'主管簽核',executive:'執行長簽核',finance:'財務整合',organization:'部門／人員架構',settings:'資料備份／說明',accounts:'帳號／權限管理'};
+const PAGE_LABELS={dashboard:'總覽儀表板',entry:'發票登錄／上傳',ceoentry:'執行長發票上傳',list:'發票明細',approval:'主管簽核',executive:'執行長簽核',finance:'財務整合',organization:'部門／人員架構',settings:'資料備份／說明',accounts:'帳號／權限管理',flows:'簽核流程設定'};
 const ALL_PAGES=Object.keys(PAGE_LABELS);
 const DEFAULT_PAGES={staff:['entry','list'],manager:['dashboard','entry','list','approval'],executive:['dashboard','entry','ceoentry','list','executive'],finance:['dashboard','list','finance'],admin:ALL_PAGES};
 let authUser=null,accountEditId='',authBootstrap=false,curPage='home';
@@ -416,7 +427,7 @@ let authUser=null,accountEditId='',authBootstrap=false,curPage='home';
 // 有多個子頁面的功能群組：點進去之後，頁面變成主畫面上方的子頁籤
 const GROUPS={
  invoice:{pages:['dashboard','entry','ceoentry','list','approval','executive','finance','subjects']},
- system:{pages:['organization','accounts','settings']}
+ system:{pages:['organization','accounts','flows','settings']}
 };
 const SUB_LABELS={...PAGE_LABELS,subjects:'會計科目',dashboard:'發票總覽'};
 const isFormPage=p=>p==='inbox'||p==='mine'||String(p).startsWith('form:');
@@ -438,7 +449,7 @@ const putUser=u=>InvCloud.call('userSave',{email:u.email||u.id,empNo:u.empNo,nam
 const deleteUser=email=>InvCloud.call('userDelete',{email});
 function canPage(page){if(page==='subjects')page='finance'; // 「會計科目」頁籤沿用財務整合的權限（財務／管理員）
  if(page==='home'||isFormPage(page))return !!authUser&&(page!=='form:invoice'||groupAccessible('invoice'));
- if(!authUser||!PAGE_LABELS[page])return false;
+ if(!authUser||!PAGE_LABELS[page])return false;if(page==='flows')return authUser.role==='admin'; // 簽核流程設定：只有管理員（後端也只認管理員）
  const pg=authUser.pages||[];
  if(page==='ceoentry')return authUser.role==='admin'||(authUser.role==='executive'&&(pg.includes('ceoentry')||pg.includes('entry'))); // 執行長發票上傳：只給執行長角色（有發票登錄權限的執行長自動有這個分頁）；真正能不能寫入由後端檢查是不是組織設定的執行長本人
  return authUser.role==='admin'||pg.includes(page)||(page==='entry'&&authUser.role==='executive'&&pg.includes('ceoentry'))}
@@ -509,7 +520,7 @@ function stopPolling(){clearInterval(pollTimer);pollTimer=null}
 const positionList=()=>typeof window.memoPositions==='function'?window.memoPositions():[];
 const positionNames=keys=>(keys||[]).map(k=>(positionList().find(p=>p.key===k)||{}).name||k).join('、');
 function renderAccountPositions(sel){const box=$('accountPositions');if(!box)return;const keep=sel||[...box.querySelectorAll('input:checked')].map(n=>n.value),list=positionList();box.innerHTML=list.length?list.map(p=>`<label><input type="checkbox" value="${esc(p.key)}" ${keep.includes(p.key)?'checked':''}> ${esc(p.name)}</label>`).join(''):'<span class="muted small">（職位清單載入中…）</span>'}
-function renderAccountPermissions(pages){$('accountPermissions').innerHTML=ALL_PAGES.filter(p=>p!=='accounts'&&p!=='settings').map(p=>`<label><input type="checkbox" value="${p}" ${pages.includes(p)?'checked':''}> ${PAGE_LABELS[p]}</label>`).join('')}
+function renderAccountPermissions(pages){$('accountPermissions').innerHTML=ALL_PAGES.filter(p=>p!=='accounts'&&p!=='settings'&&p!=='flows').map(p=>`<label><input type="checkbox" value="${p}" ${pages.includes(p)?'checked':''}> ${PAGE_LABELS[p]}</label>`).join('')}
 function resetAccountForm(){$('accountForm').reset();$('accountId').readOnly=false;$('accountId').value='';$('accountRole').value='staff';$('accountEnabled').value='yes';accountEditId='';renderAccountPositions([]);renderAccountPermissions(DEFAULT_PAGES.staff);$('accountHint').textContent='新增人員請輸入他的 Gmail。編輯現有人員時 Gmail 不能改（要換 Gmail，請新增一筆再刪掉舊的）。'}
 $('accountResetForm').onclick=resetAccountForm;resetAccountForm();
 $('accountRole').onchange=()=>renderAccountPermissions(DEFAULT_PAGES[$('accountRole').value]||[]);
@@ -849,7 +860,7 @@ async function verifySingleSeller(force=false){
 $('taxId').addEventListener('change',()=>verifySingleSeller());
 $('verifySellerTax').addEventListener('click',()=>verifySingleSeller(true));
 const uid=()=>crypto.randomUUID?crypto.randomUUID():Date.now()+'_'+Math.random().toString(36).slice(2);const now=()=>new Date().toLocaleString('zh-TW',{hour12:false});function audit(item,action,reason=''){item.history??=[];item.history.push({at:now(),actor:(($('actorName').value||'').trim()||roleNames[$('role').value])+'（'+roleNames[$('role').value]+'）',action,reason})}function badge(status){return `<span class="chip ${['pending','approved','rejected','draft','paid'].includes(status)?status:''}">${names[status]||status}</span>`}function toast(s){alert(s)}function can(...roles){return !!authUser&&roles.includes(authUser.role)}
-function tab(id){if(!authUser)return;if(id==='form:invoice')id=groupFirstPage('invoice');else if(id==='mod:system')id=groupFirstPage('system');if(id==='batch'){id='entry';setEntryMode('batch')}if(!canPage(id))return toast('此帳號未獲授權使用這個頁面');curPage=id;if(id==='entry'||id==='ceoentry')applyEntryMode(id==='ceoentry'?'ceo':'normal');const viewId=id==='ceoentry'?'entry':isFormPage(id)?'memoPage':id;if(id==='organization')renderOrg();if(id==='accounts')renderAccounts();document.querySelectorAll('.view').forEach(el=>el.classList.toggle('hide',el.id!==viewId));document.querySelectorAll('.tab').forEach(el=>el.classList.toggle('active',el.dataset.tab===id));if(isFormPage(id)&&window.memoShow)memoShow(id);applyNav();render();if((id==='home'||isFormPage(id))&&window.memoRefresh)memoRefresh()}document.querySelectorAll('.tab').forEach(el=>el.onclick=()=>tab(el.dataset.tab));
+function tab(id){if(!authUser)return;if(id==='form:invoice')id=groupFirstPage('invoice');else if(id==='mod:system')id=groupFirstPage('system');if(id==='batch'){id='entry';setEntryMode('batch')}if(!canPage(id))return toast('此帳號未獲授權使用這個頁面');curPage=id;if(id==='entry'||id==='ceoentry')applyEntryMode(id==='ceoentry'?'ceo':'normal');const viewId=id==='ceoentry'?'entry':isFormPage(id)?'memoPage':id;if(id==='organization')renderOrg();if(id==='accounts')renderAccounts();if(id==='flows')loadFlows();document.querySelectorAll('.view').forEach(el=>el.classList.toggle('hide',el.id!==viewId));document.querySelectorAll('.tab').forEach(el=>el.classList.toggle('active',el.dataset.tab===id));if(isFormPage(id)&&window.memoShow)memoShow(id);applyNav();render();if((id==='home'||isFormPage(id))&&window.memoRefresh)memoRefresh()}document.querySelectorAll('.tab').forEach(el=>el.onclick=()=>tab(el.dataset.tab));
 async function migrateCEOManagedPending(){
  if(!orgCEO)return 0;
  const records=await all();let updated=0;
@@ -1729,6 +1740,128 @@ $('ceoRulePanel').addEventListener('click',async e=>{
  if(!confirm('刪除這筆發票判斷標準？'))return;
  try{await InvCloud.call('del',{store:'ceorules',key:b.dataset.crDel});await loadCeoRules(true)}catch(err){toast(err.message)}
 });
+// ===== 簽核流程設定（後台，只有管理員）：調整每張表單的簽核關卡與金額級距、管理職位、看變更紀錄 =====
+// 設定只影響「之後送出」的單；已送出的單流程在送出時已凍結。資料由後端 flowAdmin／flowSave／flowReset／positionSave／positionDelete 處理並再檢查一次。
+let flowData=null,flowSel='',flowDraft=null,flowUsers=null,flowBusy=false;
+const flowClone=f=>(f||[]).map(t=>({upTo:t.upTo===null||t.upTo===undefined?null:Number(t.upTo),steps:[...t.steps]}));
+const flowSame=(a,b)=>JSON.stringify(a)===JSON.stringify(b);
+function flowStepName(k){if(k==='manager')return '部門主管';if(k==='executive')return '執行長';if(k==='finance')return '財務人員';const p=((flowData&&flowData.positions)||[]).find(p=>'pos:'+p.key===k);return p?p.name:k}
+function flowText(f){return (f||[]).map(t=>{const s=t.steps.map(flowStepName).join(' → ');return f.length===1?s:(t.upTo===null?'其餘':'≤ '+fmt(t.upTo))+'：'+s}).join('；')}
+const flowForm=()=>flowData&&flowData.forms.find(f=>f.key===flowSel);
+async function loadFlows(){
+ const list=$('flowList');
+ try{flowData=await InvCloud.get({action:'flowAdmin'})}catch(e){list.innerHTML='<p class="muted">讀取失敗：'+esc((e&&e.message)||e)+'（需要新版後端）</p>';return}
+ try{if(!flowUsers)flowUsers=(await InvCloud.get({action:'users'})).users||[]}catch(_){flowUsers=[]}
+ if(!flowSel||!flowData.forms.some(f=>f.key===flowSel))flowSel=flowData.forms[0]?flowData.forms[0].key:'';
+ flowDraft=null;renderFlows();
+}
+function renderFlows(){if(!$('flows')||!flowData)return;renderFlowList();renderFlowEditor();renderFlowPositions();renderFlowLog()}
+function renderFlowList(){
+ const d=flowData;
+ $('flowList').innerHTML=d.cats.map(c=>{const list=d.forms.filter(f=>f.cat===c.key);if(!list.length)return '';
+  return `<div class="flow-cat">${esc(c.icon||'')} ${esc(c.name)}</div>`+list.map(f=>`<button type="button" class="flow-item${f.key===flowSel?' on':''}" data-flow-sel="${esc(f.key)}"><span>${esc(f.icon||'')} ${esc(f.name)}${f.custom?' <span class="flow-badge">已調整</span>':''}</span><small>${esc(flowText(f.flow))}</small></button>`).join('')}).join('')
+  +'<p class="muted small" style="margin-top:10px">「請款（發票）」的流程是另一套（部門主管 → 執行長 → 財務，另有財務覆核與付款），不在這裡調整。</p>';
+}
+function flowErrors(){
+ const n=flowDraft.length,errs=[];
+ flowDraft.forEach((t,i)=>{
+  if(!t.steps.length)errs.push('第 '+(i+1)+' 級還沒有任何簽核關卡');
+  if(i<n-1&&!(t.upTo>=0))errs.push('第 '+(i+1)+' 級的金額上限要填 0 以上的數字');
+  if(i>0&&i<n-1&&flowDraft[i-1].upTo>=0&&t.upTo<=flowDraft[i-1].upTo)errs.push('金額上限要由小到大，不能重複');
+ });
+ return [...new Set(errs)];
+}
+function renderFlowEditor(){
+ const f=flowForm(),root=$('flowEditor');if(!f){root.innerHTML='<p class="muted">請從左邊選一張表單。</p>';return}
+ if(!flowDraft)flowDraft=flowClone(f.flow);
+ const n=flowDraft.length,dirty=!flowSame(flowDraft,flowClone(f.flow)),errs=flowErrors(),warns=[];
+ const lastT=flowDraft[n-1];
+ if(lastT&&!lastT.steps.includes('executive'))warns.push('金額不限的這一級沒有「執行長」簽核：金額再大的單也不會經過執行長。');
+ const allSteps=['manager','executive','finance',...flowData.positions.map(p=>'pos:'+p.key)];
+ const tiers=flowDraft.map((t,i)=>{
+  const last=i===n-1;
+  const head=last?(n===1?'不分金額':'其餘（金額不限）'):`金額 ≤ <input type="number" min="0" step="1" class="flow-up" data-flow-up="${i}" value="${t.upTo===null||Number.isNaN(t.upTo)?'':t.upTo}"> 元`;
+  const chips=t.steps.length?t.steps.map((k,j)=>`<span class="flow-chip"><i>${j+1}</i>${esc(flowStepName(k))}<button type="button" data-flow-mv="${i}:${j}:-1" ${j===0?'disabled':''} title="往前移">◀</button><button type="button" data-flow-mv="${i}:${j}:1" ${j===t.steps.length-1?'disabled':''} title="往後移">▶</button><button type="button" data-flow-rm="${i}:${j}" title="移除這一關">✕</button></span>`).join('<span class="flow-arrow">→</span>')+'<span class="flow-arrow">→</span><span class="flow-end">核准</span>':'<span class="muted small">（還沒有關卡，請從右邊加入）</span>';
+  const opts=allSteps.filter(k=>!t.steps.includes(k)).map(k=>`<option value="${esc(k)}">${esc(flowStepName(k))}</option>`).join('');
+  return `<div class="flow-tier"><div class="flow-tier-h"><b>${head}</b>${n>1?`<button type="button" class="danger small-btn" data-flow-tier-del="${i}">刪除這一級</button>`:''}</div><div class="flow-steps">${chips}</div>${t.steps.length<5&&opts?`<div class="flow-add"><select id="flowAdd${i}">${opts}</select><button type="button" data-flow-add="${i}">＋ 加入這一關</button></div>`:''}</div>`}).join('');
+ const depts=(orgDepartments||[]).map(d=>`<option value="${esc(d.name)}">${esc(departmentLabel?departmentLabel(d.name):d.name)}</option>`).join('');
+ root.innerHTML=`<h3 style="margin:0">${esc(f.icon||'')} ${esc(f.name)} ${f.custom?'<span class="flow-badge">已調整</span>':'<span class="flow-badge flow-def">預設流程</span>'}</h3>
+ <p class="muted small" style="margin:4px 0 8px">${esc(f.desc||'')}${f.custom?`<br>最後調整：${esc(f.at||'')}　${esc(f.by||'')}`:''}</p>
+ <div class="note">${f.hasAmount?`依「${esc(f.amountLabel)}」的金額決定走哪一級：金額小於等於某一級的上限，就用那一級的流程。每一級的關卡由上而下依序簽核；申請人本人就是某一關時會自動略過，同一個人連續兩關只簽一次。`:'這張表單沒有金額欄位，只能設一級流程（不分金額）。'}</div>
+ ${tiers}
+ ${f.hasAmount&&n<5?'<div style="margin:8px 0"><button type="button" id="flowTierAdd">＋ 新增金額級距</button></div>':''}
+ ${errs.length?`<div class="flow-msg bad">${errs.map(esc).join('<br>')}</div>`:''}${warns.length?`<div class="flow-msg warn">⚠ ${warns.map(esc).join('<br>⚠ ')}</div>`:''}
+ <div class="actions" style="margin-top:10px"><button type="button" class="primary" id="flowSave" ${dirty&&!errs.length&&!flowBusy?'':'disabled'}>儲存流程</button><button type="button" id="flowCancel" ${dirty?'':'disabled'}>取消變更</button><button type="button" class="danger" id="flowReset" ${f.custom&&!flowBusy?'':'disabled'}>還原預設流程</button>${dirty?'<span class="muted small">尚未儲存</span>':''}</div>
+ <div class="note" style="margin-top:12px"><b>試算</b>（用上面正在編輯的流程，假設申請人是這個部門的一般員工）：
+  <div class="toolbar" style="margin-top:6px"><select id="flowTrialDept"><option value="">（選部門）</option>${depts}</select>${f.hasAmount?`<input id="flowTrialAmt" type="number" min="0" placeholder="金額（${esc(f.amountLabel)}）" style="max-width:190px">`:''}</div>
+  <div id="flowTrialOut" class="muted small" style="margin-top:6px">選一個部門看看實際會由誰簽。</div></div>
+ <p class="muted small">儲存後只影響之後送出的單（包括被退回後修改重送的單）；已經送出、簽核中的單，流程維持送出當時的樣子。每次調整都會寫進下面的「變更紀錄」。</p>`;
+ updateFlowTrial();
+}
+function flowTrialSteps(flow,dept,amount){
+ let tier=flow[flow.length-1];for(const t of flow){if(t.upTo===null||amount<=t.upTo){tier=t;break}}
+ const out=[];
+ for(const k of tier.steps){let who='';
+  if(k==='manager'){who=managerFor(dept);if(!who)return{error:'「'+dept+'」尚未設定部門主管'}}
+  else if(k==='executive'){who=orgCEO;if(!who)return{error:'尚未設定執行長'}}
+  else if(k==='finance'){who=(flowUsers||[]).filter(u=>u.role==='finance'&&u.enabled!==false).map(u=>u.name).join('、')||'（財務人員）'}
+  else{const p=flowData.positions.find(p=>'pos:'+p.key===k),hs=p?p.holders:[];if(!hs.length)return{error:'尚未有人擔任「'+(p?p.name:k)+'」職位，這類單目前送不出去'};who=hs.join('、')}
+  out.push({k,who})}
+ const steps=[];for(const s of out){const p=steps[steps.length-1];if(p&&p.who===s.who)steps[steps.length-1]=s;else steps.push(s)}
+ return{steps}
+}
+function updateFlowTrial(){
+ const box=$('flowTrialOut'),dept=$('flowTrialDept')&&$('flowTrialDept').value;if(!box||!flowDraft)return;
+ if(!dept){box.textContent='選一個部門看看實際會由誰簽。';return}
+ if(flowErrors().length){box.textContent='流程還有錯誤，請先修正。';return}
+ const amt=Number(($('flowTrialAmt')||{}).value)||0,r=flowTrialSteps(flowDraft,dept,amt);
+ box.innerHTML=r.error?`<span style="color:#a03a34">${esc(r.error)}</span>`:r.steps.map(s=>`<span class="flow-chip">${esc(s.who)}（${esc(flowStepName(s.k))}）</span>`).join('<span class="flow-arrow">→</span>')+'<span class="flow-arrow">→</span><span class="flow-end">核准</span>';
+}
+function renderFlowPositions(){
+ const d=flowData;
+ $('flowPositions').innerHTML=`<table class="account-table"><thead><tr><th>職位</th><th>目前擔任的人</th><th>用在哪些表單</th><th>操作</th></tr></thead><tbody>${d.positions.map(p=>`<tr><td><input data-fp-name="${esc(p.key)}" value="${esc(p.name)}" maxlength="20" style="max-width:160px"></td><td>${esc(p.holders.join('、')||'（沒有人）')}</td><td>${esc(p.usedBy.join('、')||'（沒有表單用到）')}</td><td><button type="button" data-fp-save="${esc(p.key)}">儲存名稱</button> <button type="button" class="danger" data-fp-del="${esc(p.key)}">刪除</button></td></tr>`).join('')||'<tr><td colspan="4" class="muted">還沒有職位</td></tr>'}</tbody></table><div class="toolbar" style="margin-top:8px"><input id="flowPosNew" maxlength="20" placeholder="新職位名稱，例如：人資"><button type="button" class="primary" id="flowPosAdd">＋ 新增職位</button></div>`;
+}
+function renderFlowLog(){
+ const d=flowData;
+ $('flowLog').innerHTML=d.log.length?`<table><thead><tr><th>時間</th><th>操作人</th><th>項目</th><th>動作</th><th>內容</th></tr></thead><tbody>${d.log.map(l=>`<tr><td>${esc(l.at)}</td><td>${esc(l.by)}</td><td>${esc(l.form)}</td><td>${esc(l.act)}</td><td>${esc(l.detail)}</td></tr>`).join('')}</tbody></table>`:'<p class="muted">還沒有任何調整。</p>';
+}
+async function flowCall(action,body,okMsg){
+ if(flowBusy)return;flowBusy=true;
+ try{const r=await InvCloud.call(action,body);flowData=r;flowDraft=null;renderFlows();toast(okMsg);if(window.memoRefresh)memoRefresh(true)}
+ catch(e){toast((e&&e.message)||String(e))}
+ finally{flowBusy=false;if($('flows'))renderFlowEditor()}
+}
+function bindFlows(){
+ const ed=$('flowEditor');
+ $('flowList').addEventListener('click',e=>{const b=e.target.closest('[data-flow-sel]');if(!b)return;
+  if(flowDraft&&flowForm()&&!flowSame(flowDraft,flowClone(flowForm().flow))&&!confirm('這張表單的流程還沒儲存，要放棄變更嗎？'))return;
+  flowSel=b.dataset.flowSel;flowDraft=null;renderFlows()});
+ ed.addEventListener('click',e=>{
+  const b=e.target.closest('button');if(!b||!flowDraft)return;
+  if(b.dataset.flowMv){const [i,j,d]=b.dataset.flowMv.split(':').map(Number),s=flowDraft[i].steps,k=j+d;if(k<0||k>=s.length)return;[s[j],s[k]]=[s[k],s[j]];renderFlowEditor()}
+  else if(b.dataset.flowRm){const [i,j]=b.dataset.flowRm.split(':').map(Number);flowDraft[i].steps.splice(j,1);renderFlowEditor()}
+  else if(b.dataset.flowAdd!==undefined){const i=Number(b.dataset.flowAdd),sel=$('flowAdd'+i);if(sel&&sel.value&&flowDraft[i].steps.length<5){flowDraft[i].steps.push(sel.value);renderFlowEditor()}}
+  else if(b.dataset.flowTierDel!==undefined){const i=Number(b.dataset.flowTierDel);if(flowDraft.length<2)return;const wasLast=i===flowDraft.length-1;flowDraft.splice(i,1);if(wasLast)flowDraft[flowDraft.length-1].upTo=null;renderFlowEditor()}
+  else if(b.id==='flowTierAdd'){const nums=flowDraft.map(t=>t.upTo).filter(x=>x!==null&&x>=0),up=(nums.length?Math.max(...nums)*2:50000)||10000;flowDraft.splice(flowDraft.length-1,0,{upTo:up,steps:['manager']});
+   // 新級距的上限一定要比前一級大、比最後一級小：插在最後一級之前，所以只要比現有最大上限大
+   renderFlowEditor()}
+  else if(b.id==='flowCancel'){flowDraft=null;renderFlowEditor()}
+  else if(b.id==='flowSave'){const f=flowForm();if(!f||flowErrors().length)return;flowCall('flowSave',{form:f.key,flow:flowDraft},'已儲存「'+f.name+'」的簽核流程；之後送出的單會用新流程')}
+  else if(b.id==='flowReset'){const f=flowForm();if(!f)return;if(!confirm('把「'+f.name+'」還原成預設流程？\n\n預設：'+flowText(f.defaultFlow)))return;flowCall('flowReset',{form:f.key},'已還原「'+f.name+'」的預設流程')}
+ });
+ ed.addEventListener('change',e=>{
+  if(e.target.dataset&&e.target.dataset.flowUp!==undefined&&flowDraft){const i=Number(e.target.dataset.flowUp),v=e.target.value.trim();flowDraft[i].upTo=v===''?NaN:Number(v);renderFlowEditor()}
+  else if(e.target.id==='flowTrialDept'||e.target.id==='flowTrialAmt')updateFlowTrial();
+ });
+ ed.addEventListener('input',e=>{if(e.target.id==='flowTrialAmt')updateFlowTrial()});
+ $('flowPositions').addEventListener('click',e=>{
+  const b=e.target.closest('button');if(!b)return;
+  if(b.id==='flowPosAdd'){const name=$('flowPosNew').value.trim();if(!name)return toast('請填職位名稱');flowCall('positionSave',{name},'已新增職位「'+name+'」；要指派誰擔任，請到「帳號／權限管理」勾選職位')}
+  else if(b.dataset.fpSave){const inp=document.querySelector('[data-fp-name="'+b.dataset.fpSave+'"]');flowCall('positionSave',{key:b.dataset.fpSave,name:(inp&&inp.value||'').trim()},'已儲存職位名稱')}
+  else if(b.dataset.fpDel){const p=flowData.positions.find(x=>x.key===b.dataset.fpDel);if(!p)return;if(!confirm('刪除職位「'+p.name+'」？\n\n目前擔任的人（'+(p.holders.join('、')||'沒有')+'）會失去這個職位。'))return;flowCall('positionDelete',{key:p.key},'已刪除職位「'+p.name+'」')}
+ });
+}
+bindFlows();
 // 雲端處理中的提示：任何一個寫入雲端的動作（送簽、核准、儲存…）超過 0.3 秒還沒回來，畫面上方就顯示「處理中」，不會讓人以為按鍵沒反應
 (function(){
  const bar=document.createElement('div');bar.id='busyBar';bar.hidden=true;bar.setAttribute('role','status');document.body.appendChild(bar);
