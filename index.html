@@ -78,7 +78,8 @@ button.is-busy{opacity:.65;pointer-events:none}
 .alloc-row .alloc-name{font-weight:600}
 .alloc-row input{width:78px;padding:3px 6px;min-height:0}
 .alloc-row .allocation-amount{color:var(--muted);min-width:70px;text-align:right}
-.alloc-row.has-acct{flex-wrap:wrap}.alloc-acct-line{flex-basis:100%;display:flex;flex-wrap:wrap;align-items:center;gap:6px;font-size:12px;color:var(--muted)}.alloc-acct-line input.alloc-acct{width:92px;padding:3px 6px;min-height:0}.alloc-acct-line .alloc-acct-name{color:var(--ink);font-weight:600}.alloc-acct-hint.warn{color:#b45309;font-weight:600}.alloc-pre{font-size:11px;color:var(--muted);font-weight:400}
+.alloc-acct-hint{font-size:12px;color:var(--muted);margin-top:2px}.alloc-acct-hint.warn{color:#b45309;font-weight:600}.alloc-pre{font-size:11px;color:var(--muted);font-weight:400}
+.fr-unit.multi{margin-bottom:8px;padding:6px 8px;border:1px solid var(--line);border-radius:8px;background:#fff}.fr-unit-head{font-size:13px;margin-bottom:4px}.fr-multi-note{margin:0 0 6px}
 .batch-card .cgrid{margin-bottom:8px}.batch-sec.who-fixed .who-field{display:none}.batch-card details.fold{margin-top:8px}.batch-card .lookup-action{padding:3px 8px;font-size:12px}
 .batch-card .actions{margin-top:16px}.batch-card .batch-state{font-size:12px;color:#64748b}
 .batch-card .batch-state.error{color:#b42330;font-weight:600}
@@ -441,7 +442,7 @@ const GROUPS={
  system:{pages:['organization','accounts','flows','settings']}
 };
 const SUB_LABELS={...PAGE_LABELS,subjects:'會計科目'};
-const isFormPage=p=>p==='inbox'||p==='mine'||String(p).startsWith('form:');
+const isFormPage=p=>p==='inbox'||p==='mine'||String(p).startsWith('form:')||String(p).startsWith('term:'); // term:＝職位終端（人事／採購／行銷…），和表單頁面分開的獨立頁
 const pageGroup=p=>Object.keys(GROUPS).find(g=>GROUPS[g].pages.includes(p))||'';
 const groupAccessible=g=>!!GROUPS[g]&&GROUPS[g].pages.some(p=>canPage(p));
 const groupFirstPage=g=>GROUPS[g]&&GROUPS[g].pages.find(p=>canPage(p))||'home';
@@ -459,6 +460,7 @@ const getUser=async id=>{const k=normalizeAccount(id);return (await allUsers()).
 const putUser=u=>InvCloud.call('userSave',{email:u.email||u.id,empNo:u.empNo,name:u.name,role:u.role,dept:u.dept||'',pages:u.pages,positions:u.positions,enabled:u.enabled!==false});
 const deleteUser=email=>InvCloud.call('userDelete',{email});
 function canPage(page){if(page==='subjects')page='finance'; // 「會計科目」頁籤沿用財務整合的權限（財務／管理員）
+ if(String(page).startsWith('term:'))return !!authUser&&(authUser.role==='admin'||(authUser.positions||[]).includes(page.slice(5))); // 職位終端：擔任該職位的人（管理員可看全部）
  if(page==='home'||isFormPage(page))return !!authUser&&(page!=='form:invoice'||groupAccessible('invoice'));
  if(!authUser||!PAGE_LABELS[page])return false;if(page==='flows')return authUser.role==='admin'; // 簽核流程設定：只有管理員（後端也只認管理員）
  const pg=authUser.pages||[];
@@ -1155,9 +1157,9 @@ function normalizeClaim(old,invoice={}){
  let singleClaimItems=[{description:'發票費用',amount:0,allocations:[{dept:'',ratio:100}]}],singleAmountLinked=true;
 // 每一個請款項目各自有「費用分攤」：預設是申請部門 100%，可點選其他單位、比例自動均分；新增項目就多一列、多一組分攤
 function ensureItemAllocations(items,dept,legacy){for(const it of items||[]){if(!Array.isArray(it.allocations)||!it.allocations.length)it.allocations=(legacy&&legacy.length?legacy:[{dept:dept||'',ratio:100}]).map(a=>({dept:a.dept,ratio:a.ratio}))}}
-function itemAllocHtml(it,idx,chipAttr,rowAttr,disabled,acctItem=null){
+function itemAllocHtml(it,idx,chipAttr,rowAttr,disabled,showPre=false){
  const err=allocationErrors(it.allocations);
- return `<div class="item-alloc" data-ia-host="${idx}"><div class="alloc-label">費用分攤單位（點選；可多選，比例自動均分）</div><div class="alloc-chips">${allocationChipsHtml(it.allocations,chipAttr,disabled)}</div><div class="alloc-rows">${allocationRowsHtml(it.allocations,moneyValue(it.amount),rowAttr,disabled,acctItem)}</div><div class="allocation-feedback ${err?'invalid':'valid'}">${err?'⚠ '+esc(err):'✓ 分攤比例合計 100%'}</div></div>`;
+ return `<div class="item-alloc" data-ia-host="${idx}"><div class="alloc-label">費用分攤單位（點選；可多選，比例自動均分）</div><div class="alloc-chips">${allocationChipsHtml(it.allocations,chipAttr,disabled)}</div><div class="alloc-rows">${allocationRowsHtml(it.allocations,moneyValue(it.amount),rowAttr,disabled,showPre)}</div><div class="allocation-feedback ${err?'invalid':'valid'}">${err?'⚠ '+esc(err):'✓ 分攤比例合計 100%'}</div></div>`;
 }
 function refreshItemAlloc(host,it){
  if(!host||!it)return;
@@ -1182,16 +1184,12 @@ function toggleAllAllocation(allocs,fallbackDept){
  if(units.length&&units.every(d=>chosen.has(d)))return [{dept:fallbackDept&&units.includes(fallbackDept)?fallbackDept:(units[0]||''),ratio:100}];
  const r=evenAllocationRatios(units.length);return units.map((d,i)=>({dept:d,ratio:r[i]}));
 }
-// acctItem 不是 null（財務覆核）：每個分攤單位下面多一行「科目代號」，預設依該部門的科目代號編碼（開頭）從科目表對應，可手動改
-function allocationRowsHtml(allocs,total,attr,disabled,acctItem=null){
+// showPre（財務覆核）：部門名稱旁標出它的「科目代號編碼」（科目代號的開頭）
+function allocationRowsHtml(allocs,total,attr,disabled,showPre=false){
  const shares=calcAllocationAmounts(total,allocs);
- return (allocs||[]).map((a,j)=>`<div class="alloc-row${acctItem!==null?' has-acct':''}"><span class="alloc-name">${esc(a.dept||'未選單位')}${acctItem!==null&&ledgerDeptPrefix(a.dept)?` <span class="alloc-pre">編碼 ${esc(ledgerDeptPrefix(a.dept))}</span>`:''}</span><input type="number" ${attr} data-aloc-ratio="${j}" min="0.01" max="100" step="0.01" value="${esc(a.ratio)}" aria-label="${esc(a.dept)}分攤比例" ${disabled?'disabled':''}><span>%</span><span class="allocation-amount" data-aloc-money="${j}">NT$ ${fmt(shares[j]?.amount||0)}</span>${acctItem!==null?allocAcctLineHtml(a,j,acctItem):''}</div>`).join('');
+ return (allocs||[]).map((a,j)=>`<div class="alloc-row"><span class="alloc-name">${esc(a.dept||'未選單位')}${showPre&&ledgerDeptPrefix(a.dept)?` <span class="alloc-pre">編碼 ${esc(ledgerDeptPrefix(a.dept))}</span>`:''}</span><input type="number" ${attr} data-aloc-ratio="${j}" min="0.01" max="100" step="0.01" value="${esc(a.ratio)}" aria-label="${esc(a.dept)}分攤比例" ${disabled?'disabled':''}><span>%</span><span class="allocation-amount" data-aloc-money="${j}">NT$ ${fmt(shares[j]?.amount||0)}</span></div>`).join('');
 }
 function allocAcctHint(a){const pre=ledgerDeptPrefix(a.dept),code=String(a.accountCode||'').trim();if(!pre)return '（這個部門沒有設定科目代號編碼）';if(!code)return '（請填以 '+pre+' 開頭的科目）';return code.startsWith(pre)?'✓ 以 '+pre+' 開頭':'⚠ 不是以 '+pre+' 開頭（科目表沒有對應的同名科目時沿用原科目，請確認）'}
-function allocAcctLineHtml(a,j,k){
- const code=String(a.accountCode||'').trim(),pre=ledgerDeptPrefix(a.dept),warn=!!(pre&&code&&!code.startsWith(pre));
- return `<div class="alloc-acct-line">科目 <input class="alloc-acct" list="acctCodeList" autocomplete="off" data-fr-acct="${j}" data-fr-ak="${k}" placeholder="科目代號" value="${esc(code)}" aria-label="${esc(a.dept)}分攤的會計科目代號"><span class="alloc-acct-name">${esc(chartName(code)||a.accountName||'')}</span><span class="alloc-acct-hint${warn?' warn':''}">${esc(allocAcctHint(a))}</span></div>`;
-}
 // 點選一個單位：已選就取消（至少留一個）、沒選就加入；加入或取消後，比例重新依單位數量均分
 function toggleAllocation(allocs,dept){
  const cur=(allocs||[]).filter(a=>a.dept),i=cur.findIndex(a=>a.dept===dept);
@@ -1325,25 +1323,62 @@ function allocAccountFor(line,dept){
 function syncAllocAccounts(line){for(const a of line.allocations||[]){if(a.acctManual)continue;const m=allocAccountFor(line,a.dept);a.accountCode=m.code;a.accountName=m.name}}
 // 點部門按鈕後，之前手動改過科目的單位保留原來的科目
 function keepAllocMeta(prev,next){for(const n of next){const o=(prev||[]).find(x=>x.dept===n.dept);if(o&&o.acctManual){n.accountCode=o.accountCode;n.accountName=o.accountName;n.acctManual=true}}}
-function frRerender(k){const line=finReview?.items[k],host=$('finReviewBody').querySelector(`[data-ia-host="fr${k}"]`);if(line&&host)host.outerHTML=itemAllocHtml(line,'fr'+k,`data-fr-chip="${k}"`,`data-fr-row="${k}"`,false,k)}
-function frAcctRefresh(host,line){if(!host||!line)return;(line.allocations||[]).forEach((a,j)=>{const inp=host.querySelector(`[data-fr-acct="${j}"]`);if(!inp)return;const ln=inp.closest('.alloc-acct-line'),code=String(a.accountCode||'').trim(),pre=ledgerDeptPrefix(a.dept),warn=!!(pre&&code&&!code.startsWith(pre));ln.querySelector('.alloc-acct-name').textContent=chartName(code)||a.accountName||'';const h=ln.querySelector('.alloc-acct-hint');h.textContent=allocAcctHint(a);h.classList.toggle('warn',warn)})}
-function renderFinanceReview(){
- const i=finReview.invoice,rows=finReview.items.map((x,k)=>`<tr><td>${k+1}</td><td>${esc(x.description)}</td><td class="right">NT$ ${fmt(x.amount)}</td><td>${itemAllocHtml(x,'fr'+k,`data-fr-chip="${k}"`,`data-fr-row="${k}"`,false,k)}</td><td>${ledgerRowMarkup(x,k,'batch',0,false)}</td></tr>`).join('');
- $('finReviewBody').innerHTML=`<div class="muted small">${esc(i.invoiceNo)}｜${esc(i.vendor)}｜${esc(departmentLabel(i.dept))}／${esc(i.applicant)}｜NT$ ${fmt(i.amount)}</div><p class="note" style="margin:8px 0">系統已依項目說明、申請部門與廠商判斷會計科目，請核對。可直接改代號或名稱，或點下方的候選科目；<b>分攤部門</b>是申請人登錄時選的，財務可以調整（點部門按鈕選／取消，比例合計要 100%）。每個分攤部門的<b>科目代號</b>會依該部門的「科目代號編碼」開頭自動對應（例如 6115 差旅費，分攤給編碼 62 的部門就是 6215），也可以直接改。</p><div style="overflow-x:auto"><table class="claim-lines"><thead><tr><th>序號</th><th>項目說明</th><th>小計</th><th>分攤部門（可調整）</th><th>會計科目（自動判斷／可修改）</th></tr></thead><tbody>${rows}</tbody></table></div><div class="actions" style="margin-top:12px"><button class="primary" type="button" id="finReviewOk">確認覆核通過</button><button type="button" id="finReviewCancel">取消</button></div>`;
+// 「會計科目」欄：每個分攤單位各有自己的科目代號／名稱欄（單位不同，科目代號就不同）。多個單位時各一組，標出部門、科目代號編碼、比例與金額；只有一個單位就是一組
+function frAcctCellHtml(line,k){
+ const rows=line.allocations||[],multi=rows.length>1,shares=calcAllocationAmounts(moneyValue(line.amount),rows);
+ const units=rows.map((a,j)=>{
+  const code=String(a.accountCode||'').trim(),pre=ledgerDeptPrefix(a.dept),warn=!!(pre&&code&&!code.startsWith(pre));
+  return `<div class="fr-unit${multi?' multi':''}">${multi?`<div class="fr-unit-head"><b>${esc(a.dept)}</b>${pre?` <span class="alloc-pre">編碼 ${esc(pre)}</span>`:''} <span class="muted small" data-fr-head="${j}">${esc(a.ratio)}%｜NT$ ${fmt(shares[j]?.amount||0)}</span></div>`:''}<div class="ledger-fields"><input class="ledger-code" list="acctCodeList" autocomplete="off" data-fr-acct="${j}" data-fr-ak="${k}" data-fr-kind="code" placeholder="科目代號" value="${esc(code)}" aria-label="${esc(a.dept)}的會計科目代號"><input class="ledger-name" list="acctNameList" autocomplete="off" data-fr-acct="${j}" data-fr-ak="${k}" data-fr-kind="name" placeholder="科目名稱（可修正）" value="${esc(chartName(code)||a.accountName||'')}" aria-label="${esc(a.dept)}的會計科目名稱"></div><div class="alloc-acct-hint${warn?' warn':''}" data-fr-hint="${j}">${esc(allocAcctHint(a))}</div></div>`;
+ }).join('');
+ return `<div class="fr-acct" data-fr-cell="${k}">${multi?`<div class="note small fr-multi-note">分攤給 ${rows.length} 個單位，各單位的科目代號不同，請分別確認或填寫：</div>`:''}${units}<div class="ledger-hint ${line.ledgerSource==='history_suggested'?'ready':'uncertain'}">${esc(ledgerDisplay(line))}</div><div class="ledger-cands">${ledgerCandsHtml(line)}</div><button type="button" class="ledger-check" data-fr-resug="${k}">🔎 重新建議</button></div>`;
 }
-function finReviewLine(node){return finReview?.items[+(node.dataset.bline??node.closest('td')?.querySelector('[data-bline]')?.dataset.bline)]}
+function frRerender(k){const line=finReview?.items[k];if(!line)return;const body=$('finReviewBody'),host=body.querySelector(`[data-ia-host="fr${k}"]`),cell=body.querySelector(`[data-fr-cell="${k}"]`);if(host)host.outerHTML=itemAllocHtml(line,'fr'+k,`data-fr-chip="${k}"`,`data-fr-row="${k}"`,false,true);if(cell)cell.outerHTML=frAcctCellHtml(line,k)}
+// 打字時只就地更新（不重畫，游標才不會跑掉）：except＝正在輸入的那一格
+function frAcctRefresh(cell,line,except){
+ if(!cell||!line)return;
+ (line.allocations||[]).forEach((a,j)=>{
+  const code=String(a.accountCode||'').trim(),pre=ledgerDeptPrefix(a.dept),warn=!!(pre&&code&&!code.startsWith(pre));
+  const ci=cell.querySelector(`[data-fr-acct="${j}"][data-fr-kind="code"]`),ni=cell.querySelector(`[data-fr-acct="${j}"][data-fr-kind="name"]`),h=cell.querySelector(`[data-fr-hint="${j}"]`);
+  if(ci&&ci!==except)ci.value=code;if(ni&&ni!==except)ni.value=chartName(code)||a.accountName||'';if(h){h.textContent=allocAcctHint(a);h.classList.toggle('warn',warn)}
+ });
+ const lh=cell.querySelector('.ledger-hint');if(lh)lh.textContent=ledgerDisplay(line);
+}
+function frHeadRefresh(k,line){const cell=$('finReviewBody').querySelector(`[data-fr-cell="${k}"]`);if(!cell)return;calcAllocationAmounts(moneyValue(line.amount),line.allocations).forEach((s,j)=>{const h=cell.querySelector(`[data-fr-head="${j}"]`);if(h)h.textContent=s.ratio+'%｜NT$ '+fmt(s.amount)})}
+function renderFinanceReview(){
+ const i=finReview.invoice,rows=finReview.items.map((x,k)=>`<tr><td>${k+1}</td><td>${esc(x.description)}</td><td class="right">NT$ ${fmt(x.amount)}</td><td>${itemAllocHtml(x,'fr'+k,`data-fr-chip="${k}"`,`data-fr-row="${k}"`,false,true)}</td><td>${frAcctCellHtml(x,k)}</td></tr>`).join('');
+ $('finReviewBody').innerHTML=`<div class="muted small">${esc(i.invoiceNo)}｜${esc(i.vendor)}｜${esc(departmentLabel(i.dept))}／${esc(i.applicant)}｜NT$ ${fmt(i.amount)}</div><p class="note" style="margin:8px 0">系統已依項目說明、申請部門與廠商判斷會計科目，請核對。可直接改代號或名稱，或點下方的候選科目；<b>分攤部門</b>是申請人登錄時選的，財務可以調整（點部門按鈕選／取消，比例合計要 100%）。<b>分攤單位不同，科目代號就不同</b>：每個分攤單位在右邊各有一組科目代號欄，會依該部門的「科目代號編碼」開頭自動對應（例如 6115 差旅費，分攤給編碼 62 的部門就是 6215），也可以直接改。</p><div style="overflow-x:auto"><table class="claim-lines"><thead><tr><th>序號</th><th>項目說明</th><th>小計</th><th>分攤部門（可調整）</th><th>會計科目代號（每個分攤單位各一組；自動判斷／可修改）</th></tr></thead><tbody>${rows}</tbody></table></div><div class="actions" style="margin-top:12px"><button class="primary" type="button" id="finReviewOk">確認覆核通過</button><button type="button" id="finReviewCancel">取消</button></div>`;
+}
 $('finReviewClose').onclick=()=>$('financeReviewDialog').close();
-$('finReviewBody').addEventListener('input',e=>{const n=e.target,key=n.dataset.blinekey;if(key!=='accountCode'&&key!=='accountName')return;const line=finReviewLine(n);if(!line)return;line[key]=n.value;line.ledgerManual=true;line.ledgerSource='manual';chartLinkLine(line,key,n.closest('td'),finReview.dept);const hint=n.closest('td').querySelector('.ledger-hint');if(hint)hint.textContent=ledgerDisplay(line);syncAllocAccounts(line);frRerender(finReview.items.indexOf(line))});
-$('finReviewBody').addEventListener('input',e=>{const x=e.target;if(x.dataset.frAcct===undefined)return;const line=finReview?.items[+x.dataset.frAk],a=line?.allocations[+x.dataset.frAcct];if(!a)return;const v=x.value.trim();if(!v){a.acctManual=false;const m=allocAccountFor(line,a.dept);a.accountCode=m.code;a.accountName=m.name;x.value=a.accountCode}else{a.acctManual=true;a.accountCode=v;a.accountName=chartName(v)||''}frAcctRefresh(x.closest('.item-alloc'),line)});
-$('finReviewBody').addEventListener('input',e=>{const x=e.target;if(x.dataset.frRow===undefined)return;const line=finReview?.items[+x.dataset.frRow];if(!line)return;line.allocations[+x.dataset.alocRatio].ratio=Number(x.value);refreshItemAlloc(x.closest('.item-alloc'),line)});
+// 每個分攤單位各自的科目代號／名稱：填了就是手動（不會被自動覆蓋）；清空代號就恢復自動對應
+$('finReviewBody').addEventListener('input',e=>{
+ const x=e.target;if(x.dataset.frAcct===undefined)return;
+ const k=+x.dataset.frAk,line=finReview?.items[k],a=line?.allocations[+x.dataset.frAcct];if(!a)return;
+ const v=x.value.trim();
+ if(x.dataset.frKind==='code'){
+  if(!v){a.acctManual=false;const m=allocAccountFor(line,a.dept);a.accountCode=m.code;a.accountName=m.name;x.value=a.accountCode}
+  else{a.acctManual=true;a.accountCode=v;a.accountName=chartName(v)||''}
+ }else{
+  a.acctManual=true;a.accountName=x.value;
+  const hits=chartFindByName(x.value,ledgerDeptPrefix(a.dept));if(hits.length===1){a.accountCode=String(hits[0].code);a.accountName=hits[0].name}
+ }
+ // 這個單位填的（科目表內的）科目當作基本科目，其他沒手動改過的單位依各自的科目代號編碼開頭重新對應
+ if(a.accountCode&&(!accountChart.length||accountByCode.has(a.accountCode))){line.accountCode=a.accountCode;line.accountName=a.accountName;line.ledgerManual=true;line.ledgerSource='manual'}
+ syncAllocAccounts(line);frAcctRefresh(x.closest('[data-fr-cell]'),line,x);
+});
+$('finReviewBody').addEventListener('input',e=>{const x=e.target;if(x.dataset.frRow===undefined)return;const k=+x.dataset.frRow,line=finReview?.items[k];if(!line)return;line.allocations[+x.dataset.alocRatio].ratio=Number(x.value);refreshItemAlloc(x.closest('.item-alloc'),line);frHeadRefresh(k,line)});
 $('finReviewBody').addEventListener('click',async e=>{
  if(e.target.id==='finReviewCancel')return $('financeReviewDialog').close();
- const cand=e.target.closest('[data-cand-code]');if(cand){const td=cand.closest('td'),line=finReviewLine(td.querySelector('[data-bline]'));if(line){applyLedgerCandidate(line,cand,td);syncAllocAccounts(line);frRerender(finReview.items.indexOf(line))}return}
- const re=e.target.closest('[data-ledger-batch]');if(re){const td=re.closest('td'),line=finReviewLine(td.querySelector('[data-bline]'));if(!line)return;line.ledgerManual=false;updateLedgerForLine(line,finReview.ctx,true);td.querySelector('[data-blinekey=accountCode]').value=line.accountCode||'';td.querySelector('[data-blinekey=accountName]').value=line.accountName||'';td.querySelector('.ledger-hint').textContent=ledgerDisplay(line);const cc=td.querySelector('.ledger-cands');if(cc)cc.innerHTML=ledgerCandsHtml(line);(line.allocations||[]).forEach(a=>{a.acctManual=false});syncAllocAccounts(line);frRerender(finReview.items.indexOf(line));return}
+ // 點候選科目＝用這個科目當基本科目，所有分攤單位重新依各自的科目代號編碼對應
+ const cand=e.target.closest('[data-cand-code]');if(cand){const k=+cand.closest('[data-fr-cell]')?.dataset.frCell,line=finReview.items[k];if(!line)return;line.accountCode=cand.dataset.candCode||'';line.accountName=cand.dataset.candName||'';line.ledgerManual=true;line.ledgerSource='manual';(line.allocations||[]).forEach(a=>{a.acctManual=false});syncAllocAccounts(line);frRerender(k);return}
+ const re=e.target.closest('[data-fr-resug]');if(re){const k=+re.dataset.frResug,line=finReview.items[k];if(!line)return;line.ledgerManual=false;updateLedgerForLine(line,finReview.ctx,true);(line.allocations||[]).forEach(a=>{a.acctManual=false});syncAllocAccounts(line);frRerender(k);return}
  const chip=e.target.closest('[data-fr-chip]');if(chip){const k=+chip.dataset.frChip,line=finReview.items[k],host=chip.closest('.item-alloc');if(!line||!host)return;const prev=line.allocations;line.allocations=chip.dataset.alocAll?toggleAllAllocation(line.allocations,finReview.dept):toggleAllocation(line.allocations,chip.dataset.alocDept);keepAllocMeta(prev,line.allocations);syncAllocAccounts(line);frRerender(k);return}
  if(e.target.id!=='finReviewOk')return;
- const errs=[];if(accountChart.length)finReview.items.forEach((x,k)=>{const code=String(x.accountCode||'').trim();if(!code)errs.push('第 '+(k+1)+' 項還沒有會計科目');else if(!accountByCode.has(code))errs.push('第 '+(k+1)+' 項會計科目「'+code+'」不在科目表內，請從科目表選擇')});
- finReview.items.forEach((x,k)=>{const m=allocationErrors(x.allocations);if(m)errs.push('第 '+(k+1)+' 項分攤部門：'+m);else if(accountChart.length)x.allocations.forEach(a=>{const c=String(a.accountCode||'').trim();if(!c)errs.push('第 '+(k+1)+' 項「'+a.dept+'」分攤還沒有會計科目');else if(!accountByCode.has(c))errs.push('第 '+(k+1)+' 項「'+a.dept+'」分攤的會計科目「'+c+'」不在科目表內，請從科目表選擇')})});
+ const errs=[];
+ finReview.items.forEach((x,k)=>{
+  const m=allocationErrors(x.allocations);if(m){errs.push('第 '+(k+1)+' 項分攤部門：'+m);return}
+  if(!accountChart.length)return;const multi=x.allocations.length>1;
+  x.allocations.forEach(a=>{const c=String(a.accountCode||'').trim(),who='第 '+(k+1)+' 項'+(multi?'「'+a.dept+'」':'');if(!c)errs.push(who+'還沒有會計科目');else if(!accountByCode.has(c))errs.push(who+'的會計科目「'+c+'」不在科目表內，請從科目表選擇')});
+ });
  if(errs.length)return toast(errs.join('\n'));
  try{
   const i=await get(finReview.id);if(!i||i.status!=='approved'||!can('finance','admin'))return toast('權限或狀態不符');
@@ -2827,6 +2862,15 @@ el('csvDraft').onclick=()=>saveCSV('draft');el('csvSubmit').onclick=()=>saveCSV(
  const noteVer=v=>{if(memoVer!==null&&Number(memoVer)+1===Number(v))memoVer=v};
  const stepNames=a=>a.map(k=>STEP_NAMES[k]||k).join(' → ');
 
+ // ---- 職位終端：擔任「人事／採購／行銷…」職位的人各有一個自己的終端（和表單頁面分開）----
+ // 待處理＝輪到這個職位、而且我可以簽；已處理＝這個職位已經簽過（或在這一關退回）的；全部相關單＝流程裡有這個職位這一關的所有單（草稿除外）
+ const termName=key=>(positions.find(p=>p.key===key)||{}).name||key;
+ const termStepAt=(m,key)=>m.flow&&Array.isArray(m.flow.steps)?m.flow.steps.findIndex(s=>s.key==='pos:'+key):-1;
+ const termAll=(m,key)=>m.status!=='draft'&&termStepAt(m,key)>=0;
+ const termTodo=(m,key)=>m.status==='in_review'&&termStepAt(m,key)===curIdx(m)&&canSign(m);
+ const termDone=(m,key)=>{const i=termStepAt(m,key);return m.status!=='draft'&&i>=0&&(m.status==='approved'||i<curIdx(m)||(m.status==='rejected'&&i===curIdx(m)))};
+ const termKeys=()=>!authUser?[]:positions.filter(p=>authUser.role==='admin'||(authUser.positions||[]).includes(p.key)).map(p=>p.key);
+
  // ---- 載入：表單目錄（後端提供，存一份在本機讓導覽馬上出現）與申請資料 ----
  function applyForms(j){forms=j.forms||[];cats=j.cats||[];positions=Array.isArray(j.positions)?j.positions:positions;for(const p of positions)STEP_NAMES['pos:'+p.key]=p.name;formsLoaded=forms.length>0}
  try{const c=JSON.parse(localStorage.getItem(FORMS_CACHE)||'null');if(c&&c.forms&&c.forms.length)applyForms(c)}catch(e){}
@@ -2859,6 +2903,7 @@ el('csvDraft').onclick=()=>saveCSV('draft');el('csvSubmit').onclick=()=>saveCSV(
   const inboxN=memos.filter(canSignStrict).length,cur=curPage,curCat=cur.startsWith('form:')?(defOf(cur.slice(5))||{}).cat:(pageGroup(cur)==='invoice'?'fin':'');
   const btn=(t,label,cls)=>'<button type="button" class="tab'+(cls||'')+(navActive(t)?' active':'')+'" data-tab="'+esc(t)+'">'+label+'</button>';
   let h=btn('home','🏠 主畫面')+btn('inbox','📥 待我簽核'+(inboxN?' <span class="nav-n">'+inboxN+'</span>':''))+btn('mine','📤 我的申請');
+  for(const k of termKeys()){const n=memos.filter(m=>termTodo(m,k)).length;h+=btn('term:'+k,'🖥 '+esc(termName(k))+'終端'+(n?' <span class="nav-n">'+n+'</span>':''))}
   if(!formsLoaded)h+='<div class="nav-note">表單目錄載入中…</div>';
   else h+=cats.map(c=>{
    const list=forms.filter(f=>f.cat===c.key).map(f=>btn('form:'+f.key,esc(f.icon)+' '+esc(f.name),' navform'));
@@ -2881,11 +2926,11 @@ el('csvDraft').onclick=()=>saveCSV('draft');el('csvSubmit').onclick=()=>saveCSV(
  // ---- 目前在看哪一頁：某張表單的清單、待我簽核、我的申請 ----
  const viewId=v=>v.mode+':'+v.key;
  function memoShow(id){
-  const nv=id==='inbox'?{mode:'inbox',key:''}:id==='mine'?{mode:'mine',key:''}:{mode:'form',key:id.slice(5)};
+  const nv=id==='inbox'?{mode:'inbox',key:''}:id==='mine'?{mode:'mine',key:''}:id.startsWith('term:')?{mode:'term',key:id.slice(5)}:{mode:'form',key:id.slice(5)};
   if(viewId(nv)!==viewId(view)){view=nv;memoFilter=null}
   if(nv.mode==='form'){const d=defOf(nv.key);if(d)openCats.add(d.cat)}}
  window.memoShow=memoShow;
- function openView(mode,key,filter){view={mode,key:key||''};memoFilter=filter||null;tab(mode==='form'?'form:'+key:mode)}
+ function openView(mode,key,filter){view={mode,key:key||''};memoFilter=filter||null;tab(mode==='form'?'form:'+key:mode==='term'?'term:'+key:mode)}
 
  // ---- 核准後才能填的欄位：財務回填（fin 欄位，財務／管理員）與申請人回簽（app 欄位，申請人本人／管理員）----
  const FILL_GROUPS=[{flag:'fin',title:'財務回填',action:'財務回填',strip:'財務回填：',btn:'儲存財務回填',can:m=>!!authUser&&(authUser.role==='finance'||authUser.role==='admin')},{flag:'app',title:'申請人回簽',action:'申請人回簽',strip:'申請人回簽：',btn:'儲存回簽',can:m=>!!authUser&&(isMine(m)||authUser.role==='admin')}];
@@ -2925,11 +2970,17 @@ el('csvDraft').onclick=()=>saveCSV('draft');el('csvSubmit').onclick=()=>saveCSV(
  function memoRenderPage(){
   const root=$('memoPage');if(!root||root.classList.contains('hide')||!authUser)return;
   const def=view.mode==='form'?defOf(view.key):null;
-  $('memoPageTitle').textContent=view.mode==='inbox'?'📥 待我簽核':view.mode==='mine'?'📤 我的申請':def?def.icon+' '+def.name:'載入中…';
+  $('memoPageTitle').textContent=view.mode==='inbox'?'📥 待我簽核':view.mode==='mine'?'📤 我的申請':view.mode==='term'?'🖥 '+termName(view.key)+'終端':def?def.icon+' '+def.name:'載入中…';
   $('memoNew').classList.toggle('hide',!def);if(def)$('memoNew').textContent='＋ 新增'+def.name;
-  $('memoPageDesc').textContent=view.mode==='inbox'?'輪到你簽核的所有表單（核准或退回）。':view.mode==='mine'?'你提出過的所有表單，各種表單都在這裡；點「查看」看簽核進度。':def?def.desc+'　'+flowText(def):'';
+  $('memoPageDesc').textContent=view.mode==='inbox'?'輪到你簽核的所有表單（核准或退回）。':view.mode==='term'?'「'+termName(view.key)+'」職位的專屬終端，和各表單頁面分開：待處理＝輪到「'+termName(view.key)+'」、你可以直接核准或退回；已處理＝這個職位已經簽過（或在這一關退回）的；全部相關單＝簽核流程裡有「'+termName(view.key)+'」這一關的所有表單。':view.mode==='mine'?'你提出過的所有表單，各種表單都在這裡；點「查看」看簽核進度。':def?def.desc+'　'+flowText(def):'';
   let items,chips='';
   if(view.mode==='inbox')items=memos.filter(canSignStrict);
+  else if(view.mode==='term'){
+   const key=view.key,lists={todo:()=>memos.filter(m=>termTodo(m,key)),done:()=>memos.filter(m=>termDone(m,key)),all:()=>memos.filter(m=>termAll(m,key))},names={todo:'待處理',done:'已處理',all:'全部相關單'};
+   if(memoFilter===null&&memoLoaded)memoFilter=lists.todo().length?'todo':'all';
+   const f=names[memoFilter]?memoFilter:'todo';
+   chips=Object.keys(names).map(k=>`<button type="button" data-mfilter="${k}" class="${f===k?'on':''}">${names[k]}（${lists[k]().length}）</button>`).join('');
+   items=lists[f]()}
   else if(view.mode==='mine'){
    const mine=memos.filter(isMine),f=memoFilter||'all',opts=[['all','全部',()=>mine],['draft','草稿',()=>mine.filter(m=>m.status==='draft')],['in_review','簽核中',()=>mine.filter(m=>m.status==='in_review')],['approved','已核准',()=>mine.filter(m=>m.status==='approved')],['rejected','已退回',()=>mine.filter(m=>m.status==='rejected')]];
    chips=opts.map(o=>`<button type="button" data-mfilter="${o[0]}" class="${f===o[0]?'on':''}">${o[1]}（${o[2]().length}）</button>`).join('');
