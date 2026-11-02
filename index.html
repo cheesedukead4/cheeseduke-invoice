@@ -31,6 +31,10 @@
 details.fold{border:1px solid #dce3ed;border-radius:8px;padding:8px 12px;margin-top:10px;background:#fbfdff}details.fold>summary{cursor:pointer;font-weight:600;color:var(--blue)}
 .ledger-cands{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-top:6px}.ledger-cands:empty{display:none}
 .ledger-cand{padding:3px 10px;border:1px solid #b9c8e0;border-radius:999px;background:#fff;font-size:12px;cursor:pointer;color:#243145}.ledger-cand:hover{background:#edf3fc}.ledger-cand.on{background:#315c9c;color:#fff;border-color:#315c9c}
+/* 快速判讀（品類／用途／建議科目與分攤）：項目說明下方一行，按鈕可以一鍵套用 */
+.qj{display:flex;flex-wrap:wrap;gap:6px 8px;align-items:center;margin-top:6px;padding:5px 8px;border:1px dashed #b9c8e0;border-radius:8px;background:#f5f9ff;font-size:13px}.qj:empty{display:none}.qj-host:empty{display:none}
+.qj-title{color:#315c9c;font-weight:600}.qj-acct{color:#243145;font-weight:600}.qj-opts,.qj-dept{display:inline-flex;flex-wrap:wrap;gap:6px;align-items:center}
+.qj-chip{padding:3px 10px;border:1px solid #b9c8e0;border-radius:999px;background:#fff;font-size:12px;cursor:pointer;color:#243145}.qj-chip:hover{background:#edf3fc}.qj-chip.on{background:#315c9c;color:#fff;border-color:#315c9c}
 /* ===== 發票登錄精簡版面 ===== */
 .entry-home.compact{padding:10px 12px}.entry-home.compact h2,.entry-home.compact>.muted{display:none}
 .entry-home.compact .entry-cards{display:flex;gap:10px;max-width:none}.entry-home.compact .entry-choice{min-height:0;flex:1;flex-direction:row;gap:8px;padding:10px 14px}
@@ -263,7 +267,7 @@ input.ro{background:#eef2f8;color:#334155}
     <div class="auth-warn"><b>資料安全：</b>簽呈、發票、金額與存摺影本存在公司的 Google 雲端硬碟，系統會依你的角色與部門過濾可見範圍，並檢查簽核順序。請勿在公用電腦登入，離開座位請先登出。</div>
   </div>
 </div>
-<datalist id="acctCodeList"></datalist><datalist id="acctNameList"></datalist><script src="config.js"></script><script src="js/cloud.js"></script><script src="js/einvoice-qr.js"></script>
+<datalist id="acctCodeList"></datalist><datalist id="acctNameList"></datalist><script src="config.js"></script><script src="js/cloud.js"></script><script src="js/einvoice-qr.js"></script><script src="js/quick-judge.js"></script>
 <header><div><h1>公司簽呈與簽核系統</h1><div class="sub">網頁版 v7.0｜主畫面統一入口・表單／請款・雲端共用資料・Google 登入</div></div><div class="role"><span id="loggedSummary">尚未登入</span><span id="syncState" class="sub">雲端：—</span><button id="syncNowBtn" type="button">🔄 同步</button><button id="logoutBtn" type="button">登出</button><select id="role" class="hide"><option value="staff">申請人</option><option value="manager">部門主管</option><option value="executive">執行長</option><option value="finance">財務人員</option><option value="admin">系統管理者</option></select><input id="actorName" class="hide" readonly aria-label="操作人員姓名"></div></header>
 <nav id="tabs"><button type="button" id="menuToggle" aria-expanded="false">☰ 選單</button></nav>
 <main>
@@ -319,7 +323,7 @@ input.ro{background:#eef2f8;color:#334155}
 <div class="field ceo-off"><label for="transferHistory">匯款類型</label><select id="transferHistory"><option value="非首次匯款">非首次匯款</option><option value="首次匯款">首次匯款（須存摺影本）</option></select></div>
 </div>
 <div class="claim-block"><div style="overflow-x:auto"><table class="claim-lines" aria-label="一般請款單項目"><thead><tr><th>序號</th><th>項目說明</th><th>小計（元）</th><th>刪除</th></tr></thead><tbody id="claimItemsBody"></tbody></table></div>
-<div class="claim-bar"><button type="button" id="addClaimItem">＋ 新增項目</button><div class="claim-total"><span>請款合計 </span><strong id="claimTotal">NT$ 0</strong></div></div><div id="claimAmountWarning" class="claim-notice" aria-live="polite"></div></div>
+<div class="claim-bar"><button type="button" id="addClaimItem">＋ 新增項目</button><button type="button" id="qjGroup" title="把同一品類的項目合併（例如咖啡、雞腿飯 → 食品），並標上用途">🔎 依品類整理</button><div class="claim-total"><span>請款合計 </span><strong id="claimTotal">NT$ 0</strong></div></div><div id="claimAmountWarning" class="claim-notice" aria-live="polite"></div></div>
 <div class="cgrid">
 <div class="field ceo-off"><label for="dueDate">預定付款日</label><input id="dueDate" type="date"></div>
 <div class="field ceo-off"><label for="feeDeduction">匯費處理</label><select id="feeDeduction"><option value="不扣匯費">不扣匯費</option><option value="扣匯費">扣匯費</option></select></div>
@@ -979,7 +983,7 @@ function ledgerContext(dept='',vendor='',taxId=''){return {dept,vendor,taxId}}
 // 這一行的候選科目（點選套用）：有 2 個以上，或只有 1 個但還沒自動採用時才列出來
 function ledgerCandsHtml(line){
  const c=line?.ledgerCandidates||[];
- if(!c.length||(c.length===1&&line.ledgerSource==='history_suggested'))return '';
+ if(!c.length||(c.length===1&&ledgerAuto(line)))return '';
  return '<span class="muted small">可對應的科目（共 '+c.length+' 個，點選套用'+(c.some(a=>a.dept)?'；★＝符合申請部門':'')+'）：</span>'+c.map(a=>'<button type="button" class="ledger-cand'+(String(line.accountCode||'')===String(a.code)?' on':'')+'" data-cand-code="'+esc(a.code)+'" data-cand-name="'+esc(a.name)+'">'+esc((a.dept?'★ ':'')+(a.code?a.code+' ':'')+a.name)+'</button>').join('');
 }
 function applyLedgerCandidate(line,btn,td){
@@ -989,6 +993,26 @@ function applyLedgerCandidate(line,btn,td){
  if(codeEl)codeEl.value=line.accountCode;if(nameEl)nameEl.value=line.accountName;
  const hint=td.querySelector('.ledger-hint');if(hint){hint.textContent='已選用：'+line.accountCode+' '+line.accountName;hint.className='ledger-hint ready'}
  const c=td.querySelector('.ledger-cands');if(c)c.innerHTML=ledgerCandsHtml(line);
+}
+// ===== 快速判讀（js/quick-judge.js）：品名 → 品類（食品…）→ 用途（研發／職工福利／交際費）→ 會計科目，並建議分攤部門。只建議，按了才套用 =====
+const qjCtx=(o={})=>({purposeText:o.purposeText||'',vendor:o.vendor||'',depts:(window.companyAllocationDepartments||[]).map(n=>({name:n,prefix:ledgerDeptPrefix(n)}))});
+const qjSameDepts=(allocs,names)=>[...new Set((allocs||[]).map(a=>a.dept).filter(Boolean))].sort().join('|')===[...names].sort().join('|');
+function qjApplyDepts(line,names){const r=evenAllocationRatios(names.length);line.allocations=names.map((d,i)=>({dept:d,ratio:r[i]}));line.allocManual=true}
+// 項目說明下方的一行：品類／用途（食品要選用途）→ 科目名稱；文字提到某個部門、或是研發費時，建議分攤部門。attr＝按鈕上的定位屬性
+function qjStripHtml(line,ctx,attr){
+ const desc=String(line?.description||'').trim();if(!desc||desc==='發票費用')return '';
+ const j=QuickJudge.judgeLine(desc,ctx);if(!j)return '';
+ const sd=QuickJudge.suggestDepts(desc+' '+ctx.purposeText+' '+ctx.vendor,j.purpose,ctx.depts);
+ let h=`<span class="qj-title">🔎 快速判讀</span><b>${esc(j.label)}</b>`+(j.acct.length?` → 科目 <span class="qj-acct">${esc(j.acct[0])}</span>`:'')+(j.basis==='context'?'<span class="muted small">（依請款用途／廠商判斷）</span>':j.basis==='item'&&j.cat==='食品'?'<span class="muted small">（依品名判斷）</span>':'');
+ if(j.options.length)h+=`<span class="qj-opts">${j.needsPurpose?'用途請選：':'改成：'}${j.options.map(o=>`<button type="button" class="qj-chip${o===j.label?' on':''}" ${attr} data-qj-label="${esc(o)}">${esc(o)}</button>`).join('')}</span>`;
+ if(sd&&!qjSameDepts(line.allocations,sd.names))h+=`<span class="qj-dept">建議分攤 <b>${esc(sd.names.join('、'))}</b><span class="muted small">（${esc(sd.reason)}）</span><button type="button" class="qj-chip" ${attr} data-qj-dept="${esc(sd.names.join('|'))}">套用</button></span>`;
+ return `<div class="qj">${h}</div>`;
+}
+// 依品類整理：同品類的項目（食品：咖啡、雞腿飯）合成一項、金額加總；分攤沿用組內第一項；會計科目到財務覆核再判斷。回傳 null＝沒有可以合併的
+function qjRegroup(items,ctx,fallbackDept){
+ const g=QuickJudge.groupLines(items.map(x=>({description:x.description,amount:x.amount})),ctx);
+ if(g.length>=items.length)return null;
+ return g.map(x=>{const src=items[x.idx[0]]||items[0];return {...src,description:x.description||src.description,amount:x.amount,accountCode:'',accountName:'',ledgerManual:false,ledgerSource:'',allocations:(src.allocations&&src.allocations.length?src.allocations:[{dept:fallbackDept||'',ratio:100}]).map(a=>({dept:a.dept,ratio:a.ratio}))}});
 }
 function ledgerRowMarkup(line,i,scope='single',rowIndex=0,disabled=false){
  const attrs=scope==='single'?`data-ci="${i}"`:`data-bci="${rowIndex}" data-bline="${i}"`;
@@ -1182,6 +1206,9 @@ function normalizeClaim(old,invoice={}){
   return '';
  }
  let singleClaimItems=[{description:'發票費用',amount:0,allocations:[{dept:'',ratio:100}]}],singleAmountLinked=true;
+ const qjCtxSingle=()=>qjCtx({purposeText:$('description').value,vendor:$('vendor').value});
+ const qjRefreshSingle=i=>{const host=$('claimItemsBody').querySelector(`[data-qj-host="${i}"]`),line=singleClaimItems[i];if(host&&line)host.innerHTML=qjStripHtml(line,qjCtxSingle(),`data-qj-s="${i}"`)};
+ const qjRefreshSingleAll=()=>singleClaimItems.forEach((_,i)=>qjRefreshSingle(i));
 // 每一個請款項目各自有「費用分攤」：預設是申請部門 100%，可點選其他單位、比例自動均分；新增項目就多一列、多一組分攤
 function ensureItemAllocations(items,dept,legacy){for(const it of items||[]){if(!Array.isArray(it.allocations)||!it.allocations.length)it.allocations=(legacy&&legacy.length?legacy:[{dept:dept||'',ratio:100}]).map(a=>({dept:a.dept,ratio:a.ratio}))}}
 function itemAllocHtml(it,idx,chipAttr,rowAttr,disabled,showPre=false){
@@ -1237,7 +1264,7 @@ function aggregateAllocations(items){
 }
 function displaySingleClaimItems(){
  ensureItemAllocations(singleClaimItems,$('dept').value);
- $('claimItemsBody').innerHTML=singleClaimItems.map((r,i)=>`<tr><td>${i+1}</td><td><input aria-label="第${i+1}項目" data-ci="${i}" data-ck="description" value="${esc(r.description)}" placeholder="例如：服務費／稅額">${itemAllocHtml(r,String(i),`data-ia-chip="${i}"`,`data-ia-row="${i}"`,false)}</td><td><input aria-label="第${i+1}項小計" type="number" data-ci="${i}" data-ck="amount" min="0" step="0.01" value="${esc(r.amount)}"></td><td><button type="button" data-ci-remove="${i}" ${singleClaimItems.length===1?'disabled':''}>×</button></td></tr>`).join('');
+ $('claimItemsBody').innerHTML=singleClaimItems.map((r,i)=>`<tr><td>${i+1}</td><td><input aria-label="第${i+1}項目" data-ci="${i}" data-ck="description" value="${esc(r.description)}" placeholder="例如：服務費／稅額"><div class="qj-host" data-qj-host="${i}">${qjStripHtml(r,qjCtxSingle(),`data-qj-s="${i}"`)}</div>${itemAllocHtml(r,String(i),`data-ia-chip="${i}"`,`data-ia-row="${i}"`,false)}</td><td><input aria-label="第${i+1}項小計" type="number" data-ci="${i}" data-ck="amount" min="0" step="0.01" value="${esc(r.amount)}"></td><td><button type="button" data-ci-remove="${i}" ${singleClaimItems.length===1?'disabled':''}>×</button></td></tr>`).join('');
  updateSingleClaimTotal();
 }
 
@@ -1282,7 +1309,7 @@ async function getSinglePassbook(){if(!isFirstTransfer($('payment').value,$('tra
 $('passbookFile').addEventListener('change',()=>{const f=$('passbookFile').files[0];if(f){try{validatePassbook(f)}catch(e){$('passbookFile').value='';toast(e.message)}}updatePassbookStatus()});
 $('removePassbook').onclick=()=>{singlePassbookExisting=null;$('passbookFile').value='';updatePassbookStatus()};
 $('firstTransferPassbook').querySelector('.passbook-link').addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();$('passbookFile').click()}});
-$('claimItemsBody').addEventListener('input',e=>{const n=e.target;if(n.dataset.ci===undefined)return;const i=+n.dataset.ci,line=singleClaimItems[i],key=n.dataset.ck;line[key]=key==='amount'?moneyValue(n.value):n.value;if(key==='amount')singleAmountLinked=false;updateSingleClaimTotal()});
+$('claimItemsBody').addEventListener('input',e=>{const n=e.target;if(n.dataset.ci===undefined)return;const i=+n.dataset.ci,line=singleClaimItems[i],key=n.dataset.ck;line[key]=key==='amount'?moneyValue(n.value):n.value;if(key==='amount')singleAmountLinked=false;if(key==='description')qjRefreshSingle(i);updateSingleClaimTotal()});
 $('claimItemsBody').addEventListener('click',e=>{const b=e.target.closest('[data-ci-remove]');if(!b||singleClaimItems.length===1)return;singleClaimItems.splice(+b.dataset.ciRemove,1);singleAmountLinked=false;displaySingleClaimItems()});
 $('addClaimItem').onclick=()=>{singleClaimItems.push({description:'',amount:0,accountCode:'',accountName:'',allocations:[{dept:$('dept').value||'',ratio:100}]});singleAmountLinked=false;displaySingleClaimItems()};
  $('claimItemsBody').addEventListener('click',e=>{const b=e.target.closest('[data-ia-chip]');if(!b)return;const line=singleClaimItems[+b.dataset.iaChip];line.allocations=b.dataset.alocAll?toggleAllAllocation(line.allocations,$('dept').value):toggleAllocation(line.allocations,b.dataset.alocDept);line.allocManual=true;displaySingleClaimItems()});
@@ -1291,6 +1318,19 @@ $('amount').addEventListener('input',linkSingleAmount);
 // 只有一個請款項目、項目說明還是預設（或還跟著用途）時，項目說明跟著用途一起變；一旦自己改過項目說明就不再連動
 let purposeSynced='發票費用';
 $('description').addEventListener('input',()=>{if(singleClaimItems.length===1&&(singleClaimItems[0].description==='發票費用'||singleClaimItems[0].description===purposeSynced)){purposeSynced=$('description').value||'發票費用';singleClaimItems[0].description=purposeSynced;const line=$('claimItemsBody').querySelector('[data-ck=description]');if(line)line.value=purposeSynced;}});
+$('description').addEventListener('input',qjRefreshSingleAll);$('vendor').addEventListener('input',qjRefreshSingleAll);
+// 快速判讀：選用途（寫成項目說明開頭的「食品-研發：」）、套用建議的分攤部門、依品類整理、依 QR code 發票明細整理
+$('claimItemsBody').addEventListener('click',e=>{const b=e.target.closest('[data-qj-s]');if(!b)return;const line=singleClaimItems[+b.dataset.qjS];if(!line)return;
+ if(b.dataset.qjLabel)line.description=QuickJudge.applyLabel(line.description,b.dataset.qjLabel);
+ else if(b.dataset.qjDept)qjApplyDepts(line,b.dataset.qjDept.split('|'));
+ displaySingleClaimItems()});
+$('qjGroup').onclick=()=>{const next=qjRegroup(singleClaimItems,qjCtxSingle(),$('dept').value);if(!next)return toast('沒有可以合併的項目：同一品類（例如咖啡、雞腿飯都是食品）的項目才會合併');
+ const n=singleClaimItems.length;singleClaimItems=next;singleAmountLinked=false;displaySingleClaimItems();toast('已把 '+n+' 項整理成 '+next.length+' 項（金額合計不變）；分攤沿用每組的第一項，請確認用途與分攤')};
+$('ocrValues').addEventListener('click',e=>{if(!e.target.closest('#qjFromQR')||!window.qjQR)return;
+ const cl=window.EInvoiceQR.claimLines(window.qjQR),groups=QuickJudge.groupLines(cl.lines,qjCtxSingle());
+ if(singleClaimItems.some(x=>(x.description&&x.description!=='發票費用')||moneyValue(x.amount)>0)&&!confirm('目前已經填了請款項目，要換成依發票明細整理的結果嗎？'))return;
+ singleClaimItems=groups.map(g=>({description:g.description,amount:g.amount,accountCode:'',accountName:'',allocations:[{dept:$('dept').value||'',ratio:100}]}));singleAmountLinked=false;displaySingleClaimItems();
+ toast('已依發票明細整理成 '+groups.length+' 項（'+cl.note+'）；食品請選用途，並確認分攤')});
 
 $('files').addEventListener('change',updateSingleClaimTotal);
 $('payment').addEventListener('change',updateTransferMode);$('transferHistory').addEventListener('change',updateTransferMode);
@@ -1330,10 +1370,26 @@ function openFinanceReview(i){
  const ctx=ledgerContext(i.dept,i.vendor,i.taxId),items=i.claim.items.map(x=>({...x,allocations:(Array.isArray(x.allocations)?x.allocations:[]).map(a=>({dept:a.dept,ratio:a.ratio,...(a.accountCode?{accountCode:String(a.accountCode),accountName:String(a.accountName||''),acctManual:true}:{})}))}));
  items.forEach(line=>{if(line.ledgerSource==='finance')return;line.ledgerManual=false;updateLedgerForLine(line,ctx,true)});
  ensureItemAllocations(items,i.dept,i.claim.allocations);
+ items.forEach(line=>qjAdjustReview(line,i,false,line.ledgerSource==='finance'));
  items.forEach(syncAllocAccounts);
  finReview={id:i.id,items,ctx,dept:i.dept,invoice:i,allocBefore:items.map(allocSig)};renderFinanceReview();$('financeReviewDialog').showModal();
 }
 const allocSig=it=>JSON.stringify((it.allocations||[]).map(a=>[a.dept,Number(a.ratio)]));
+// 財務覆核的快速判讀：依品類／用途決定科目。項目說明已經標明用途（食品-研發：…）、財務按了用途鈕，或歷史紀錄不確定時，採用快速判讀的科目；
+// 歷史紀錄很確定、說明又沒標明時，只把快速判讀的科目加進候選。keep＝這項財務之前已經確認過，不要改科目（只更新畫面上的判讀）
+const ledgerAuto=l=>l?.ledgerSource==='history_suggested'||l?.ledgerSource==='quick'; // 系統自動建議（歷史紀錄或快速判讀）
+const frQjStrip=(line,k)=>{const inv=finReview?.invoice;return inv?qjStripHtml({...line,description:qjReviewDesc(line)},qjCtx({purposeText:inv.claim?.purpose||inv.description,vendor:inv.vendor}),`data-fr-qj="${k}"`):''};
+const qjReviewDesc=line=>line.qjForce?QuickJudge.applyLabel(line.description,line.qjForce):line.description;
+function qjAdjustReview(line,inv,force=false,keep=false){
+ const j=QuickJudge.judgeLine(qjReviewDesc(line),qjCtx({purposeText:inv.claim?.purpose||inv.description,vendor:inv.vendor}));
+ line.qj=j||null;if(keep||!j||!j.acct.length)return;
+ const dept=line.allocations?.[0]?.dept||inv.dept,pre=ledgerDeptPrefix(dept);let acct=null;
+ for(const n of j.acct){const h=chartFindByName(n,pre);if(h.length){acct=h[0];break}}
+ if(!acct)return;
+ const cands=line.ledgerCandidates||[];
+ if(!cands.some(c=>String(c.code)===String(acct.code)))line.ledgerCandidates=[{code:acct.code,name:acct.name,score:1,dept:!!(pre&&String(acct.code).startsWith(pre))},...cands];
+ if(force||j.explicit||line.ledgerSource!=='history_suggested'){line.accountCode=String(acct.code);line.accountName=acct.name;line.ledgerSource='quick';line.ledgerStatus='快速判讀：'+j.label+' → '+acct.code+' '+acct.name;line.ledgerConfidence=1}
+}
 // 分攤部門 → 會計科目代號：每個部門有「科目代號編碼」（51／61／62／64…）是科目代號的開頭。
 // 項目選好科目（例如 6115 差旅費）之後，分攤到哪個部門，就用科目表裡「同名、代號以該部門編碼開頭」的科目（電商 62 → 6215 差旅費）；
 // 部門沒設編碼、或本來就以該編碼開頭就沿用；科目表找不到對應的同名科目也沿用（畫面會標 ⚠ 請確認）。財務手動改過的不會被覆蓋
@@ -1357,7 +1413,7 @@ function frAcctCellHtml(line,k){
   const code=String(a.accountCode||'').trim(),pre=ledgerDeptPrefix(a.dept),warn=!!(pre&&code&&!code.startsWith(pre));
   return `<div class="fr-unit${multi?' multi':''}">${multi?`<div class="fr-unit-head"><b>${esc(a.dept)}</b>${pre?` <span class="alloc-pre">編碼 ${esc(pre)}</span>`:''} <span class="muted small" data-fr-head="${j}">${esc(a.ratio)}%｜NT$ ${fmt(shares[j]?.amount||0)}</span></div>`:''}<div class="ledger-fields"><input class="ledger-code" list="acctCodeList" autocomplete="off" data-fr-acct="${j}" data-fr-ak="${k}" data-fr-kind="code" placeholder="科目代號" value="${esc(code)}" aria-label="${esc(a.dept)}的會計科目代號"><input class="ledger-name" list="acctNameList" autocomplete="off" data-fr-acct="${j}" data-fr-ak="${k}" data-fr-kind="name" placeholder="科目名稱（可修正）" value="${esc(chartName(code)||a.accountName||'')}" aria-label="${esc(a.dept)}的會計科目名稱"></div><div class="alloc-acct-hint${warn?' warn':''}" data-fr-hint="${j}">${esc(allocAcctHint(a))}</div></div>`;
  }).join('');
- return `<div class="fr-acct" data-fr-cell="${k}">${multi?`<div class="note small fr-multi-note">分攤給 ${rows.length} 個單位，各單位的科目代號不同，請分別確認或填寫：</div>`:''}${units}<div class="ledger-hint ${line.ledgerSource==='history_suggested'?'ready':'uncertain'}">${esc(ledgerDisplay(line))}</div><div class="ledger-cands">${ledgerCandsHtml(line)}</div><button type="button" class="ledger-check" data-fr-resug="${k}">🔎 重新建議</button></div>`;
+ return `<div class="fr-acct" data-fr-cell="${k}">${multi?`<div class="note small fr-multi-note">分攤給 ${rows.length} 個單位，各單位的科目代號不同，請分別確認或填寫：</div>`:''}${units}${frQjStrip(line,k)}<div class="ledger-hint ${ledgerAuto(line)?'ready':'uncertain'}">${esc(ledgerDisplay(line))}</div><div class="ledger-cands">${ledgerCandsHtml(line)}</div><button type="button" class="ledger-check" data-fr-resug="${k}">🔎 重新建議</button></div>`;
 }
 function frRerender(k){const line=finReview?.items[k];if(!line)return;const body=$('finReviewBody'),host=body.querySelector(`[data-ia-host="fr${k}"]`),cell=body.querySelector(`[data-fr-cell="${k}"]`);if(host)host.outerHTML=itemAllocHtml(line,'fr'+k,`data-fr-chip="${k}"`,`data-fr-row="${k}"`,false,true);if(cell)cell.outerHTML=frAcctCellHtml(line,k)}
 // 打字時只就地更新（不重畫，游標才不會跑掉）：except＝正在輸入的那一格
@@ -1373,7 +1429,7 @@ function frAcctRefresh(cell,line,except){
 function frHeadRefresh(k,line){const cell=$('finReviewBody').querySelector(`[data-fr-cell="${k}"]`);if(!cell)return;calcAllocationAmounts(moneyValue(line.amount),line.allocations).forEach((s,j)=>{const h=cell.querySelector(`[data-fr-head="${j}"]`);if(h)h.textContent=s.ratio+'%｜NT$ '+fmt(s.amount)})}
 function renderFinanceReview(){
  const i=finReview.invoice,rows=finReview.items.map((x,k)=>`<tr><td>${k+1}</td><td>${esc(x.description)}</td><td class="right">NT$ ${fmt(x.amount)}</td><td>${itemAllocHtml(x,'fr'+k,`data-fr-chip="${k}"`,`data-fr-row="${k}"`,false,true)}</td><td>${frAcctCellHtml(x,k)}</td></tr>`).join('');
- $('finReviewBody').innerHTML=`<div class="muted small">${esc(i.invoiceNo)}｜${esc(i.vendor)}｜${esc(departmentLabel(i.dept))}／${esc(i.applicant)}｜NT$ ${fmt(i.amount)}</div><p class="note" style="margin:8px 0">系統已依項目說明、申請部門與廠商判斷會計科目，請核對。可直接改代號或名稱，或點下方的候選科目；<b>分攤部門</b>是申請人登錄時選的，財務可以調整（點部門按鈕選／取消，比例合計要 100%）。<b>分攤單位不同，科目代號就不同</b>：每個分攤單位在右邊各有一組科目代號欄，會依該部門的「科目代號編碼」開頭自動對應（例如 6115 差旅費，分攤給編碼 62 的部門就是 6215），也可以直接改。</p><div style="overflow-x:auto"><table class="claim-lines"><thead><tr><th>序號</th><th>項目說明</th><th>小計</th><th>分攤部門（可調整）</th><th>會計科目代號（每個分攤單位各一組；自動判斷／可修改）</th></tr></thead><tbody>${rows}</tbody></table></div><div class="actions" style="margin-top:12px"><button class="primary" type="button" id="finReviewOk">確認覆核通過</button><button type="button" id="finReviewCancel">取消</button></div>`;
+ $('finReviewBody').innerHTML=`<div class="muted small">${esc(i.invoiceNo)}｜${esc(i.vendor)}｜${esc(departmentLabel(i.dept))}／${esc(i.applicant)}｜NT$ ${fmt(i.amount)}</div><p class="note" style="margin:8px 0">系統已依項目說明、申請部門與廠商判斷會計科目，請核對。<b>🔎 快速判讀</b>會先認品類（咖啡、雞腿飯 → 食品），食品再看用途（研發／職工福利／交際費）決定科目，用途不確定時請在每項下方的按鈕選，並提示建議的分攤部門（按「套用」才會改）。可直接改代號或名稱，或點下方的候選科目；<b>分攤部門</b>是申請人登錄時選的，財務可以調整（點部門按鈕選／取消，比例合計要 100%）。<b>分攤單位不同，科目代號就不同</b>：每個分攤單位在右邊各有一組科目代號欄，會依該部門的「科目代號編碼」開頭自動對應（例如 6115 差旅費，分攤給編碼 62 的部門就是 6215），也可以直接改。</p><div style="overflow-x:auto"><table class="claim-lines"><thead><tr><th>序號</th><th>項目說明</th><th>小計</th><th>分攤部門（可調整）</th><th>會計科目代號（每個分攤單位各一組；自動判斷／可修改）</th></tr></thead><tbody>${rows}</tbody></table></div><div class="actions" style="margin-top:12px"><button class="primary" type="button" id="finReviewOk">確認覆核通過</button><button type="button" id="finReviewCancel">取消</button></div>`;
 }
 $('finReviewClose').onclick=()=>$('financeReviewDialog').close();
 // 每個分攤單位各自的科目代號／名稱：填了就是手動（不會被自動覆蓋）；清空代號就恢復自動對應
@@ -1397,7 +1453,12 @@ $('finReviewBody').addEventListener('click',async e=>{
  if(e.target.id==='finReviewCancel')return $('financeReviewDialog').close();
  // 點候選科目＝用這個科目當基本科目，所有分攤單位重新依各自的科目代號編碼對應
  const cand=e.target.closest('[data-cand-code]');if(cand){const k=+cand.closest('[data-fr-cell]')?.dataset.frCell,line=finReview.items[k];if(!line)return;line.accountCode=cand.dataset.candCode||'';line.accountName=cand.dataset.candName||'';line.ledgerManual=true;line.ledgerSource='manual';(line.allocations||[]).forEach(a=>{a.acctManual=false});syncAllocAccounts(line);frRerender(k);return}
- const re=e.target.closest('[data-fr-resug]');if(re){const k=+re.dataset.frResug,line=finReview.items[k];if(!line)return;line.ledgerManual=false;updateLedgerForLine(line,finReview.ctx,true);(line.allocations||[]).forEach(a=>{a.acctManual=false});syncAllocAccounts(line);frRerender(k);return}
+ // 快速判讀：食品選用途（財務不能改項目說明，只改這次覆核的科目）、套用建議的分攤部門
+ const qj=e.target.closest('[data-fr-qj]');if(qj){const k=+qj.dataset.frQj,line=finReview.items[k];if(!line)return;
+  if(qj.dataset.qjLabel){line.qjForce=qj.dataset.qjLabel;qjAdjustReview(line,finReview.invoice,true);(line.allocations||[]).forEach(a=>{a.acctManual=false})}
+  else if(qj.dataset.qjDept){const prev=line.allocations;qjApplyDepts(line,qj.dataset.qjDept.split('|'));keepAllocMeta(prev,line.allocations)}
+  syncAllocAccounts(line);frRerender(k);return}
+ const re=e.target.closest('[data-fr-resug]');if(re){const k=+re.dataset.frResug,line=finReview.items[k];if(!line)return;line.ledgerManual=false;line.qjForce='';updateLedgerForLine(line,finReview.ctx,true);qjAdjustReview(line,finReview.invoice);(line.allocations||[]).forEach(a=>{a.acctManual=false});syncAllocAccounts(line);frRerender(k);return}
  const chip=e.target.closest('[data-fr-chip]');if(chip){const k=+chip.dataset.frChip,line=finReview.items[k],host=chip.closest('.item-alloc');if(!line||!host)return;const prev=line.allocations;line.allocations=chip.dataset.alocAll?toggleAllAllocation(line.allocations,finReview.dept):toggleAllocation(line.allocations,chip.dataset.alocDept);keepAllocMeta(prev,line.allocations);syncAllocAccounts(line);frRerender(k);return}
  if(e.target.id!=='finReviewOk')return;
  const errs=[];
@@ -2526,6 +2587,7 @@ async function applyQRToSingle(file){
  let qr=null;
  try{qr=await window.EInvoiceQR.scanFile(file)}catch(e){console.warn('QR code 讀取失敗，改用文字辨識',e);return false}
  if(!qr)return false;
+ window.qjQR=null;
  const detected={invoiceDate:qr.invoiceDate,invoiceNo:qr.invoiceNo,taxId:qr.sellerId,amount:qr.total};
  window.lastSingleOCRVendor='';window.lastSingleOCRTax=detected.taxId;
  show('已讀到發票 QR code（賣方統編 '+qr.sellerId+'），正在查詢廠商名稱…');
@@ -2547,7 +2609,9 @@ async function applyQRToSingle(file){
   displaySingleClaimItems();
   if(cl.itemsText&&cl.mode==='total'){const t='發票品項（QR code）：'+cl.itemsText,m=$('memo');if(!m.value.includes(t))m.value=(m.value?m.value+'\n':'')+t}
   cards.push('<div><b>發票明細（QR code）</b>'+esc(cl.note)+'：'+esc(cl.lines.map(l=>l.description+' '+fmt(l.amount)).join('、'))+'</div>');
- }else cards.push('<div><b>發票明細（QR code，僅供參考，未自動填入）</b>'+esc(qr.items.length?qr.items.map(i=>i.name+' ×'+i.qty+' @'+i.price).join('；'):'QR code 沒有品項資料')+'</div>');
+ }else{cards.push('<div><b>發票明細（QR code，僅供參考，未自動填入）</b>'+esc(qr.items.length?qr.items.map(i=>i.name+' ×'+i.qty+' @'+i.price).join('；'):'QR code 沒有品項資料')+'</div>');
+  // 快速判讀：按了才把明細依品類整理成請款項目（咖啡、雞腿飯 → 食品），不會自動填
+  if(qr.items.length){window.qjQR=qr;cards.push('<div><b>快速判讀</b><button type="button" id="qjFromQR">🔎 依發票明細快速判讀，整理成請款項目</button><span class="muted small">　同一品類合併、金額合計等於發票總計；食品再選用途（研發／職工福利／交際費）</span></div>')}}
  if(qr.buyerId&&qr.buyerId!=='00000000')cards.push('<div><b>買方統編</b>'+esc(qr.buyerId)+'（請確認是本公司）</div>');
  el('ocrValues').innerHTML=cards.join('');
  el('ocrRaw').textContent='資料來源：發票 QR code（'+(qr.hasRight?'左＋右':'只讀到左邊')+'）\n隨機碼 '+qr.randomCode+'；銷售額 '+qr.sales+'；總計額 '+qr.total+'；品項 '+qr.items.length+'/'+(qr.declaredTotal||qr.items.length);
@@ -2600,7 +2664,7 @@ el('ocrStart').addEventListener('click',()=>{if(el('files').files.length>1){retu
 // 單筆送出簽核／存草稿之後：辨識結果卡片、預覽圖、辨識原文、欄位高亮、已選的檔案全部清掉，回到乾淨的狀態
 const OCR_STATUS_DEFAULT=el('ocrStatus').textContent;
 function clearRecognitionPanel(){
- el('ocrReview').classList.add('hide');el('ocrValues').innerHTML='';el('ocrRaw').textContent='';
+ el('ocrReview').classList.add('hide');el('ocrValues').innerHTML='';el('ocrRaw').textContent='';window.qjQR=null;
  el('ocrPreview').classList.add('hide');if(previewURL)URL.revokeObjectURL(previewURL);previewURL=null;
  ['invoiceDate','invoiceNo','taxId','amount','vendor'].forEach(k=>{const e=el(k);if(e)e.style.outline=''});
  el('ocrStatus').textContent=OCR_STATUS_DEFAULT;el('ocrStatus').classList.remove('error');
@@ -2652,6 +2716,10 @@ function setBatchOpen(i,open){
  const sum=c.querySelector('.batch-sum');if(sum)sum.textContent=batchSummary(r);
  const t=c.querySelector('[data-btoggle]');if(t){t.textContent=open?'▲ 收合':'▼ 展開';t.setAttribute('aria-expanded',String(open))}
 }
+function qjCtxBatch(r){return qjCtx({purposeText:r?.values?.description,vendor:r?.values?.vendor})}
+// 打字時只更新那一列（或整張卡）的快速判讀，不重畫整個批次清單（游標才不會跑掉）
+function qjRefreshBatchLine(bi,k){const r=batchRows[bi],line=r?.claim.items[k],host=document.querySelector(`[data-qj-host="b${bi}-${k}"]`);if(host&&line)host.innerHTML=r.saved?'':qjStripHtml(line,qjCtxBatch(r),`data-qj-b="${bi}" data-qj-line="${k}"`)}
+function qjRefreshBatchCard(bi){(batchRows[bi]?.claim.items||[]).forEach((_,k)=>qjRefreshBatchLine(bi,k))}
 function renderBatch(){
  const root=el('batchTable');
  if(!batchRows.length){root.innerHTML='';return}
@@ -2696,9 +2764,9 @@ function renderBatch(){
    </div>
    <div class="cgrid">${makeField(i,'dueDate','預定付款日','date','ceo-off')}${makeField(i,'feeDeduction','匯費處理','selectFee','ceo-off')}${makeField(i,'voucherMissing','待補憑證張數','numberZero','ceo-off')}${makeField(i,'memo','備註','textarea','ceo-off')}</div>
    <div style="overflow-x:auto"><table class="claim-lines"><thead><tr><th>序號</th><th>項目說明</th><th>小計（元）</th><th>刪除</th></tr></thead><tbody>
-   ${(r.claim?.items||[]).map((x,k)=>`<tr><td>${k+1}</td><td><input data-bci="${i}" data-bline="${k}" data-blinekey="description" value="${safeVal(x.description)}" ${r.saved?'disabled':''}>${itemAllocHtml(x,i+'-'+k,'data-bia-chip="'+i+'" data-bia-line="'+k+'"','data-bia-row="'+i+'" data-bia-line="'+k+'"',r.saved)}</td><td><input type="number" min="0" step="0.01" data-bci="${i}" data-bline="${k}" data-blinekey="amount" value="${safeVal(x.amount)}" ${r.saved?'disabled':''}></td><td><button type="button" data-bline-remove="${i}" data-bline-index="${k}" ${(r.claim?.items||[]).length<=1||r.saved?'disabled':''}>×</button></td></tr>`).join('')}
+   ${(r.claim?.items||[]).map((x,k)=>`<tr><td>${k+1}</td><td><input data-bci="${i}" data-bline="${k}" data-blinekey="description" value="${safeVal(x.description)}" ${r.saved?'disabled':''}><div class="qj-host" data-qj-host="b${i}-${k}">${r.saved?'':qjStripHtml(x,qjCtxBatch(r),`data-qj-b="${i}" data-qj-line="${k}"`)}</div>${itemAllocHtml(x,i+'-'+k,'data-bia-chip="'+i+'" data-bia-line="'+k+'"','data-bia-row="'+i+'" data-bia-line="'+k+'"',r.saved)}</td><td><input type="number" min="0" step="0.01" data-bci="${i}" data-bline="${k}" data-blinekey="amount" value="${safeVal(x.amount)}" ${r.saved?'disabled':''}></td><td><button type="button" data-bline-remove="${i}" data-bline-index="${k}" ${(r.claim?.items||[]).length<=1||r.saved?'disabled':''}>×</button></td></tr>`).join('')}
    </tbody></table></div>
-   <div class="actions" style="margin:8px 0"><button type="button" data-bline-add="${i}" ${r.saved?'disabled':''}>＋ 新增項目</button></div>
+   <div class="actions" style="margin:8px 0"><button type="button" data-bline-add="${i}" ${r.saved?'disabled':''}>＋ 新增項目</button> <button type="button" data-bqj-group="${i}" ${r.saved?'disabled':''} title="把同一品類的項目合併（例如咖啡、雞腿飯 → 食品），並標上用途">🔎 依品類整理</button>${r.qjQR&&!r.saved?` <button type="button" data-bqj-qr="${i}" title="依 QR code 讀到的發票明細，同品類合併成請款項目">🔎 依發票明細整理</button>`:''}</div>
    <div class="claim-total"><span>請款合計</span><strong id="bclaim-total-${i}">NT$ ${fmt(claimSum(r.claim))}</strong></div>
     <div class="claim-notice" id="bclaim-warning-${i}">${Math.abs(claimSum(r.claim)-moneyValue(r.values.amount))>0.01?'⚠ 請款合計與發票總計不一致，無法送出，請核對。':''}</div>
     ${isFirstTransfer(r.values.payment,r.values.transferHistory)?`<div class="passbook-upload"><strong>首次匯款｜存摺影本 *</strong><div class="muted small">此附件獨立保存，不與發票影像混用。</div><label class="passbook-link" for="batchPassbook-${i}">📎 點此上傳存摺影本</label><input id="batchPassbook-${i}" class="visually-hidden-file" type="file" accept="image/jpeg,image/png,image/webp,application/pdf" data-bpassbook="${i}" ${r.saved?'disabled':''}><span class="muted small">${r.passbookFile?'已選擇：'+safeVal(r.passbookFile.name):'尚未選擇檔案'}</span>${r.passbookFile&&!r.saved?`<button type="button" data-bpassbook-remove="${i}">移除附件</button>`:''}</div>`:'<p class="muted small">非首次匯款／現金付款不需要存摺影本。</p>'}</div>
@@ -2710,16 +2778,26 @@ function renderBatch(){
   root.querySelectorAll('[data-bia-chip]').forEach(node=>node.addEventListener('click',()=>{const r=batchRows[+node.dataset.biaChip],it=r.claim.items[+node.dataset.biaLine];it.allocations=node.dataset.alocAll?toggleAllAllocation(it.allocations,r.values.dept):toggleAllocation(it.allocations,node.dataset.alocDept);it.allocManual=true;r.error='';renderBatch()}));
   root.querySelectorAll('[data-bia-row]').forEach(node=>node.addEventListener('input',()=>{const r=batchRows[+node.dataset.biaRow],it=r.claim.items[+node.dataset.biaLine];it.allocations[+node.dataset.alocRatio].ratio=Number(node.value);it.allocManual=true;r.error='';refreshAllocationRow(+node.dataset.biaRow)}));
 
-root.querySelectorAll('[data-bi]').forEach(node=>node.addEventListener('input',()=>{const r=batchRows[Number(node.dataset.bi)];if(node.dataset.bk==='dept'){r.ceoDeptManual=true;r.values.applicant=isCeoUser()?authUser.name:(entryMode==='ceo'&&authUser?.role==='admin'?orgCEO:'');r.claim.items.forEach(x=>{if(!x.allocManual&&(x.allocations||[]).length<=1)x.allocations=[{dept:node.value,ratio:100}]});}r.values[node.dataset.bk]=node.value;if(node.dataset.bk==='amount'&&r.claimAutoAmount&&r.claim?.items?.length===1){r.claim.items[0].amount=moneyValue(node.value);const total=el('bclaim-total-'+node.dataset.bi);if(total)total.textContent='NT$ '+fmt(claimSum(r.claim));}(r.manualFields??=new Set()).add(node.dataset.bk);r.uncertain=(r.uncertain||[]).filter(k=>k!==node.dataset.bk);if(node.dataset.bk==='vendor')r.vendorSource='人工修正・待確認';r.error='';if(['dept','applicant','payment','transferHistory'].includes(node.dataset.bk))renderBatch();if(node.dataset.bk==='amount'){refreshAllocationRow(Number(node.dataset.bi));const w=el('bclaim-warning-'+node.dataset.bi);if(w)w.textContent=Math.abs(claimSum(r.claim)-moneyValue(r.values.amount))>0.01?'⚠ 請款合計與發票總計不一致，請核對。':'';}node.removeAttribute('aria-invalid')}));
+root.querySelectorAll('[data-bi]').forEach(node=>node.addEventListener('input',()=>{const r=batchRows[Number(node.dataset.bi)];if(node.dataset.bk==='dept'){r.ceoDeptManual=true;r.values.applicant=isCeoUser()?authUser.name:(entryMode==='ceo'&&authUser?.role==='admin'?orgCEO:'');r.claim.items.forEach(x=>{if(!x.allocManual&&(x.allocations||[]).length<=1)x.allocations=[{dept:node.value,ratio:100}]});}r.values[node.dataset.bk]=node.value;if(node.dataset.bk==='description'||node.dataset.bk==='vendor')qjRefreshBatchCard(Number(node.dataset.bi));if(node.dataset.bk==='amount'&&r.claimAutoAmount&&r.claim?.items?.length===1){r.claim.items[0].amount=moneyValue(node.value);const total=el('bclaim-total-'+node.dataset.bi);if(total)total.textContent='NT$ '+fmt(claimSum(r.claim));}(r.manualFields??=new Set()).add(node.dataset.bk);r.uncertain=(r.uncertain||[]).filter(k=>k!==node.dataset.bk);if(node.dataset.bk==='vendor')r.vendorSource='人工修正・待確認';r.error='';if(['dept','applicant','payment','transferHistory'].includes(node.dataset.bk))renderBatch();if(node.dataset.bk==='amount'){refreshAllocationRow(Number(node.dataset.bi));const w=el('bclaim-warning-'+node.dataset.bi);if(w)w.textContent=Math.abs(claimSum(r.claim)-moneyValue(r.values.amount))>0.01?'⚠ 請款合計與發票總計不一致，請核對。':'';}node.removeAttribute('aria-invalid')}));
  root.querySelectorAll('[data-bpassbook]').forEach(node=>node.addEventListener('change',()=>{const r=batchRows[Number(node.dataset.bpassbook)],f=node.files[0];if(f){try{validatePassbook(f);r.passbookFile=f;r.error=''}catch(e){r.passbookFile=null;r.error=e.message}}renderBatch()}));
  root.querySelectorAll('[data-bpassbook-remove]').forEach(node=>node.addEventListener('click',()=>{batchRows[Number(node.dataset.bpassbookRemove)].passbookFile=null;renderBatch()}));
  root.querySelectorAll('[data-bci]').forEach(node=>node.addEventListener('input',()=>{
   const r=batchRows[+node.dataset.bci],line=r.claim.items[+node.dataset.bline];line[node.dataset.blinekey]=node.dataset.blinekey==='amount'?moneyValue(node.value):node.value;
-  if(node.dataset.blinekey==='amount')r.claimAutoAmount=false;
+  if(node.dataset.blinekey==='amount')r.claimAutoAmount=false;else if(node.dataset.blinekey==='description')qjRefreshBatchLine(+node.dataset.bci,+node.dataset.bline);
   const total=el('bclaim-total-'+node.dataset.bci);if(total)total.textContent='NT$ '+fmt(claimSum(r.claim));
   refreshAllocationRow(+node.dataset.bci);const warn=el('bclaim-warning-'+node.dataset.bci);if(warn)warn.textContent=Math.abs(claimSum(r.claim)-moneyValue(r.values.amount))>0.01?'⚠ 請款合計與發票總計不一致，無法送出，請核對。':'';
  }));
   root.querySelectorAll('[data-bline-add]').forEach(node=>node.addEventListener('click',()=>{const r=batchRows[+node.dataset.blineAdd];r.claim.items.push({description:'',amount:0,accountCode:'',accountName:'',allocations:[{dept:r.values.dept||'',ratio:100}]});r.claimAutoAmount=false;renderBatch()}));
+ // 快速判讀（批次）：選用途、套用建議分攤、依品類整理、依 QR code 發票明細整理
+ root.querySelectorAll('[data-qj-b]').forEach(node=>node.addEventListener('click',()=>{const r=batchRows[+node.dataset.qjB],line=r?.claim.items[+node.dataset.qjLine];if(!line)return;
+  if(node.dataset.qjLabel)line.description=QuickJudge.applyLabel(line.description,node.dataset.qjLabel);else if(node.dataset.qjDept)qjApplyDepts(line,node.dataset.qjDept.split('|'));
+  r.error='';renderBatch()}));
+ root.querySelectorAll('[data-bqj-group]').forEach(node=>node.addEventListener('click',()=>{const r=batchRows[+node.dataset.bqjGroup],next=qjRegroup(r.claim.items,qjCtxBatch(r),r.values.dept);if(!next)return toast('沒有可以合併的項目：同一品類（例如咖啡、雞腿飯都是食品）的項目才會合併');
+  r.claim.items=next;r.claimAutoAmount=false;r.error='';renderBatch();toast('已整理成 '+next.length+' 項（金額合計不變）；分攤沿用每組的第一項，請確認用途與分攤')}));
+ root.querySelectorAll('[data-bqj-qr]').forEach(node=>node.addEventListener('click',()=>{const r=batchRows[+node.dataset.bqjQr];if(!r?.qjQR)return;
+  const cl=window.EInvoiceQR.claimLines(r.qjQR),groups=QuickJudge.groupLines(cl.lines,qjCtxBatch(r));
+  if(r.claim.items.some(x=>(x.description&&x.description!=='發票費用')||moneyValue(x.amount)>0)&&!confirm('這張已經填了請款項目，要換成依發票明細整理的結果嗎？'))return;
+  r.claim.items=groups.map(g=>({description:g.description,amount:g.amount,accountCode:'',accountName:'',allocations:[{dept:r.values.dept||'',ratio:100}]}));r.claimAutoAmount=false;r.error='';renderBatch();toast('已依發票明細整理成 '+groups.length+' 項（'+cl.note+'）；食品請選用途，並確認分攤')}));
  root.querySelectorAll('[data-bline-remove]').forEach(node=>node.addEventListener('click',()=>{const r=batchRows[+node.dataset.blineRemove];if(r.claim.items.length<=1)return;r.claim.items.splice(+node.dataset.blineIndex,1);r.claimAutoAmount=false;renderBatch()}));
  root.querySelectorAll('[data-bk=taxId]').forEach(node=>node.addEventListener('change',()=>verifyBatchSeller(Number(node.dataset.bi))));
  root.querySelectorAll('[data-blookup]').forEach(node=>node.addEventListener('click',()=>verifyBatchSeller(Number(node.dataset.blookup))));
@@ -2819,7 +2897,7 @@ function selectCrossChecked(rounds){
 }
 function applyQRToBatchRow(r,qr){
  const cl=window.EInvoiceQR.claimLines(qr);
- if(!AUTO_FILL_CLAIM_ITEMS){r.qrNote='請款項目明細請自行填寫（未自動帶入 QR code 的品項）';return}
+ if(!AUTO_FILL_CLAIM_ITEMS){r.qrNote='請款項目明細請自行填寫（未自動帶入 QR code 的品項；可按「依發票明細整理」快速判讀）';r.qjQR=qr.items.length?qr:null;return}
  r.claim.items=cl.lines.map(l=>({description:l.description,amount:l.amount,accountCode:'',accountName:''}));
  r.claimAutoAmount=cl.lines.length===1;
  if(cl.itemsText&&cl.mode==='total'){const t='發票品項（QR code）：'+cl.itemsText;if(!String(r.values.memo||'').includes(t))r.values.memo=(r.values.memo?r.values.memo+'\n':'')+t}
