@@ -283,6 +283,14 @@ main{padding-bottom:12px}
 #entry #invoiceForm{flex:0 0 100%;min-width:0}
 #invoiceForm .fsteps{display:none}.fstep-n{font-weight:400;margin-left:3px}.entry-to-csv{display:none}
 #invoiceForm .fgrid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.3fr);gap:0 14px;align-items:start}#invoiceForm .fcol{min-width:0}
+/* 付款與備註：左右兩欄的下面整排全寬（左：支付對象、付款方式、匯款類型；右：預定付款日、匯費處理、待補憑證張數、備註；存摺上傳另起一行） */
+@media(min-width:1140px){#entry #vendorLookupStatus{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}#entry .voucher-toggle{padding:2px 10px}#entry .sticky-actions button{min-height:38px}
+ /* 首次匯款的存摺上傳：寬螢幕收成一排（說明、上傳連結、檔案狀態），不佔一大塊 */
+ #invoiceForm .fbottom-wide .passbook-upload{flex-direction:row;flex-wrap:wrap;align-items:center;gap:4px 18px;padding:6px 12px;margin:4px 0}#invoiceForm .fbottom-wide .passbook-upload .muted.small{display:none}
+ body[data-view="entry"] header{padding-top:9px;padding-bottom:9px}body[data-view="entry"] main{margin-top:8px}}
+#invoiceForm .fbottom{display:grid;grid-template-columns:minmax(0,3fr) minmax(0,4fr);gap:0 14px;margin-top:4px;align-items:start}#invoiceForm .fbottom .fbottom-wide{grid-column:1/-1}#invoiceForm .fbottom .cgrid{margin-bottom:5px}
+@media(min-width:1140px){#invoiceForm .fbottom>.fstep:nth-child(1) .cgrid{grid-template-columns:repeat(3,minmax(0,1fr))}#invoiceForm .fbottom>.fstep:nth-child(2) .cgrid{grid-template-columns:repeat(4,minmax(0,1fr))}}
+@media(max-width:1139px){#invoiceForm .fbottom{display:block}}
 .item-alloc-fold{margin-top:6px;border:1px dashed #cbd5e1;border-radius:8px;background:#f8fafc}.item-alloc-fold>summary{cursor:pointer;padding:4px 10px;font-size:12px;color:#315c9c;font-weight:600;list-style:none}.item-alloc-fold>summary::-webkit-details-marker{display:none}.item-alloc-fold>summary::after{content:' ▾'}.item-alloc-fold[open]>summary::after{content:' ▴'}
 .item-alloc-fold.bad{border-color:#d6a444;background:#fff8ec}.item-alloc-fold>.item-alloc{margin:0;border:0;border-top:1px dashed #cbd5e1;border-radius:0 0 8px 8px}
 @media(max-width:1139px){
@@ -388,7 +396,11 @@ main{padding-bottom:12px}
 <div class="cgrid">
 <div class="field span2"><label for="description">用途 *</label><textarea id="description" rows="1" required placeholder="例如：EDM 發送－2026/09 月"></textarea></div>
 </div></div>
-<div class="fstep" data-step="3"><div class="cgrid">
+</div>
+<div class="fcol"><div class="fstep" data-step="2"><div class="claim-block"><div class="claim-scroll"><table class="claim-lines" aria-label="一般請款單項目"><thead><tr><th>序號</th><th>項目說明</th><th>小計（元）</th><th>刪除</th></tr></thead><tbody id="claimItemsBody"></tbody></table></div>
+<div class="claim-bar"><button type="button" id="addClaimItem">＋ 新增項目</button><button type="button" id="qjGroup" title="把同一品類的項目合併（例如咖啡、雞腿飯 → 食品），並標上用途">🔎 依品類整理</button><div class="claim-total"><span>請款合計 </span><strong id="claimTotal">NT$ 0</strong></div></div><div id="claimAmountWarning" class="claim-notice" aria-live="polite"></div></div></div></div></div>
+
+<div class="fbottom"><div class="fstep" data-step="3"><div class="cgrid">
 <div class="field"><label for="payee">支付對象 *</label><input id="payee" maxlength="120" autocomplete="off" placeholder="收款的廠商或個人"></div>
 <div class="field"><label for="payment">付款方式 *</label><select id="payment" required><option value="匯款">匯款</option><option value="現金">現金</option></select></div>
 <div class="field ceo-off"><label for="transferHistory">匯款類型</label><select id="transferHistory"><option value="非首次匯款">非首次匯款</option><option value="首次匯款">首次匯款（須存摺影本）</option></select></div>
@@ -399,16 +411,16 @@ main{padding-bottom:12px}
 <div class="field ceo-off"><label for="voucherMissing">待補憑證張數</label><input id="voucherMissing" type="number" min="0" step="1" value="0"></div>
 <div class="field ceo-off"><label for="memo">備註</label><textarea id="memo" rows="1" placeholder="補件說明、特殊付款需求等"></textarea></div>
 </div>
-<div class="hide"><input id="requestDate" type="date" readonly><input id="voucherProvided" readonly value="0 件"></div>
+</div>
+<div class="fstep fbottom-wide" data-step="3"><div class="hide"><input id="requestDate" type="date" readonly><input id="voucherProvided" readonly value="0 件"></div>
 <div id="firstTransferPassbook" class="passbook-upload hide" aria-live="polite">
   <div><strong>首次匯款｜存摺影本 *</strong><div class="muted small">請上傳顯示戶名及銀行帳號的存摺封面或銀行帳戶證明（JPG／PNG／WEBP／PDF，10 MB 以內）；供付款核對，不列入發票影像。</div></div>
   <label for="passbookFile" class="passbook-link" role="button" tabindex="0">📎 點此上傳存摺影本</label>
   <input id="passbookFile" type="file" accept="image/jpeg,image/png,image/webp,application/pdf" class="visually-hidden-file">
   <div class="passbook-file-row"><span id="passbookFileStatus" class="muted small">尚未選擇檔案</span><button type="button" id="removePassbook" class="hide">移除附件</button></div>
 </div>
-<div id="transferNotice" class="muted small"></div></div></div>
-<div class="fcol"><div class="fstep" data-step="2"><div class="claim-block"><div class="claim-scroll"><table class="claim-lines" aria-label="一般請款單項目"><thead><tr><th>序號</th><th>項目說明</th><th>小計（元）</th><th>刪除</th></tr></thead><tbody id="claimItemsBody"></tbody></table></div>
-<div class="claim-bar"><button type="button" id="addClaimItem">＋ 新增項目</button><button type="button" id="qjGroup" title="把同一品類的項目合併（例如咖啡、雞腿飯 → 食品），並標上用途">🔎 依品類整理</button><div class="claim-total"><span>請款合計 </span><strong id="claimTotal">NT$ 0</strong></div></div><div id="claimAmountWarning" class="claim-notice" aria-live="polite"></div></div></div></div></div>
+<div id="transferNotice" class="muted small"></div></div>
+</div>
 <div class="sticky-actions"><button class="primary" type="submit" id="submitInvoice">送出簽核</button><button type="button" id="saveDraft">儲存草稿</button><button type="button" id="resetForm">清除</button></div></form></div></div>
 <div id="batchMode" class="hide"><div class="panel"><h2>📑 批次發票與一般請款單</h2>
 <div class="note">一次選擇最多 30 張發票照片或 PDF，每個檔案視為<strong>一筆發票</strong>，依序辨識日期、發票號碼、<strong>賣方統編</strong>、廠商名稱及含稅金額；每張會獨立嘗試線上查詢廠商名稱，查詢狀態顯示在各張表單中。請在每張發票的表單逐筆核對，可修改辨識結果並分別儲存或送簽。PDF 每個檔案目前僅辨識第一頁。</div>
@@ -1356,7 +1368,7 @@ function aggregateAllocations(items){
 function fitClaimBox(){
  const box=document.querySelector('#invoiceForm .claim-scroll');if(!box||!box.offsetParent)return;
  box.style.maxHeight='';
- const below=(document.querySelector('#invoiceForm .claim-bar')?.offsetHeight||0)+(document.getElementById('claimAmountWarning')?.offsetHeight||0)+(document.querySelector('#invoiceForm .sticky-actions')?.offsetHeight||0)+14;
+ const below=(document.querySelector('#invoiceForm .claim-bar')?.offsetHeight||0)+(document.getElementById('claimAmountWarning')?.offsetHeight||0)+(document.querySelector('#invoiceForm .sticky-actions')?.offsetHeight||0)+(document.querySelector('#invoiceForm .fbottom')?.offsetHeight||0)+14;
  const h=Math.max(150,Math.floor(window.innerHeight-box.getBoundingClientRect().top-below));box.style.maxHeight=h+'px';
  // 框下面到頁尾還有留白（面板邊距、頁面底部邊距）：項目多到要捲動時，把多出來的整頁高度也扣掉，整頁才不會多出捲軸
  const over=document.documentElement.scrollHeight-window.innerHeight;
