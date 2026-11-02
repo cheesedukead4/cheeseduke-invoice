@@ -282,7 +282,9 @@ main{padding-bottom:12px}
 #entry .ocr-box.compact{flex:1 1 360px;margin:0;display:flex;flex-wrap:wrap;align-items:center;gap:4px 10px}#entry .ocr-box.compact .ocr-preview-wrap{margin:0;flex:1 1 200px}#entry .ocr-box.compact .ocr-review{flex:0 0 100%}
 #entry #invoiceForm{flex:0 0 100%;min-width:0}
 #invoiceForm .fsteps{display:none}.fstep-n{font-weight:400;margin-left:3px}.entry-to-csv{display:none}
-#invoiceForm .fgrid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.3fr);gap:0 14px;align-items:start}#invoiceForm .fcol{min-width:0}
+#invoiceForm .fgrid{display:block}#invoiceForm .fclaim{margin-top:4px}
+/* 申請部門／申請人（員工帳號是固定的、被隱藏）和用途同一排：沒有被隱藏的欄位時，用途撐滿整排 */
+#invoiceForm.who-fields-hidden .fgrid .field.span2{grid-column:1/-1}#invoiceForm.who-applicant-fixed:not(.who-fields-hidden) .fgrid .field.span2{grid-column:span 3}#invoiceForm .fcol{min-width:0}
 /* 付款與備註：左右兩欄的下面整排全寬（左：支付對象、付款方式、匯款類型；右：預定付款日、匯費處理、待補憑證張數、備註；存摺上傳另起一行） */
 @media(min-width:1140px){#entry #vendorLookupStatus{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}#entry .voucher-toggle{padding:2px 10px}#entry .sticky-actions button{min-height:38px}
  /* 首次匯款的存摺上傳：寬螢幕收成一排（說明、上傳連結、檔案狀態），不佔一大塊 */
@@ -391,15 +393,10 @@ main{padding-bottom:12px}
 <div class="cgrid">
 <div class="field who-field"><label for="dept">申請部門／門市 *</label><select id="dept" required><option value="">請選擇</option></select><span id="deptMeta" class="muted small">顯示門市編號及科目代號</span><span id="ceoDeptHint" class="lookup-note hide" aria-live="polite"></span></div>
 <div class="field who-field who-applicant"><label for="applicant">申請人 *</label><select id="applicant" required><option value="">請先選擇部門</option></select></div>
+<div class="field span2"><label for="description">用途 *</label><textarea id="description" rows="1" required placeholder="例如：EDM 發送－2026/09 月"></textarea></div>
 </div>
 <div id="ceoRuleBox" class="note hide" aria-live="polite"></div>
-<div class="cgrid">
-<div class="field span2"><label for="description">用途 *</label><textarea id="description" rows="1" required placeholder="例如：EDM 發送－2026/09 月"></textarea></div>
-</div></div>
-</div>
-<div class="fcol"><div class="fstep" data-step="2"><div class="claim-block"><div class="claim-scroll"><table class="claim-lines" aria-label="一般請款單項目"><thead><tr><th>序號</th><th>項目說明</th><th>小計（元）</th><th>刪除</th></tr></thead><tbody id="claimItemsBody"></tbody></table></div>
-<div class="claim-bar"><button type="button" id="addClaimItem">＋ 新增項目</button><button type="button" id="qjGroup" title="把同一品類的項目合併（例如咖啡、雞腿飯 → 食品），並標上用途">🔎 依品類整理</button><div class="claim-total"><span>請款合計 </span><strong id="claimTotal">NT$ 0</strong></div></div><div id="claimAmountWarning" class="claim-notice" aria-live="polite"></div></div></div></div></div>
-
+</div></div></div>
 <div class="fbottom"><div class="fstep" data-step="3"><div class="cgrid">
 <div class="field"><label for="payee">支付對象 *</label><input id="payee" maxlength="120" autocomplete="off" placeholder="收款的廠商或個人"></div>
 <div class="field"><label for="payment">付款方式 *</label><select id="payment" required><option value="匯款">匯款</option><option value="現金">現金</option></select></div>
@@ -421,6 +418,8 @@ main{padding-bottom:12px}
 </div>
 <div id="transferNotice" class="muted small"></div></div>
 </div>
+<div class="fclaim"><div class="fstep" data-step="2"><div class="claim-block"><div class="claim-scroll"><table class="claim-lines" aria-label="一般請款單項目"><thead><tr><th>序號</th><th>項目說明</th><th>小計（元）</th><th>刪除</th></tr></thead><tbody id="claimItemsBody"></tbody></table></div>
+<div class="claim-bar"><button type="button" id="addClaimItem">＋ 新增項目</button><button type="button" id="qjGroup" title="把同一品類的項目合併（例如咖啡、雞腿飯 → 食品），並標上用途">🔎 依品類整理</button><div class="claim-total"><span>請款合計 </span><strong id="claimTotal">NT$ 0</strong></div></div><div id="claimAmountWarning" class="claim-notice" aria-live="polite"></div></div></div></div>
 <div class="sticky-actions"><button class="primary" type="submit" id="submitInvoice">送出簽核</button><button type="button" id="saveDraft">儲存草稿</button><button type="button" id="resetForm">清除</button></div></form></div></div>
 <div id="batchMode" class="hide"><div class="panel"><h2>📑 批次發票與一般請款單</h2>
 <div class="note">一次選擇最多 30 張發票照片或 PDF，每個檔案視為<strong>一筆發票</strong>，依序辨識日期、發票號碼、<strong>賣方統編</strong>、廠商名稱及含稅金額；每張會獨立嘗試線上查詢廠商名稱，查詢狀態顯示在各張表單中。請在每張發票的表單逐筆核對，可修改辨識結果並分別儲存或送簽。PDF 每個檔案目前僅辨識第一頁。</div>
@@ -1368,7 +1367,7 @@ function aggregateAllocations(items){
 function fitClaimBox(){
  const box=document.querySelector('#invoiceForm .claim-scroll');if(!box||!box.offsetParent)return;
  box.style.maxHeight='';
- const below=(document.querySelector('#invoiceForm .claim-bar')?.offsetHeight||0)+(document.getElementById('claimAmountWarning')?.offsetHeight||0)+(document.querySelector('#invoiceForm .sticky-actions')?.offsetHeight||0)+(document.querySelector('#invoiceForm .fbottom')?.offsetHeight||0)+14;
+ const below=(document.querySelector('#invoiceForm .claim-bar')?.offsetHeight||0)+(document.getElementById('claimAmountWarning')?.offsetHeight||0)+(document.querySelector('#invoiceForm .sticky-actions')?.offsetHeight||0)+14;
  const h=Math.max(150,Math.floor(window.innerHeight-box.getBoundingClientRect().top-below));box.style.maxHeight=h+'px';
  // 框下面到頁尾還有留白（面板邊距、頁面底部邊距）：項目多到要捲動時，把多出來的整頁高度也扣掉，整頁才不會多出捲軸
  const over=document.documentElement.scrollHeight-window.innerHeight;
@@ -1389,7 +1388,7 @@ function updateSingleClaimTotal(){const total=claimSum({items:singleClaimItems})
 // 發票登錄表單分步（窄螢幕：發票資料／請款項目／付款與備註三步，每步一頁看完；桌機兩欄全部同時顯示，步驟列不出現）
 function setFormStep(n){const f=$('invoiceForm');f.dataset.step=String(n);f.querySelectorAll('[data-fstep]').forEach(b=>{const on=b.dataset.fstep===String(n);b.classList.toggle('on',on);b.setAttribute('aria-selected',String(on))});fitClaimBox()}
 // 上方的選檔列、辨識結果、申請欄位高度變了（例如展開辨識結果），請款項目框跟著重算
-if(window.ResizeObserver){const ro=new ResizeObserver(()=>fitClaimBox());for(const s of ['#uploadControls','#singleMode .entry-top','#singleMode .ocr-box','#invoiceForm .fstep-top'])document.querySelectorAll(s).forEach(n=>ro.observe(n))}
+if(window.ResizeObserver){const ro=new ResizeObserver(()=>fitClaimBox());for(const s of ['#uploadControls','#singleMode .entry-top','#singleMode .ocr-box','#invoiceForm .fstep-top','#invoiceForm .fgrid','#invoiceForm .fbottom'])document.querySelectorAll(s).forEach(n=>ro.observe(n))}
 $('invoiceForm').addEventListener('click',e=>{const b=e.target.closest('[data-fstep]');if(b)setFormStep(b.dataset.fstep)});
 $('ocrStatus').addEventListener('click',()=>$('ocrStatus').classList.toggle('open')); // 手機版辨識狀態預設只顯示一行，點一下展開全文
 $('entryToCsv').onclick=()=>$('chooseCSV').click(); // 手機版單筆登錄時，上方「拍照／CSV」選擇列收起來，改從標題列切到 CSV 匯入
