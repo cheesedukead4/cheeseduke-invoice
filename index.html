@@ -1469,7 +1469,7 @@ const DB_CATALOG=[
  {id:'memos',page:'inbox',icon:'📝',name:'簽呈與各式表單',store:'memos',desc:'請購單、出差申請單、印刷品送印申請等所有簽呈（附件另存）',used:'簽呈流程',who:'依簽核流程'},
  {id:'vendors',icon:'🏷',name:'廠商資料庫（舊版）',store:'vendors',desc:'舊版留下的資料，畫面已經不使用，可留著備查',used:'（已停用）',who:'—'}
 ];
-let dbInfoData=null,dbPane='overview',dbBusy=false,dbErr='';
+let dbInfoData=null,dbPane='overview',dbBusy=false,dbErr='',dbMirrorBusy=false;
 const dbStoreInfo=s=>dbInfoData&&dbInfoData.stores&&dbInfoData.stores.find(x=>x.store===s);
 const fmtBytes=n=>n>=1048576?(n/1048576).toFixed(1)+' MB':n>=1024?Math.round(n/1024)+' KB':(Number(n)||0)+' B';
 const fmtAt=ms=>ms?new Date(ms).toLocaleString('zh-TW',{hour12:false}):'—';
@@ -1484,11 +1484,31 @@ function renderDbList(){
  const items=[{id:'overview',icon:'🗄',name:'總覽',sub:dbInfoData?dbInfoData.stores.length+' 個資料集｜'+fmtBytes(dbInfoData.bytes):''}].concat(DB_CATALOG.filter(c=>c.pane).map(c=>({id:c.pane,icon:c.icon,name:c.name,sub:dbCount(c)})));
  $('dbList').innerHTML=items.map(x=>'<button type="button" class="db-item'+(x.id===dbPane?' on':'')+'" data-db-open="'+x.id+'"><span>'+x.icon+' '+esc(x.name)+'</span><small>'+esc(x.sub||'')+'</small></button>').join('');
 }
+// 資料庫試算表（唯讀鏡像）：所有資料整理成一份 Google 試算表，每種資料一個工作表，管理員可以直接打開來看、篩選、匯出
+function dbMirrorHtml(){
+ const m=dbInfoData&&dbInfoData.mirror;if(!dbInfoData||!m)return '';
+ const rows=(m.sheets||[]).reduce((n,s)=>n+(Number(s[2])||0),0);
+ const busy=dbMirrorBusy||m.running;
+ let st;
+ if(!m.enabled)st='<p class="muted" style="margin:6px 0">還沒建立。<b>第一次建立前</b>，要先在 Apps Script 編輯器執行一次 <code>authorizeMirror</code> 並同意「Google 試算表」權限（見使用說明）；授權完成後，按下面的按鈕就會建立。</p>';
+ else st='<p style="margin:6px 0">上次更新：<b>'+esc(fmtAt(m.at))+'</b>'+(m.by?'（'+esc(m.by)+'）':'')+'｜'+(m.sheets||[]).length+' 個工作表、共 '+rows+' 筆'+(m.url?'｜<a href="'+esc(m.url)+'" target="_blank" rel="noopener">📊 開啟資料庫試算表</a>':'')+'</p>';
+ return '<div class="panel"><div class="flex"><h3 style="margin:0">📊 資料庫試算表（唯讀鏡像）</h3><div class="spacer"></div><button type="button" class="primary" id="dbMirrorSync" '+(busy?'disabled':'')+'>'+(busy?'更新中…':m.enabled?'🔄 立即更新':'建立資料庫試算表')+'</button>'+(m.enabled?'<button type="button" id="dbMirrorRecreate" '+(busy?'disabled':'')+' title="試算表被刪掉或打不開時使用；舊的不會被刪">重新建立試算表</button>':'')+'</div>'+
+  '<p class="muted">把所有資料庫（發票、簽呈、科目表、歷史科目、歷史歸類、判斷標準、組織、簽核流程、帳號名單…）整理成<b>一份 Google 試算表</b>，每種資料一個工作表，可以直接打開來看、篩選、匯出。這是<b>唯讀副本</b>：系統的讀寫仍用雲端資料夾裡的檔案，每次更新都會整張覆蓋，請不要在試算表裡改資料；每天備份後會自動更新一次，也可以按上面的按鈕手動更新。試算表含所有發票與帳號資料，只有擁有者（管理員）看得到，請不要隨意分享。</p>'+st+
+  (m.error?'<div class="warn" style="margin-top:8px">上次更新失敗：'+esc(m.error)+'</div>':'')+'</div>';
+}
+async function mirrorSyncClick(recreate){
+ if(dbMirrorBusy)return;
+ if(recreate&&!confirm('重新建立一份新的資料庫試算表？\n\n舊的試算表不會被刪除（還留在雲端資料夾），之後的更新會寫進新的這一份。'))return;
+ dbMirrorBusy=true;renderDbOverview();toast('正在更新資料庫試算表，資料多的時候要一分鐘左右…');
+ try{const r=await InvCloud.call('mirrorSync',{recreate:!!recreate});if(dbInfoData)dbInfoData.mirror=r.mirror;toast('資料庫試算表已更新')}
+ catch(e){toast('更新失敗：'+(e.message||e))}
+ finally{dbMirrorBusy=false;await loadDbInfo()}
+}
 function renderDbOverview(){
  const host=$('dbPane-overview');if(!host)return;
  const rows=DB_CATALOG.map(c=>{const s=c.store&&dbStoreInfo(c.store);
   return '<tr><td data-label="資料庫"><b>'+c.icon+' '+esc(c.name)+'</b><div class="muted small">'+esc(c.desc)+'</div></td><td data-label="筆數">'+esc(dbCount(c))+'</td><td data-label="大小">'+(s?esc(fmtBytes(s.bytes)):'—')+'</td><td data-label="最後更新">'+(s&&s.at?esc(fmtAt(s.at))+'<div class="muted small">'+esc(s.by||'')+'｜第 '+s.v+' 版</div>':'—')+'</td><td data-label="誰能改">'+esc(c.who)+'</td><td data-label="用在哪">'+esc(c.used)+'</td><td data-label=""  class="act"><div class="cv"><button type="button" '+(c.pane?'data-db-open="'+c.pane+'"':c.page?'data-db-page="'+c.page+'"':'disabled')+'>'+(c.pane?'管理':c.page?'前往':'—')+'</button></div></td></tr>'}).join('');
- host.innerHTML='<div class="panel"><div class="flex"><h2 style="margin:0">🗄 資料庫總覽</h2><div class="spacer"></div><button type="button" id="dbRefresh">🔄 重新整理</button>'+(dbInfoData&&dbInfoData.folderUrl?'<a class="btn" href="'+esc(dbInfoData.folderUrl)+'" target="_blank" rel="noopener">📁 開啟雲端資料夾</a>':'')+'<button type="button" data-db-page="settings">💾 備份與還原</button></div>'+
+ host.innerHTML=dbMirrorHtml()+'<div class="panel"><div class="flex"><h2 style="margin:0">🗄 資料庫總覽</h2><div class="spacer"></div><button type="button" id="dbRefresh">🔄 重新整理</button>'+(dbInfoData&&dbInfoData.folderUrl?'<a class="btn" href="'+esc(dbInfoData.folderUrl)+'" target="_blank" rel="noopener">📁 開啟雲端資料夾</a>':'')+'<button type="button" data-db-page="settings">💾 備份與還原</button></div>'+
   (dbErr?'<div class="warn" style="margin-top:10px">'+esc(dbErr)+'</div>':'')+
   '<p class="muted">每種資料各存成一個檔案，放在同一個雲端資料夾（「發票簽核系統_雲端資料」）；每天凌晨自動完整備份。'+(dbInfoData?'目前共 '+dbInfoData.stores.length+' 個資料集、'+fmtBytes(dbInfoData.bytes)+'、帳號 '+dbInfoData.users+' 人。':(dbBusy?'讀取中…':''))+'</p>'+
   '<div class="tablewrap"><table><thead><tr><th>資料庫</th><th>筆數</th><th>大小</th><th>最後更新</th><th>誰能改</th><th>用在哪</th><th></th></tr></thead><tbody>'+rows+'</tbody></table></div></div>';
@@ -1507,6 +1527,8 @@ $('dbadmin').addEventListener('click',e=>{
  const o=e.target.closest('[data-db-open]');if(o)return dbShow(o.dataset.dbOpen);
  const g=e.target.closest('[data-db-page]');if(g)return tab(g.dataset.dbPage);
  if(e.target.closest('#dbRefresh'))loadDbInfo();
+ else if(e.target.closest('#dbMirrorSync'))mirrorSyncClick(false);
+ else if(e.target.closest('#dbMirrorRecreate'))mirrorSyncClick(true);
 });
 
 // --- 快速判讀規則編輯（品類、用途關鍵字、對應科目名稱）：存在組織資料的 qjrules 紀錄，所有人讀得到、只有管理員寫得進去 ---
