@@ -18,13 +18,13 @@
     { name: '行銷通路差旅費', dept: '行銷部(新)', acct: '差旅費' },
     { name: '行銷通路年費', dept: '行銷部(新)', acct: '什項購置' },
     { name: '行銷部軟體使用費', dept: '行銷部(新)', acct: '什項購置' },
-    { name: '研發費用', dept: '生產部', acct: '研發費' },
-    { name: '生產部職工', dept: '生產部', acct: '職工福利' },
-    { name: '生產部工具', dept: '生產部', acct: '什項購置' },
+    { name: '研發費用', dept: '生產組', acct: '研發費' },
+    { name: '生產部職工', dept: '生產組', acct: '職工福利' },
+    { name: '生產部工具', dept: '生產組', acct: '什項購置' },
     { name: '京站職工', dept: '京站百貨', acct: '職工福利' },
     { name: '通路部職工', dept: '通路', acct: '職工福利' },
     { name: '東橋職工', dept: '永康東橋', acct: '職工福利' },
-    { name: '物管職工', dept: '管理部', acct: '職工福利' },
+    { name: '物管職工', dept: '物管組', acct: '職工福利' },
     { name: '行銷職工', dept: '行銷部(新)', acct: '職工福利' },
     { name: '不請款', dept: '', acct: '' }
   ];
