@@ -370,7 +370,7 @@ main{padding-bottom:12px}
 </div></div>
 <div class="panel hide" id="uploadControls"><div class="field" style="max-width:720px"><label for="files" title="每檔 10 MB 內、批次最多 30 張；選一張＝單筆、選多張＝批次，選好就自動辨識。">📎 選取發票照片或 PDF</label><input type="file" id="files" multiple accept="image/jpeg,image/png,image/webp,application/pdf"><span class="muted small">每檔 10 MB 內、批次最多 30 張；選一張＝單筆、選多張＝批次，選好就自動辨識。</span></div><div class="hide"><button type="button" id="modeSingle">單筆登錄</button><button type="button" id="modeBatch">多張批次登錄</button><span id="modeHint"></span></div></div>
 <div class="panel hide" id="csvImportPanel"><h2>📊 CSV 發票清單匯入</h2><div class="note">除了拍照 OCR，也可匯入既有發票清單。系統會自動辨識欄位、優先對照廠商統編資料庫、檢查重複紀錄；請確認後再儲存或送主管簽核。CSV 不包含影像附件，匯入後須另行補上原始憑證。</div>
-<details class="note csv-help"><summary><b>CSV 欄位說明</b>（先按「下載 CSV 範本」，欄位順序和發票登錄頁一樣）</summary><ul><li><b>一列＝一個請款項目</b>。同一個<b>發票號碼</b>的多列會合併成<b>同一張發票</b>：發票欄位（日期、統編、廠商、金額、部門、申請人…）寫在第一列就好，後面的列只要寫發票號碼、<b>項目說明、項目金額、分攤部門</b>。</li><li><b>項目說明／項目金額</b>：不寫就當一個項目（用途說明、發票金額）。各項目金額合計要等於含稅金額才能送出。</li><li><b>分攤部門</b>：每個項目各自分攤。例如 <code>管理部:60;生產組:40</code> 或 <code>管理部 60%、生產組 40%</code>；只寫部門名稱就均分；空白＝申請部門 100%。</li><li><b>執行長上傳模式</b>另有 <b>請款別（Y/N）、卡別、費用類別</b>：有填的以你填的為準，沒填的依「發票判斷標準」自動判斷；申請部門、申請人可以空白（依費用類別對照與過去的申請紀錄自動歸類，申請人預設是執行長）。付款方式可寫 <code>公司卡（已付）</code>（請款別 N 會自動帶入）。</li><li>舊版 CSV 範本（有「申請日期、待補憑證張數」的）仍然讀得進來；「申請日期」由系統自動帶入。</li></ul></details>
+<details class="note csv-help"><summary><b>CSV 欄位說明</b>（先按「下載 CSV 範本」，欄位順序和發票登錄頁一樣）</summary><ul><li><b>一列＝一個請款項目</b>。同一個<b>發票號碼</b>的多列會合併成<b>同一張發票</b>：發票欄位（日期、統編、廠商、金額、部門、申請人…）寫在第一列就好，後面的列只要寫發票號碼、<b>項目說明、項目金額、分攤部門</b>。</li><li><b>項目說明／項目金額</b>：不寫就當一個項目（用途說明、發票金額）。各項目金額合計要等於含稅金額才能送出。</li><li><b>分攤部門</b>：每個項目各自分攤。例如 <code>管理部:60;生產組:40</code> 或 <code>管理部 60%、生產組 40%</code>；只寫部門名稱就均分；空白＝申請部門 100%。</li><li><b>執行長上傳模式</b>另有 <b>請款別（Y/N）、卡別、費用類別</b>：有填的以你填的為準，沒填的依「發票判斷標準」自動判斷；申請部門、申請人可以空白（依費用類別對照與過去的申請紀錄自動歸類，申請人預設是執行長）；<b>支付對象不用填</b>（請款別 Y 自動填「王奕凱」，N 自動填「公司卡，掛號已付」）；請款別 N 的卡別沒填就是「玉山卡」；費用類別沒填會依項目說明帶入（食品-研發 → 研發費用…）。付款方式可寫 <code>公司卡（已付）</code>（請款別 N 會自動帶入）。</li><li>舊版 CSV 範本（有「申請日期、待補憑證張數」的）仍然讀得進來；「申請日期」由系統自動帶入。</li></ul></details>
 <div class="toolbar"><div class="field" style="min-width:250px"><label for="csvFile">選擇 CSV 檔案（最多 1000 筆）</label><input id="csvFile" type="file" accept=".csv,text/csv,text/plain"></div><div class="field"><label for="csvEncoding">文字編碼</label><select id="csvEncoding"><option value="utf-8">UTF-8（推薦）</option><option value="big5">Big5（舊版 Excel）</option></select></div><button id="csvTemplate" type="button">下載 CSV 範本</button><button id="csvLoad" class="primary" type="button">讀取並預覽</button><button id="csvClear" type="button">清除匯入清單</button></div>
 <div id="csvStatus" class="note" aria-live="polite">請先下載範本，填妥後選擇 CSV 並點選「讀取並預覽」。也可使用本系統財務彙整匯出的 CSV。</div>
 <div class="tablewrap" id="csvPreview"></div>
@@ -582,7 +582,7 @@ function applyNav(){if(!authUser)return;
 $('subTabs').addEventListener('click',e=>{const b=e.target.closest('.subtab');if(b)tab(b.dataset.tab)});
 let entryMode='normal';const ceoState={deptTouched:false,applying:false,sig:'',catDept:''};
 const ceoJ={sel:{yn:'',card:'',category:'',status:'',ruleId:'',ruleName:''},touched:{yn:false,card:false,category:false},overrideSkip:false,confirmed:false,judge:null,ruleKey:''}; // 執行長發票判斷的目前選擇（單張登錄）
-function ceoJReset(){ceoJ.sel={yn:'',card:'',category:'',status:'',ruleId:'',ruleName:''};ceoJ.touched={yn:false,card:false,category:false};ceoJ.overrideSkip=false;ceoJ.confirmed=false;ceoJ.judge=null;ceoJ.ruleKey='';ceoState.catDept=''}let ceoRules=[],ceoRulesV=null,ceoRulesBusy=false,ceoRulesErr='',ceoRuleMatches=[];const entryBaseTitle=()=>entryMode==='ceo'?'執行長發票上傳':'發票登錄';
+function ceoJReset(){ceoJ.sel={yn:'',card:'',category:'',status:'',ruleId:'',ruleName:''};ceoJ.touched={yn:false,card:false,category:false};ceoJ.overrideSkip=false;ceoJ.confirmed=false;ceoJ.judge=null;ceoJ.ruleKey='';ceoJ.catFromItem=false;ceoJ.itemSugg=[];ceoJ.cardAuto=false;ceoState.catDept=''}let ceoRules=[],ceoRulesV=null,ceoRulesBusy=false,ceoRulesErr='',ceoRuleMatches=[];const entryBaseTitle=()=>entryMode==='ceo'?'執行長發票上傳':'發票登錄';
 const normalizeAccount=s=>String(s||'').trim().toLowerCase();
 // ===== 雲端人員名單（用 Gmail 登入）：只有管理員讀得到；網頁版沒有密碼 =====
 const allUsers=async()=>(await InvCloud.get({action:'users'})).users;
@@ -1944,12 +1944,12 @@ function applyEntryMode(mode){
  ceoRuleRender();
  ceoState.sig='';
 }
-function ceoResetState(){ceoJReset();ceoState.deptTouched=false;ceoState.autoApplied=false;ceoState.sig='';const h=$('ceoDeptHint');if(h){h.textContent='';h.className='lookup-note'+(entryMode==='ceo'?'':' hide')}const rb=$('ceoRuleBox');if(rb){rb.innerHTML='';rb.classList.add('hide')}ceoRuleMatches=[]}
+function ceoResetState(){ceoJReset();ceoPayeeSync();ceoState.deptTouched=false;ceoState.autoApplied=false;ceoState.sig='';const h=$('ceoDeptHint');if(h){h.textContent='';h.className='lookup-note'+(entryMode==='ceo'?'':' hide')}const rb=$('ceoRuleBox');if(rb){rb.innerHTML='';rb.classList.add('hide')}ceoRuleMatches=[]}
 // 用執行長過去申請過的發票（已送出簽核以後的）判斷這筆費用歸哪個部門：統編相同、廠商相同、支付對象相同、用途相同或相近，各有不同的分數；
 // 同樣的分攤方式（部門與比例）分數加總，最高的勝出，分數至少 2 才算有把握
 function ceoSuggestDept(ctx){
  const nz=s=>String(s||'').normalize('NFKC').toLowerCase().replace(/\s+/g,'');
- const tax=String(ctx.taxId||'').trim(),vendor=nz(ctx.vendor),payee=nz(ctx.payee),purpose=nz(ctx.purpose);
+ const tax=String(ctx.taxId||'').trim(),vendor=nz(ctx.vendor),payee=CeoJudge.isFixedPayee(ctx.payee)?'':nz(ctx.payee),purpose=nz(ctx.purpose);
  if(!tax&&!vendor&&!payee&&!purpose)return null;
  // 比對的資料：執行長已送出簽核的單據，加上匯入的歷史歸類資料庫
  const recs=[];
@@ -2003,7 +2003,7 @@ setInterval(()=>{
  if(!authUser||entryMode!=='ceo'||(!isCeoUser()&&authUser.role!=='admin')||$('entry').classList.contains('hide'))return;
  if(Date.now()-ceoHistLast>30000){ceoHistLast=Date.now();loadCeoHist(false);loadCeoRules(false)}
  if(!$('singleMode').classList.contains('hide')){
-  const sig=[$('taxId').value,$('vendor').value,$('payee').value,$('description').value,$('editId').value,current.length,ceoHistV,ceoRulesV].join('|');
+  const sig=[$('taxId').value,$('vendor').value,$('payee').value,$('description').value,$('editId').value,current.length,ceoHistV,ceoRulesV,singleClaimItems.map(x=>x.description).join('¦'),$('dept').value].join('|');
   if(sig!==ceoState.sig){ceoState.sig=sig;ceoClassify();ceoRuleRender()}
  }
  if(window.ceoBatchClassify)window.ceoBatchClassify();
@@ -2173,7 +2173,7 @@ async function loadCeoRules(force){
 const ceoRuleList=()=>ceoRules.filter(r=>r.kind!=='doc').sort((a,b)=>(a.order??9999)-(b.order??9999)||String(a.name).localeCompare(String(b.name)));
 // 廠商名稱、支付對象、用途裡含有規則的任一關鍵字就符合（不分大小寫、忽略空白與標點）；統編條件：has＝要有 8 碼統編、none＝沒有統編
 function ceoMatchRules(ctx){
- const hay=[ctx.vendor,ctx.payee,ctx.purpose].map(ledgerNorm).filter(Boolean);
+ const hay=[ctx.vendor,CeoJudge.isFixedPayee(ctx.payee)?'':ctx.payee,ctx.purpose].map(ledgerNorm).filter(Boolean);
  if(!hay.length)return [];
  const hasTax=/^\d{8}$/.test(String(ctx.taxId||'').trim());
  return ceoRuleList().filter(r=>{
@@ -2197,7 +2197,7 @@ function ceoRuleShort(m){
 // ===== 執行長發票判斷：依「發票判斷標準」第一條命中的規則，自動填請款別（Y／N）、卡別、費用類別（對照部門與會計科目），存進單據的 claim.ceo =====
 // 規則換了、而且某個欄位沒被人動過，才會依新規則重填；N＝公司卡已付、不請款 → 付款方式自動變「公司卡（已付）」；費用類別有對照部門就自動歸那個部門（你自己選過部門就不動）
 // 單張登錄用 ceoJ，批次登錄每一張各有一份（r.cj），結構一樣
-function ceoCardJ(){return {sel:{yn:'',card:'',category:'',status:'',ruleId:'',ruleName:''},touched:{yn:false,card:false,category:false},overrideSkip:false,confirmed:false,judge:null,ruleKey:''}}
+function ceoCardJ(){return {sel:{yn:'',card:'',category:'',status:'',ruleId:'',ruleName:''},touched:{yn:false,card:false,category:false},overrideSkip:false,confirmed:false,judge:null,ruleKey:'',catFromItem:false,itemSugg:[],cardAuto:false}}
 function ceoPickNeeded(cj=ceoJ){return !!cj.judge&&cj.judge.options.length>1&&!cj.sel.category}
 // 依這筆的商家／用途找判斷標準第一條命中的規則；規則換了，沒被人動過的欄位重新依規則填。回傳所有命中的規則
 function ceoJudgeUpdate(cj,ctx){
@@ -2206,10 +2206,34 @@ function ceoJudgeUpdate(cj,ctx){
   cj.ruleKey=key;cj.overrideSkip=false;cj.confirmed=false;
   const s=cj.sel;s.status=j.status;s.ruleId=j.ruleId;s.ruleName=j.ruleName;
   if(!cj.touched.yn)s.yn=j.yn;
-  if(!cj.touched.card)s.card=j.card;
-  if(!cj.touched.category)s.category=j.picked>=0?j.options[j.picked].category:'';
+  if(!cj.touched.card){s.card=j.card;cj.cardAuto=false}
+  if(!cj.touched.category){s.category=j.picked>=0?j.options[j.picked].category:'';cj.catFromItem=false}
+ }
+ { // 請款別 N 的卡別沒填（或是 Y 的卡）就預設玉山卡；之後改成 Y、而且卡別還是這個預設值，就清掉（Y 要自己填個人卡）
+  const cur=cj.sel.card,nc=CeoJudge.cardFor(cj.sel.yn,cur,cj.touched.card);
+  if(nc!==cur){cj.sel.card=nc;cj.cardAuto=true}
+  else if(cj.cardAuto&&cj.sel.yn!=='N'&&!cj.touched.card){const rc=cj.judge&&cj.judge.card;cj.sel.card=rc&&CeoJudge.ynFromCard(rc)!=='N'?rc:'';cj.cardAuto=false} // 回到規則原本的卡別（規則的卡別也是 N 的卡就清空）
  }
  cj.judge=j;return m;
+}
+// 費用類別依「項目說明」帶入：每個項目用快速判讀認出會計科目名稱（食品-研發 → 研發費），全部項目是同一個科目時，找費用類別對照裡科目名稱相同的類別；
+// 判斷標準附註有好幾個選項就只在附註裡找；有好幾個（例如職工福利每個部門一個）就看申請部門，還是好幾個就只列成建議、不自動選。人選過、或判斷標準已經指定類別就不動
+function ceoApplyItemCat(cj,items,ctx,dept){
+ const accts=new Set();let ok=true;
+ for(const it of items||[]){const d=String(it.description||'').trim();if(!d||d==='發票費用')continue;const j=QuickJudge.judgeLine(d,ctx);if(!j||!j.acct||!j.acct.length){ok=false;break}accts.add(j.acct[0])}
+ const allowed=cj.judge&&cj.judge.options.length?cj.judge.options.map(o=>o.category):null;
+ const cands=ok&&accts.size===1?CeoJudge.typesForAcct(orgExpenseTypes,[...accts][0],{allowed,dept}):[];
+ cj.itemSugg=cands.map(x=>x.name);
+ if(cj.touched.category||(cj.judge&&cj.judge.picked>=0))return;
+ if(cands.length===1){cj.sel.category=cands[0].name;cj.catFromItem=true}
+ else if(cj.catFromItem){cj.sel.category='';cj.catFromItem=false}
+}
+// 執行長發票的支付對象統一填寫：請款別 Y → 「王奕凱」、N → 「公司卡，掛號已付」（唯讀）；請款別還沒選就留給人填；離開執行長模式或清除表單時放開
+function ceoPayeeSync(){
+ const p=$('payee');if(!p)return;
+ const f=entryMode==='ceo'?CeoJudge.payeeFor(ceoJ.sel.yn):'';
+ if(f){if(p.value!==f)p.value=f;p.readOnly=true;p.title='執行長發票的支付對象統一填寫：請款別 Y 填「'+CeoJudge.PAYEE_Y+'」，N 填「'+CeoJudge.PAYEE_N+'」'}
+ else if(p.readOnly){p.readOnly=false;p.title='';if(CeoJudge.isFixedPayee(p.value))p.value=''}
 }
 function ceoJSync(){
  const s=ceoJ.sel,pay=$('payment'),PAID=CeoJudge.PAID_BY_CARD;
@@ -2226,12 +2250,15 @@ function ceoJSync(){
   }finally{ceoState.applying=false}
   ceoState.catDept=info.dept;
  }
+ ceoPayeeSync();
  ceoClassify(); // 更新部門提示（有費用類別對照就說明來源；沒有就照歷史紀錄歸類）
 }
 function ceoCatOptionsHtml(selected,cj=ceoJ){
  const sugg=cj.judge?cj.judge.options:[],seen=new Set();
  let h='<option value="">（請選擇）</option>';
  if(sugg.length)h+='<optgroup label="規則建議">'+sugg.map(o=>{seen.add(o.category);return `<option value="${esc(o.category)}"${o.category===selected?' selected':''}>${esc(o.note)}</option>`}).join('')+'</optgroup>';
+ const isg=(cj.itemSugg||[]).filter(n=>!seen.has(n));
+ if(isg.length){isg.forEach(n=>seen.add(n));h+='<optgroup label="依項目說明建議">'+isg.map(n=>{const ty=orgExpenseTypes.find(x=>x.name===n);return `<option value="${esc(n)}"${n===selected?' selected':''}>${esc(n)}${ty&&ty.dept?'（'+esc(ty.dept)+'）':''}</option>`}).join('')+'</optgroup>'}
  h+='<optgroup label="全部費用類別">'+orgExpenseTypes.filter(t=>!seen.has(t.name)).map(t=>`<option value="${esc(t.name)}"${t.name===selected?' selected':''}>${esc(t.name)}${t.dept?'（'+esc(t.dept)+'）':''}</option>`).join('')+'</optgroup>';
  if(selected&&!seen.has(selected)&&!orgExpenseTypes.some(t=>t.name===selected))h+=`<option value="${esc(selected)}" selected>${esc(selected)}</option>`;
  return h;
@@ -2239,7 +2266,7 @@ function ceoCatOptionsHtml(selected,cj=ceoJ){
 function cjNoteHtml(cj=ceoJ,pay=$('payment').value){
  const s=cj.sel,c=CeoJudge.toClaim(s),info=CeoJudge.resolveCategory(orgExpenseTypes,s.category);
  const miss=CeoJudge.missing(c,{needCategoryPick:ceoPickNeeded(cj),overrideSkip:cj.overrideSkip,confirmed:cj.confirmed,payment:pay});
- return (c.note?'附註：<b>'+esc(c.note)+'</b>'+(info.dept||info.acct?' → '+(info.dept?'部門 <b>'+esc(info.dept)+'</b>':'')+(info.acct?'　會計科目 <b>'+esc(info.acct)+'</b>':''):(s.category?' <span class="muted">（這個類別還沒有對照部門與會計科目，財務覆核時再選）</span>':'')):'')
+ return (c.note?'附註：<b>'+esc(c.note)+'</b>'+(cj.catFromItem?'<span class="muted">（依項目說明帶入）</span>':'')+(info.dept||info.acct?' → '+(info.dept?'部門 <b>'+esc(info.dept)+'</b>':'')+(info.acct?'　會計科目 <b>'+esc(info.acct)+'</b>':''):(s.category?' <span class="muted">（這個類別還沒有對照部門與會計科目，財務覆核時再選）</span>':'')):'')
   +(miss.length?'<div class="cj-miss">⚠ 送出前還要：'+esc(miss.join('、'))+'</div>':'<div class="cj-ok">✓ 判斷資料齊了</div>');
 }
 // 判斷面板的 HTML（單張與批次共用）：A(key)＝各欄位的屬性字串（單張用 id、批次用 data-bcj）；dlId＝卡別建議清單的 id（null＝不放，批次另外放一份）
@@ -2258,10 +2285,11 @@ function ceoJudgeHtml(cj,m,A,pay,dlId){
 const CJ_IDS={yn:'cjYn',card:'cjCard',cat:'cjCat',skip:'cjSkip',conf:'cjConf',note:'cjNote'};
 function ceoRuleRender(){
  const box=$('ceoRuleBox');if(!box)return;
- if(entryMode!=='ceo'||!canCeoHistPanel()){box.classList.add('hide');box.innerHTML='';ceoRuleMatches=[];return}
+ if(entryMode!=='ceo'||!canCeoHistPanel()){ceoPayeeSync();box.classList.add('hide');box.innerHTML='';ceoRuleMatches=[];return}
  const ctx={taxId:$('taxId').value,vendor:$('vendor').value,payee:$('payee').value,purpose:$('description').value};
- if(!ctx.vendor.trim()&&!ctx.payee.trim()&&!ctx.purpose.trim()&&!ceoJ.sel.yn){box.classList.add('hide');box.innerHTML='';ceoRuleMatches=[];return}
+ if(!ctx.vendor.trim()&&!ctx.payee.trim()&&!ctx.purpose.trim()&&!ceoJ.sel.yn){ceoPayeeSync();box.classList.add('hide');box.innerHTML='';ceoRuleMatches=[];return}
  const m=ceoJudgeUpdate(ceoJ,ctx);ceoRuleMatches=m;
+ ceoApplyItemCat(ceoJ,singleClaimItems,qjCtxSingle(),$('dept').value);
  box.innerHTML=ceoJudgeHtml(ceoJ,m,k=>'id="'+CJ_IDS[k]+'"',$('payment').value,'cjCards');
  box.classList.remove('hide');
  ceoJSync();$('cjNote').innerHTML=cjNoteHtml(ceoJ);
@@ -2270,7 +2298,7 @@ $('ceoRuleBox').addEventListener('input',e=>{if(e.target.id==='cjCard'){ceoJ.sel
 $('ceoRuleBox').addEventListener('change',e=>{
  const x=e.target,s=ceoJ.sel;
  if(x.id==='cjYn'){s.yn=x.value;ceoJ.touched.yn=true}
- else if(x.id==='cjCat'){s.category=x.value;ceoJ.touched.category=true}
+ else if(x.id==='cjCat'){s.category=x.value;ceoJ.touched.category=true;ceoJ.catFromItem=false}
  else if(x.id==='cjSkip')ceoJ.overrideSkip=x.checked;
  else if(x.id==='cjConf')ceoJ.confirmed=x.checked;
  else return;
@@ -3168,7 +3196,7 @@ function renderBatch(){
    control=`<select data-bi="${i}" data-bk="${key}" ${r.saved?'disabled':''}><option value="">${r.values.dept?'請選擇申請人':'請先選擇部門'}</option>${members.map(m=>`<option value="${safeVal(m.name)}" ${v===m.name?'selected':''}>${safeVal(m.name+(m.role==='主管'?'（主管）':''))}</option>`).join('')}</select>`;
   }
   else if(type==='textarea')control=`<textarea data-bi="${i}" data-bk="${key}" ${r.saved?'disabled':''}>${safeVal(v)}</textarea>`;
-  else control=`<input data-bi="${i}" data-bk="${key}" type="${type==='numberZero'?'number':type}" value="${safeVal(v)}" ${type==='number'?'min="0.01" step="0.01"':type==='numberZero'?'min="0" step="1"':''} ${key==='requestDate'?'readonly title="由系統自動帶入"':''} ${key==='taxId'?'maxlength="8" inputmode="numeric"':''} ${r.saved?'disabled':''}>`;
+  else control=`<input data-bi="${i}" data-bk="${key}" type="${type==='numberZero'?'number':type}" value="${safeVal(v)}" ${type==='number'?'min="0.01" step="0.01"':type==='numberZero'?'min="0" step="1"':''} ${key==='requestDate'?'readonly title="由系統自動帶入"':''} ${key==='payee'&&ceoOn&&CeoJudge.payeeFor(r.cj?.sel.yn)?'readonly title="執行長發票的支付對象統一填寫"':''} ${key==='taxId'?'maxlength="8" inputmode="numeric"':''} ${r.saved?'disabled':''}>`;
   if(key==='dept'&&r.values.dept){const d=departmentByName(r.values.dept);if(d)control+=`<span class="muted small">編號：${safeVal(d.code||'未設定')}　科目：${safeVal(d.accountCode||'未設定')}</span>`}
   if(key==='dept'&&r.ceoHint)control+=`<span class="lookup-note ${/^依過去申請/.test(r.ceoHint)?'ok':/^沒有找到/.test(r.ceoHint)?'warn':''}">${safeVal(r.ceoHint)}</span>`;
   return `<div class="field ${other}"><label>${label}</label>${control}${key==='vendor'?`<span class="lookup-note ${r.registryVerified&&!r.registryConflict?'ok':'warn'}">${safeVal(r.vendorSource||'請確認賣方廠商')}</span>`:''}${key==='taxId'?`<button class="lookup-action" type="button" data-blookup="${i}" ${r.saved?'disabled':''}>🔎 線上核對賣方統編</button>`:''}</div>`;
@@ -3214,7 +3242,7 @@ root.querySelectorAll('[data-bcj]').forEach(node=>{
    const cj=r.cj,s=cj.sel;
    if(k==='yn'){s.yn=node.value;cj.touched.yn=true}
    else if(k==='card'){s.card=node.value;cj.touched.card=true;const nt=root.querySelector(`[data-bcj="${i}"][data-bcjk="note"]`);if(nt)nt.innerHTML=cjNoteHtml(cj,r.values.payment);r.error='';return}
-   else if(k==='cat'){s.category=node.value;cj.touched.category=true}
+   else if(k==='cat'){s.category=node.value;cj.touched.category=true;cj.catFromItem=false}
    else if(k==='skip')cj.overrideSkip=node.checked;
    else if(k==='conf')cj.confirmed=node.checked;
    r.error='';ceoBatchRow(r);renderBatch();
@@ -3274,9 +3302,11 @@ async function verifyBatchSeller(i,ocrOverride=null){
 // 使用者正在這張卡片裡打字時先不動，等離開再處理，避免畫面重畫搶走游標。回傳這張有沒有任何顯示上的變化
 function ceoBatchRow(r){
  const v=r.values,cj=r.cj||(r.cj=ceoCardJ()),s=cj.sel,PAID=CeoJudge.PAID_BY_CARD;
- const snap=()=>JSON.stringify([v.dept,v.payment,v.applicant,s,cj.ruleKey,cj.overrideSkip,cj.confirmed,r.ceoHint,r.claim.items.map(x=>x.allocations)]);
+ const snap=()=>JSON.stringify([v.dept,v.payment,v.applicant,v.payee,s,cj.ruleKey,cj.overrideSkip,cj.confirmed,r.ceoHint,r.claim.items.map(x=>x.allocations)]);
  const before=snap();
  r.ceoMatches=ceoJudgeUpdate(cj,{taxId:v.taxId,vendor:v.vendor,payee:v.payee,purpose:v.description});
+ ceoApplyItemCat(cj,r.claim.items,qjCtxBatch(r),v.dept);
+ {const fp=CeoJudge.payeeFor(s.yn);if(fp)v.payee=fp;else if(CeoJudge.isFixedPayee(v.payee))v.payee=''} // 支付對象統一填寫
  if(s.yn==='N')v.payment=PAID;else if(v.payment===PAID)v.payment='匯款';
  const info=CeoJudge.resolveCategory(orgExpenseTypes,s.category),set=t=>{r.ceoHint=t};
  if(info.dept&&!r.ceoDeptManual&&(window.companyDepartments||[]).includes(info.dept)){ // 費用類別對照到部門
@@ -3305,7 +3335,7 @@ window.ceoBatchClassify=function(){
   if(r.saved)return;
   const card=el('batch-card-'+i),ae=document.activeElement;
   if(card&&ae&&card.contains(ae)&&/^(INPUT|TEXTAREA|SELECT)$/.test(ae.tagName))return;
-  const v=r.values,sig=[v.taxId,v.vendor,v.payee,v.description,ceoHistV,ceoRulesV,orgExpenseRec&&orgExpenseRec.at].join('|');
+  const v=r.values,sig=[v.taxId,v.vendor,v.payee,v.description,ceoHistV,ceoRulesV,orgExpenseRec&&orgExpenseRec.at,r.claim.items.map(x=>x.description).join('¦')].join('|');
   if(r.ceoSig===sig&&r.cjShown)return;r.ceoSig=sig;
   if(ceoBatchRow(r)||!r.cjShown){changed=true;r.cjShown=true}
  });
@@ -3593,7 +3623,7 @@ function cellHtml(r,i,k){
  if(k==='ceoCard')return `<input${cj}card" list="csvCards" value="${esc(r.cj.sel.card)}"${dis}>`;
  if(k==='ceoCategory')return `<select${cj}cat"${dis}>${ceoCatOptionsHtml(r.cj.sel.category,r.cj)}</select>`;
  if(k==='itemDesc'||k==='itemAmount'||k==='itemAlloc')return '';
- return `<input${at} ${['invoiceDate','dueDate'].includes(k)?'type="date"':k==='amount'?'type="number" step="0.01"':'type="text"'} value="${esc(v[k]??'')}"${dis}>`;
+ return `<input${at} ${['invoiceDate','dueDate'].includes(k)?'type="date"':k==='amount'?'type="number" step="0.01"':'type="text"'} value="${esc(v[k]??'')}"${dis}${k==='payee'&&ceoOn()&&CeoJudge.payeeFor(r.cj.sel.yn)?' readonly':''}>`;
 }
 function judgeCell(r,i){
  const j=r.cj.judge||CeoJudge.judgeRule(null,orgExpenseTypes),dis=r.saved?' disabled':'',cj=` data-csv-row="${i}" data-csv-cj="`;
@@ -3620,7 +3650,7 @@ el('csvPreview').addEventListener('change',e=>{
  const r=rows[+x.dataset.csvRow];if(!r)return;
  if(x.dataset.csvCj!==undefined){ // 判斷標準欄位（請款別／卡別／費用類別／確認勾選）
   const k=x.dataset.csvCj,cj=r.cj,s=cj.sel;
-  if(k==='yn'){s.yn=x.value;cj.touched.yn=true}else if(k==='card'){s.card=x.value;cj.touched.card=true}else if(k==='cat'){s.category=x.value;cj.touched.category=true}
+  if(k==='yn'){s.yn=x.value;cj.touched.yn=true}else if(k==='card'){s.card=x.value;cj.touched.card=true}else if(k==='cat'){s.category=x.value;cj.touched.category=true;cj.catFromItem=false}
   else if(k==='skip')cj.overrideSkip=x.checked;else if(k==='conf')cj.confirmed=x.checked;
   r.error='';window.ceoBatchRow(r);draw();return;
  }
@@ -3637,7 +3667,7 @@ el('csvPreview').addEventListener('change',e=>{
  else if(['payment','transferHistory','invoiceDate'].includes(col))draw();
 });
 el('csvTemplate').onclick=()=>{
- const ceo=ceoOn(),ks=heads();
+ const ceo=ceoOn(),ks=heads().filter(k=>!(ceo&&k==='payee')); // 執行長模式的支付對象由請款別自動填，範本不放這一欄
  const ex=ceo?[
   {invoiceDate:'2026-10-15',invoiceNo:'AB12345678',taxId:'12345678',vendor:'示範股份有限公司',amount:'2580',ceoYn:'N',ceoCard:'玉山卡',ceoCategory:'研發費用',description:'原料採購',payee:'示範股份有限公司',payment:'公司卡（已付）',itemDesc:'蛋白粉',itemAmount:'2580',itemAlloc:''},
   {invoiceDate:'2026-10-16',invoiceNo:'CD87654321',taxId:'87654321',vendor:'示範購物網',amount:'1500',ceoYn:'Y',ceoCard:'中國信託 Visa',ceoCategory:'管理部雜支',description:'辦公用品',payee:'示範購物網',payment:'匯款',itemDesc:'衛生紙',itemAmount:'900',itemAlloc:''},
@@ -3703,7 +3733,7 @@ setInterval(()=>{
  if(!rows.length||!ceoOn()||el('csvImportPanel').classList.contains('hide'))return;
  const ae=document.activeElement;if(ae&&el('csvPreview').contains(ae)&&/^(INPUT|TEXTAREA|SELECT)$/.test(ae.tagName))return;
  let changed=false;
- rows.forEach(r=>{if(r.saved)return;const v=r.values,sig=[v.taxId,v.vendor,v.payee,v.description,ceoHistV,ceoRulesV,orgExpenseRec&&orgExpenseRec.at].join('|');if(r.ceoSig===sig)return;r.ceoSig=sig;if(window.ceoBatchRow(r))changed=true});
+ rows.forEach(r=>{if(r.saved)return;const v=r.values,sig=[v.taxId,v.vendor,v.payee,v.description,ceoHistV,ceoRulesV,orgExpenseRec&&orgExpenseRec.at,r.claim.items.map(x=>x.description).join('¦')].join('|');if(r.ceoSig===sig)return;r.ceoSig=sig;if(window.ceoBatchRow(r))changed=true});
  if(changed)draw();
 },900);
 async function saveCSV(nextStatus){

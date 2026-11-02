@@ -65,6 +65,29 @@
     if (/中國信託|中信|富邦|momo|現金|代墊|lalamove|小蜂鳥|9827/i.test(c)) return 'Y';
     return '';
   }
+
+  // 執行長發票的「支付對象」統一填寫：要請款（Y）填王奕凱；不請款（N，公司卡已付）填「公司卡，掛號已付」
+  var PAYEE_Y = '王奕凱', PAYEE_N = '公司卡，掛號已付';
+  function payeeFor(yn) { return yn === 'Y' ? PAYEE_Y : yn === 'N' ? PAYEE_N : ''; }
+  function isFixedPayee(p) { p = String(p == null ? '' : p).trim(); return p === PAYEE_Y || p === PAYEE_N; }
+  // 請款別 N（不請款、公司卡已付）的卡別預設填「玉山卡」：卡別空白，或規則帶出來的卡別是 Y 的卡（中信、富邦…，和 N 對不起來）而且沒被人改過，就用玉山卡；人自己填過的不動
+  var CARD_N = '玉山卡';
+  function cardFor(yn, card, touched) {
+    var c = String(card == null ? '' : card).trim();
+    if (yn === 'N' && !touched && (!c || ynFromCard(c) === 'Y')) return CARD_N;
+    return c;
+  }
+  // 依會計科目名稱找費用類別：項目說明用快速判讀認出的科目（食品-研發 → 研發費）→ 費用類別對照裡「科目名稱相同」的類別。
+  //   allowed＝判斷標準附註裡的類別文字（有的話只在這些裡面找）；有好幾個（例如職工福利每個部門一個）就看申請部門 dept，還是好幾個就全部回傳，由人選
+  function typesForAcct(types, acct, opt) {
+    opt = opt || {};
+    var a = String(acct == null ? '' : acct).trim();
+    if (!a) return [];
+    var out = (types || []).filter(function (t) { return t.acct && t.acct === a; });
+    if (Array.isArray(opt.allowed) && opt.allowed.length) out = out.filter(function (t) { return opt.allowed.some(function (c) { return String(c).indexOf(t.name) === 0; }); });
+    if (out.length > 1 && opt.dept) { var byDept = out.filter(function (t) { return t.dept === opt.dept; }); if (byDept.length) out = byDept; }
+    return out;
+  }
   // 費用類別文字 → 部門＋會計科目（對不到回傳空）
   function resolveCategory(types, text) {
     var t = typeFor(types, text);
@@ -136,6 +159,6 @@
     });
   }
 
-  var api = { PAID_BY_CARD: PAID_BY_CARD, DEFAULT_TYPES: DEFAULT_TYPES, defaultTypes: function () { return clone(DEFAULT_TYPES); }, sanitizeTypes: sanitizeTypes, parseNote: parseNote, typeFor: typeFor, ynFromCard: ynFromCard, resolveCategory: resolveCategory, judgeRule: judgeRule, buildNote: buildNote, toClaim: toClaim, missing: missing, duplicates: duplicates };
+  var api = { PAID_BY_CARD: PAID_BY_CARD, PAYEE_Y: PAYEE_Y, PAYEE_N: PAYEE_N, payeeFor: payeeFor, isFixedPayee: isFixedPayee, CARD_N: CARD_N, cardFor: cardFor, typesForAcct: typesForAcct, DEFAULT_TYPES: DEFAULT_TYPES, defaultTypes: function () { return clone(DEFAULT_TYPES); }, sanitizeTypes: sanitizeTypes, parseNote: parseNote, typeFor: typeFor, ynFromCard: ynFromCard, resolveCategory: resolveCategory, judgeRule: judgeRule, buildNote: buildNote, toClaim: toClaim, missing: missing, duplicates: duplicates };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.CeoJudge = api;
 })(typeof window !== 'undefined' ? window : this);
