@@ -255,6 +255,72 @@ nav#tabs .tab.navform{font-size:13px;padding:7px 10px 7px 18px}
 @media(max-width:640px){.dyn-fields{grid-template-columns:1fr}.data-table>tbody>tr>th{width:100px}}
 input.ro{background:#eef2f8;color:#334155}
 @media(max-width:560px){.todo{flex:1 1 100%}.home-mods{grid-template-columns:1fr}.mod-tile{min-height:0}}
+/* ===== 資料庫（集中管理）頁 ===== */
+.db-layout{display:grid;grid-template-columns:240px minmax(0,1fr);gap:14px;align-items:start}.db-list{display:flex;flex-direction:column;gap:6px;position:sticky;top:12px}
+.db-item{text-align:left;padding:9px 12px;border:1px solid var(--line);border-radius:8px;background:#fff;color:var(--ink);cursor:pointer;display:flex;flex-direction:column;gap:2px}.db-item small{color:var(--muted);font-size:12px}.db-item.on{background:var(--blue);border-color:var(--blue);color:#fff}.db-item.on small{color:#dbe7f7}
+.db-main{min-width:0}.db-pane.hide{display:none}.qj-ed h3{margin:16px 0 6px;font-size:15px}.qj-tbl{min-width:0}.qj-tbl td{vertical-align:top}.qj-tbl textarea{min-height:54px;font-size:13px}
+@media(max-width:900px){.db-layout{grid-template-columns:1fr}.db-list{flex-direction:row;overflow-x:auto;position:static;padding-bottom:4px}.db-item{flex:0 0 auto;min-width:130px}}
+/* ===== 發票登錄：一頁看完（第 33 版）。桌機兩欄（左：申請與付款，右：請款項目）；窄螢幕分三步（發票資料／請款項目／付款與備註），每步盡量不用上下捲動 ===== */
+#entry .entry-home.compact{padding:6px 10px}#entry .entry-home.compact .entry-choice{padding:6px 12px}
+#entry #uploadControls{padding:6px 12px}#entry #uploadControls>.field{flex-direction:row;flex-wrap:wrap;align-items:center;gap:2px 12px;max-width:none!important}#entry #uploadControls>.field label{margin:0}#entry #uploadControls input[type=file]{width:auto;max-width:100%;min-height:0;padding:4px 6px}
+#entry .entry-panel{padding:8px 12px}#entry .entry-top{margin-bottom:0}#entry .entry-top h2{font-size:15px}
+#entry .ocr-box.compact{margin:4px 0 6px;padding:5px 8px}#entry .ocr-box.compact .ocr-preview-wrap{margin-top:4px}
+#entry .cgrid{gap:5px 10px;margin:0 0 5px}#entry .voucher-toggle{margin:0 0 5px;padding:4px 10px}
+#entry #invoiceForm .claim-block{margin:0}#entry .sticky-actions{margin-top:6px;padding:6px 0 calc(6px + env(safe-area-inset-bottom))}
+.claim-scroll{overflow:auto;-webkit-overflow-scrolling:touch}#invoiceForm .claim-scroll thead th{position:sticky;top:0;z-index:1}
+#entry .claim-lines td{padding:5px}#entry .claim-bar{margin:4px 0}#entry .claim-lines td:nth-child(3){width:120px}#entry .claim-lines td:last-child{width:46px}
+/* 發票登錄頁的快速判讀列收成一行（說明文字改成滑鼠停留提示）；財務覆核視窗維持完整說明 */
+#entry .qj{padding:3px 8px;margin-top:4px}#entry .qj-t,#entry .qj .muted,#entry .qj-pre,#entry .qj-lead{display:none}#entry .qj-chip{padding:2px 9px;min-height:0}
+/* 頂端壓縮：選擇方式（拍照／CSV）與選檔同一排，標題列與辨識列同一排 */
+main{padding-bottom:12px}
+@media(min-width:900px){body[data-view="entry"] nav#tabs{max-height:calc(100vh - 140px)}}  /* 發票登錄頁：左側選單太長時在選單內捲動，不讓整頁多出一段捲軸 */
+#entry .entry-home.compact .entry-choice{min-height:0;padding:4px 12px;white-space:nowrap}#entry .entry-home.compact .entry-choice strong{font-size:14px}#entry .entry-home.compact .entry-choice .entry-icon{font-size:18px}#entry .entry-home.compact{padding:4px 8px}#entry #uploadControls{padding:4px 12px}#entry #uploadControls input[type=file]{padding:2px 6px}#entry #uploadControls>.field>span.muted{display:none}
+#entry:not(.hide){display:flex;flex-wrap:wrap;gap:0 10px;align-items:flex-start}
+#entry>.panel,#entry>div{flex:0 0 100%;min-width:0;margin-bottom:8px}
+#entry>.entry-home{flex:0 0 auto}#entry>#uploadControls{flex:1 1 360px}
+#entry .entry-panel{display:flex;flex-wrap:wrap;align-items:center;gap:4px 10px}#entry .entry-top{flex:0 0 auto;margin:0}
+#entry .ocr-box.compact{flex:1 1 360px;margin:0;display:flex;flex-wrap:wrap;align-items:center;gap:4px 10px}#entry .ocr-box.compact .ocr-preview-wrap{margin:0;flex:1 1 200px}#entry .ocr-box.compact .ocr-review{flex:0 0 100%}
+#entry #invoiceForm{flex:0 0 100%;min-width:0}
+#invoiceForm .fsteps{display:none}.fstep-n{font-weight:400;margin-left:3px}.entry-to-csv{display:none}
+#invoiceForm .fgrid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.3fr);gap:0 14px;align-items:start}#invoiceForm .fcol{min-width:0}
+.item-alloc-fold{margin-top:6px;border:1px dashed #cbd5e1;border-radius:8px;background:#f8fafc}.item-alloc-fold>summary{cursor:pointer;padding:4px 10px;font-size:12px;color:#315c9c;font-weight:600;list-style:none}.item-alloc-fold>summary::-webkit-details-marker{display:none}.item-alloc-fold>summary::after{content:' ▾'}.item-alloc-fold[open]>summary::after{content:' ▴'}
+.item-alloc-fold.bad{border-color:#d6a444;background:#fff8ec}.item-alloc-fold>.item-alloc{margin:0;border:0;border-top:1px dashed #cbd5e1;border-radius:0 0 8px 8px}
+@media(max-width:1139px){
+ #entry .cgrid.cg5{grid-template-columns:repeat(3,minmax(0,1fr))}
+ #invoiceForm .fsteps{display:flex;gap:6px;margin:0 0 6px}
+ #invoiceForm .fsteps button{flex:1 1 0;min-height:36px;padding:4px 6px;font-size:13px;border-radius:8px;white-space:nowrap}
+ #invoiceForm .fsteps button.on{background:var(--blue);color:#fff;border-color:var(--blue);font-weight:700}
+ #invoiceForm .fgrid{display:block}#invoiceForm .fstep{display:none}
+ #invoiceForm[data-step="1"] .fstep[data-step="1"],#invoiceForm[data-step="2"] .fstep[data-step="2"],#invoiceForm[data-step="3"] .fstep[data-step="3"]{display:block}
+}
+@media(max-width:600px){#entry .cgrid.cg5{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:700px){
+ /* 手機：標題列收成兩行、欄位與按鈕縮小，請款項目每一列變成「說明＋金額＋刪除」一行 */
+ header{padding:7px 12px;gap:2px 8px}header h1{font-size:15px;line-height:1.25}header h1+.sub{display:none}.role{gap:6px}.role button{min-height:30px;padding:3px 10px;font-size:12px}#loggedSummary{font-size:12px}
+ nav#tabs{margin:8px 0}nav#tabs .tab{min-height:38px;padding:6px 4px}main{padding:0 10px 12px}
+ #entry .panel{padding:8px}#entry .entry-panel{padding:8px}#entry #uploadControls>.field>span.muted{display:none}
+ #entry:has(#singleMode:not(.hide)) .entry-home{display:none}.entry-to-csv{display:inline-block;margin-left:auto;min-height:30px;padding:2px 10px;font-size:12px}
+ #entry #uploadControls>.field>label{display:none}#entry #uploadControls input[type=file]{width:100%;min-height:36px}
+ #entry .ocr-bar button,#entry .ocr-bar .btn{min-height:32px;padding:3px 8px;font-size:12px}#entry .ocr-box.compact{padding:4px 6px}#entry #ocrStatus{font-size:11px;line-height:1.3}
+ #entry #deptMeta{display:none}#entry .voucher-toggle{font-size:12px;padding:3px 8px}#entry .voucher-toggle .vt-more{display:none}#entry .sticky-actions button{min-height:40px}#entry .entry-top h2{font-size:14px}
+ .qj{padding:3px 6px;gap:3px 6px;font-size:12px;margin-top:3px}.qj-t,.qj .muted,.qj-pre,.qj-to,.qj-lead{display:none}.qj-opts{flex-wrap:nowrap}.qj-chip{padding:2px 8px;min-height:26px}.item-alloc-fold>summary{padding:2px 8px}
+ #entry>.panel,#entry>div{margin-bottom:4px}#entry #invoiceForm input:not([type=checkbox]),#entry #invoiceForm select{min-height:36px}
+ #entry .panel,#entry .entry-panel{padding:6px 8px}#entry .who-chip{padding:1px 8px;font-size:12px}.entry-to-csv{min-height:26px!important;padding:0 8px!important}#invoiceForm .fsteps{margin:0 0 4px}
+ #entry #vendorLookupStatus{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+ #entry #ocrStatus:not(.open){display:-webkit-box;-webkit-line-clamp:1;-webkit-box-orient:vertical;overflow:hidden}
+ #entry .field{gap:2px}#entry .cgrid label{font-size:12px}
+ #entry #invoiceForm input:not([type=checkbox]),#entry #invoiceForm select{min-height:38px;padding:6px 8px}#entry #invoiceForm textarea{min-height:38px;padding:6px 8px}
+ #entry .claim-lines tbody tr{display:grid;grid-template-columns:minmax(0,1fr) 96px 40px;gap:4px 6px;padding:6px 8px;margin:0 0 6px;align-items:start}
+ #entry .claim-lines tbody td{display:block;padding:0!important;width:auto!important}
+ #entry .claim-lines tbody td:nth-child(1){display:none}
+ #entry .claim-lines tbody td:nth-child(2){display:contents}
+ #entry .claim-lines tbody td:nth-child(2)>input{grid-column:1;grid-row:1}
+ #entry .claim-lines tbody td:nth-child(2)>.qj-host,#entry .claim-lines tbody td:nth-child(2)>details{grid-column:1/-1}
+ #entry .claim-lines tbody td:nth-child(3){grid-column:2;grid-row:1}
+ #entry .claim-lines tbody td:nth-child(4){grid-column:3;grid-row:1}
+ #entry .claim-lines tbody td:nth-child(4) button{min-height:38px;padding:0}
+ #entry .claim-lines td::before{display:none!important}
+}
 </style></head><body class="auth-locked">
 <div id="authGate" class="auth-gate" aria-live="polite">
   <div class="auth-card">
@@ -289,20 +355,22 @@ input.ro{background:#eef2f8;color:#334155}
 <button type="button" class="entry-choice" id="chooseSingle" aria-expanded="false"><span class="entry-icon">📷</span><strong>發票拍照／上傳</strong><span>一張自動單筆，多張自動批次</span></button>
 <button type="button" class="entry-choice" id="chooseCSV" aria-expanded="false"><span class="entry-icon">📊</span><strong>CSV 匯入</strong><span>匯入既有發票清單</span></button>
 </div></div>
-<div class="panel hide" id="uploadControls"><div class="field" style="max-width:720px"><label for="files">📎 選取發票照片或 PDF</label><input type="file" id="files" multiple accept="image/jpeg,image/png,image/webp,application/pdf"><span class="muted small">每檔 10 MB 內、批次最多 30 張；選一張＝單筆、選多張＝批次，選好就自動辨識。</span></div><div class="hide"><button type="button" id="modeSingle">單筆登錄</button><button type="button" id="modeBatch">多張批次登錄</button><span id="modeHint"></span></div></div>
+<div class="panel hide" id="uploadControls"><div class="field" style="max-width:720px"><label for="files" title="每檔 10 MB 內、批次最多 30 張；選一張＝單筆、選多張＝批次，選好就自動辨識。">📎 選取發票照片或 PDF</label><input type="file" id="files" multiple accept="image/jpeg,image/png,image/webp,application/pdf"><span class="muted small">每檔 10 MB 內、批次最多 30 張；選一張＝單筆、選多張＝批次，選好就自動辨識。</span></div><div class="hide"><button type="button" id="modeSingle">單筆登錄</button><button type="button" id="modeBatch">多張批次登錄</button><span id="modeHint"></span></div></div>
 <div class="panel hide" id="csvImportPanel"><h2>📊 CSV 發票清單匯入</h2><div class="note">除了拍照 OCR，也可匯入既有發票清單。系統會自動辨識欄位、優先對照廠商統編資料庫、檢查重複紀錄；請確認後再儲存或送主管簽核。CSV 不包含影像附件，匯入後須另行補上原始憑證。</div>
 <div class="toolbar"><div class="field" style="min-width:250px"><label for="csvFile">選擇 CSV 檔案（最多 1000 筆）</label><input id="csvFile" type="file" accept=".csv,text/csv,text/plain"></div><div class="field"><label for="csvEncoding">文字編碼</label><select id="csvEncoding"><option value="utf-8">UTF-8（推薦）</option><option value="big5">Big5（舊版 Excel）</option></select></div><button id="csvTemplate" type="button">下載 CSV 範本</button><button id="csvLoad" class="primary" type="button">讀取並預覽</button><button id="csvClear" type="button">清除匯入清單</button></div>
 <div id="csvStatus" class="note" aria-live="polite">請先下載範本，填妥後選擇 CSV 並點選「讀取並預覽」。也可使用本系統財務彙整匯出的 CSV。</div>
 <div class="tablewrap" id="csvPreview"></div>
 <div class="actions" id="csvActions" style="display:none"><button id="csvDraft" type="button">將勾選紀錄儲存為草稿</button><button id="csvSubmit" class="primary" type="button">將勾選紀錄送出簽核</button></div><p class="muted small">CSV 匯入不會執行 OCR；匯入的每一列是一筆發票。請勿將附件網址或公式當作附件。匯入後可至發票明細補傳憑證。匯入的資料會存到雲端，有權限的同事都看得到。</p></div>
-<div id="singleMode" class="hide"><div class="panel entry-panel"><div class="entry-top"><h2 id="entryTitle">發票登錄</h2><span id="whoChip" class="who-chip hide"></span></div>
+<div id="singleMode" class="hide"><div class="panel entry-panel"><div class="entry-top"><h2 id="entryTitle">發票登錄</h2><span id="whoChip" class="who-chip hide"></span><button type="button" id="entryToCsv" class="entry-to-csv" title="改用 CSV 匯入">📊 CSV 匯入</button></div>
 <div class="ocr-box compact">
  <div class="ocr-bar"><label class="btn ocr-button" for="cameraInput">📸 拍照</label><input id="cameraInput" type="file" accept="image/*" capture="environment" style="display:none"><button type="button" id="ocrStart">🔎 重新辨識</button><button type="button" id="ocrClear">清除辨識</button></div>
- <div class="ocr-preview-wrap"><img id="ocrPreview" class="ocr-preview hide" alt="發票影像預覽"><div id="ocrStatus" class="muted small" aria-live="polite">選好發票照片或 PDF 後會自動辨識：電子發票先讀 QR code，讀不到才用文字辨識。請款項目請自行填寫。</div></div>
+ <div class="ocr-preview-wrap"><img id="ocrPreview" class="ocr-preview hide" alt="發票影像預覽"><div id="ocrStatus" class="muted small" aria-live="polite">選好發票照片或 PDF 後會自動辨識：電子發票先讀 QR code（讀到品項會自動轉成分類），讀不到才用文字辨識。</div></div>
  <div id="ocrReview" class="ocr-review hide"><details><summary><strong>辨識結果</strong>（已帶入表單，點此核對）</summary><div id="ocrValues" class="ocr-values"></div><div class="small muted">請確認是「開立發票的賣方」，不是買方抬頭；不清楚的欄位請手動修改。</div><details><summary>查看 OCR 原始文字</summary><pre id="ocrRaw"></pre></details></details></div>
 </div>
-<form id="invoiceForm"><input type="hidden" id="editId">
-<label class="voucher-toggle"><input type="checkbox" id="noVoucher"> 📄 目前還沒有發票／憑證：先請款，發票下來後再補（簽核與付款照常進行）</label>
+<form id="invoiceForm" novalidate data-step="1"><input type="hidden" id="editId">
+<div class="fsteps" role="tablist" aria-label="發票登錄步驟"><button type="button" role="tab" class="on" data-fstep="1" aria-selected="true">① 發票資料</button><button type="button" role="tab" data-fstep="2" aria-selected="false">② 請款項目<span id="fstepCount" class="fstep-n"></span></button><button type="button" role="tab" data-fstep="3" aria-selected="false">③ 付款與備註</button></div>
+<div class="fstep fstep-top" data-step="1">
+<label class="voucher-toggle"><input type="checkbox" id="noVoucher"> 📄 目前還沒有發票／憑證<span class="vt-more">：先請款，發票下來後再補（簽核與付款照常進行）</span></label>
 <div id="voucherHint" class="note hide">已標示「待補憑證」：發票號碼、廠商可以先空白（沒填會暫用「待補」編號），請款金額與用途還是要填。發票下來後，到「發票明細」找這一筆，按「補憑證」上傳發票並填入發票號碼，財務會再確認。</div>
 <div class="cgrid cg5">
 <div class="field"><label for="invoiceDate">發票日期 *</label><input type="date" id="invoiceDate" required></div>
@@ -310,7 +378,8 @@ input.ro{background:#eef2f8;color:#334155}
 <div class="field"><label for="amount">含稅金額 *</label><input type="number" id="amount" min="0.01" step="0.01" required placeholder="0"></div>
 <div class="field"><label for="taxId">賣方統編</label><div class="inline-btn"><input id="taxId" maxlength="8" inputmode="numeric" pattern="[0-9]{8}" placeholder="8 碼"><button id="verifySellerTax" class="lookup-action" type="button" title="向財政部營業登記核對廠商名稱">核對</button></div></div>
 <div class="field"><label for="vendor">廠商名稱 *</label><input id="vendor" maxlength="100" required><span id="vendorLookupStatus" class="lookup-note" aria-live="polite">依賣方統編查詢廠商名稱</span></div>
-</div>
+</div></div>
+<div class="fgrid"><div class="fcol"><div class="fstep" data-step="1">
 <div class="cgrid">
 <div class="field who-field"><label for="dept">申請部門／門市 *</label><select id="dept" required><option value="">請選擇</option></select><span id="deptMeta" class="muted small">顯示門市編號及科目代號</span><span id="ceoDeptHint" class="lookup-note hide" aria-live="polite"></span></div>
 <div class="field who-field who-applicant"><label for="applicant">申請人 *</label><select id="applicant" required><option value="">請先選擇部門</option></select></div>
@@ -318,13 +387,13 @@ input.ro{background:#eef2f8;color:#334155}
 <div id="ceoRuleBox" class="note hide" aria-live="polite"></div>
 <div class="cgrid">
 <div class="field span2"><label for="description">用途 *</label><textarea id="description" rows="1" required placeholder="例如：EDM 發送－2026/09 月"></textarea></div>
+</div></div>
+<div class="fstep" data-step="3"><div class="cgrid">
 <div class="field"><label for="payee">支付對象 *</label><input id="payee" maxlength="120" autocomplete="off" placeholder="收款的廠商或個人"></div>
 <div class="field"><label for="payment">付款方式 *</label><select id="payment" required><option value="匯款">匯款</option><option value="現金">現金</option></select></div>
 <div class="field ceo-off"><label for="transferHistory">匯款類型</label><select id="transferHistory"><option value="非首次匯款">非首次匯款</option><option value="首次匯款">首次匯款（須存摺影本）</option></select></div>
-</div>
-<div class="claim-block"><div style="overflow-x:auto"><table class="claim-lines" aria-label="一般請款單項目"><thead><tr><th>序號</th><th>項目說明</th><th>小計（元）</th><th>刪除</th></tr></thead><tbody id="claimItemsBody"></tbody></table></div>
-<div class="claim-bar"><button type="button" id="addClaimItem">＋ 新增項目</button><button type="button" id="qjGroup" title="把同一品類的項目合併（例如咖啡、雞腿飯 → 食品），並標上用途">🔎 依品類整理</button><div class="claim-total"><span>請款合計 </span><strong id="claimTotal">NT$ 0</strong></div></div><div id="claimAmountWarning" class="claim-notice" aria-live="polite"></div></div>
-<div class="cgrid">
+</div></div>
+<div class="fstep" data-step="3"><div class="cgrid">
 <div class="field ceo-off"><label for="dueDate">預定付款日</label><input id="dueDate" type="date"></div>
 <div class="field ceo-off"><label for="feeDeduction">匯費處理</label><select id="feeDeduction"><option value="不扣匯費">不扣匯費</option><option value="扣匯費">扣匯費</option></select></div>
 <div class="field ceo-off"><label for="voucherMissing">待補憑證張數</label><input id="voucherMissing" type="number" min="0" step="1" value="0"></div>
@@ -337,7 +406,9 @@ input.ro{background:#eef2f8;color:#334155}
   <input id="passbookFile" type="file" accept="image/jpeg,image/png,image/webp,application/pdf" class="visually-hidden-file">
   <div class="passbook-file-row"><span id="passbookFileStatus" class="muted small">尚未選擇檔案</span><button type="button" id="removePassbook" class="hide">移除附件</button></div>
 </div>
-<div id="transferNotice" class="muted small"></div>
+<div id="transferNotice" class="muted small"></div></div></div>
+<div class="fcol"><div class="fstep" data-step="2"><div class="claim-block"><div class="claim-scroll"><table class="claim-lines" aria-label="一般請款單項目"><thead><tr><th>序號</th><th>項目說明</th><th>小計（元）</th><th>刪除</th></tr></thead><tbody id="claimItemsBody"></tbody></table></div>
+<div class="claim-bar"><button type="button" id="addClaimItem">＋ 新增項目</button><button type="button" id="qjGroup" title="把同一品類的項目合併（例如咖啡、雞腿飯 → 食品），並標上用途">🔎 依品類整理</button><div class="claim-total"><span>請款合計 </span><strong id="claimTotal">NT$ 0</strong></div></div><div id="claimAmountWarning" class="claim-notice" aria-live="polite"></div></div></div></div></div>
 <div class="sticky-actions"><button class="primary" type="submit" id="submitInvoice">送出簽核</button><button type="button" id="saveDraft">儲存草稿</button><button type="button" id="resetForm">清除</button></div></form></div></div>
 <div id="batchMode" class="hide"><div class="panel"><h2>📑 批次發票與一般請款單</h2>
 <div class="note">一次選擇最多 30 張發票照片或 PDF，每個檔案視為<strong>一筆發票</strong>，依序辨識日期、發票號碼、<strong>賣方統編</strong>、廠商名稱及含稅金額；每張會獨立嘗試線上查詢廠商名稱，查詢狀態顯示在各張表單中。請在每張發票的表單逐筆核對，可修改辨識結果並分別儲存或送簽。PDF 每個檔案目前僅辨識第一頁。</div>
@@ -346,39 +417,49 @@ input.ro{background:#eef2f8;color:#334155}
 <div class="hide"><select id="batchDept"><option value=""></option></select><input id="batchApplicant"><select id="batchCategory"><option value=""></option></select><input id="batchDescription"></div>
 <div id="batchProgress" class="note" aria-live="polite">選好多張發票照片後會自動開始辨識，不用再按按鈕。電子發票會優先讀取 QR code；沒有 QR code 的才用文字辨識（首次需要下載辨識模型）。</div>
 <div class="batch-table" id="batchTable"></div><div class="actions"><button id="batchDraft" type="button">儲存勾選項目為草稿</button><button id="batchSubmit" class="primary" type="button">勾選項目送出簽核</button></div>
-<p class="muted small">批次操作會保存每筆發票原始檔作為附件。每張表單均可獨立儲存或送簽；未完成欄位的項目需修正後才能匯入；會檢查與既有紀錄及本次批次重複的發票號碼（搭配統編）。資料可見範圍與簽核權限由雲端後端檢查。</p></div></div><div class="panel hide" id="ceoHistPanel"><h2>📚 歷史歸類資料庫（過去申請 → 費用部門）</h2>
-<p class="muted">這裡放執行長<b>過去申請過的紀錄</b>：統編、廠商、支付對象、用途，以及當時費用歸屬的部門（可以跨部門分攤）。上傳發票時，系統會拿這個資料庫，加上你在系統裡已送出簽核的單據，自動判斷這筆費用歸哪個部門。<b>這裡的資料只用來建議部門，不會產生任何單據，也不會進簽核流程。</b>只有執行長本人與管理員看得到。</p>
-<div class="toolbar"><div class="field" style="min-width:260px"><label for="ceoHistFile">匯入檔案（Excel 或 CSV）</label><input id="ceoHistFile" type="file" accept=".csv,.xlsx,.xls,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"></div><button id="ceoHistImport" class="primary" type="button">匯入</button><button id="ceoHistTemplate" type="button">下載範本</button><button id="ceoHistExport" type="button">匯出目前資料</button><button id="ceoHistClear" class="danger" type="button">清除全部</button></div>
-<div id="ceoHistStatus" class="note" aria-live="polite">載入中…</div>
-<details class="fold" id="ceoHistDetails"><summary>查看資料（<span id="ceoHistCount">0</span> 筆）</summary><div class="toolbar" style="margin-top:8px"><input id="ceoHistSearch" placeholder="搜尋統編、廠商、支付對象、用途、部門"></div><div class="tablewrap" id="ceoHistTable"></div></details></div>
-<div class="panel hide" id="ceoRulePanel"><h2>📖 發票判斷標準（商家 → 要不要請款、附註）</h2>
-<p class="muted">這裡放執行長自己的<b>發票判斷標準</b>：哪些商家要請款（Y）、哪些是公司卡已付不請款（N）、附註要怎麼寫（Y／N-部門費用類別）、哪些是個人消費不處理、哪些還沒定案要自己確認。上傳發票時，廠商名稱、支付對象或用途只要含有規則的關鍵字，上傳畫面就會列出對應的判斷標準提醒你，並可以一鍵把附註加進備註。<b>這裡只提供建議，不會自動改單據，也不會進簽核流程。</b>只有執行長本人與管理員看得到。</p>
-<div class="toolbar"><div class="field" style="min-width:260px"><label for="ceoRuleFile">匯入標準檔（JSON）</label><input id="ceoRuleFile" type="file" accept=".json,application/json"></div><button id="ceoRuleImport" class="primary" type="button">匯入</button><button id="ceoRuleAdd" type="button">＋ 新增規則</button><button id="ceoRuleExport" type="button">匯出目前標準</button><button id="ceoRuleClear" class="danger" type="button">清除全部</button></div>
-<div id="ceoRuleStatus" class="note" aria-live="polite">載入中…</div>
-<details class="fold" id="ceoRuleDetails"><summary>查看規則（<span id="ceoRuleCount">0</span> 筆）</summary><div class="toolbar" style="margin-top:8px"><input id="ceoRuleSearch" placeholder="搜尋商家、關鍵字、附註、備註"></div><div class="tablewrap" id="ceoRuleTable"></div></details>
-<div id="ceoRuleDocs"></div></div>
+<p class="muted small">批次操作會保存每筆發票原始檔作為附件。每張表單均可獨立儲存或送簽；未完成欄位的項目需修正後才能匯入；會檢查與既有紀錄及本次批次重複的發票號碼（搭配統編）。資料可見範圍與簽核權限由雲端後端檢查。</p></div></div>
 </section>
 <section id="list" class="view hide"><div class="panel"><h2>所有發票紀錄</h2><div id="voucherBanner" class="note hide" aria-live="polite"></div><div class="toolbar"><input id="listSearch" placeholder="搜尋號碼、廠商、申請人"><select id="listStatus"><option value="">全部狀態</option><option value="draft">草稿</option><option value="pending">待主管簽核</option><option value="executive_pending">待執行長簽核</option><option value="approved">待財務覆核</option><option value="finance_ok">已覆核／待付款</option><option value="rejected">退回</option><option value="paid">已付款</option><option value="v:pending">待補憑證</option><option value="v:submitted">憑證待財務確認</option></select><input type="month" id="listMonth"><button id="clearList">清除條件</button></div><div class="tablewrap" id="invoiceTable"></div></div></section>
 <section id="approval" class="view hide"><div class="panel"><h2>主管簽核工作台</h2><p class="muted">只有登入帳號的姓名與此張發票指定主管相符，才可核准或退回；管理員可測試所有流程。</p><div class="tablewrap" id="approvalTable"></div></div></section>
 <section id="executive" class="view hide"><div class="panel"><h2>執行長簽核工作台</h2><p class="muted">主管核准後，或申請部門由執行長直接管理時，會出現在這裡。需要以執行長帳號登入才能處理，姓名需與組織架構設定一致。</p><div class="tablewrap" id="executiveTable"></div></div></section>
 <section id="finance" class="view hide"><div class="panel"><h2>財務彙整及匯出</h2><div class="toolbar"><label>發票月份</label><input type="month" id="finMonth"><label>部門</label><select id="finDept"><option value="">全部部門</option><option>行政部</option><option>業務部</option><option>門市部</option><option>生產部</option><option>採購部</option><option>其他</option></select><label>狀態</label><select id="finStatus"><option value="">全部狀態</option><option value="executive_pending">待執行長簽核</option><option value="approved">待財務覆核</option><option value="finance_ok">已覆核／待付款</option><option value="paid">已付款</option><option value="v:pending">待補憑證</option><option value="v:submitted">憑證待財務確認</option></select><button class="primary" id="exportCSV">匯出 CSV（Excel 可開啟）</button><button id="printFilteredClaims" type="button">🖨️ 列印篩選請款（每申請一份）</button><button id="printJournal" type="button">🧾 轉帳傳票（列印／匯出 Excel）</button></div><div class="kpirow" id="finMetrics" style="margin-bottom:15px"></div><div class="tablewrap" id="financeTable"></div><p class="footer">匯出的是發票資料明細 CSV，不含發票附件檔；原始檔案與完整資料可使用「資料備份／說明」匯出 JSON。財務報表預設包含篩選結果中的全部狀態，請依需求篩選。按「列印整份」會把發票影像直接放在請款申請單下方，移除簽核流程、財務流程及操作歷程；同筆附件超過同頁可容納數量時才列印續頁。PDF 附件需連線載入 PDF 預覽模組。可於列印視窗選擇「另存為 PDF」。</p></div>
 </section>
-<section id="subjects" class="view hide"><div class="panel" id="accountChartPanel"><h2>📒 會計科目表（正確的科目，財務／管理員維護）</h2>
+<section id="dbadmin" class="view hide">
+<div class="panel"><h2>🗄 資料庫（集中管理，只有管理員）</h2>
+<p class="muted">公司所有資料庫集中在這一頁維護：會計科目表、歷史會計科目對照庫、歷史歸類資料庫、發票判斷標準、快速判讀規則，以及部門、帳號、簽核流程、發票、簽呈的總覽。各表單與頁面<b>只讀取使用</b>，不再各自放一份；資料都存在同一個雲端資料夾。左邊選要看哪一個資料庫。</p></div>
+<div class="db-layout"><nav class="db-list" id="dbList" aria-label="資料庫清單"></nav>
+<div class="db-main">
+<div class="db-pane" data-db="overview" id="dbPane-overview"></div>
+<div class="db-pane hide" data-db="accounts"><div class="panel" id="accountChartPanel"><h2>📒 會計科目表（正確的科目，財務／管理員維護）</h2>
 <p class="muted">這是公司<b>正確的</b>會計科目代號與名稱，和下面的「歷史會計科目對照庫」<b>分開存放</b>：科目表決定<b>可以選哪些科目</b>（財務覆核時只能選表內的科目、輸入代號會自動帶出名稱），歷史科目只是用來<b>建議</b>「過去遇到什麼說明會選什麼科目」。直接匯入你的 Excel 即可（左右並排的「科目代號／科目名稱」兩張表也讀得懂）。</p>
 <div class="toolbar" style="align-items:end"><div class="field"><label for="chartFile">選擇科目表檔案（Excel／CSV）</label><input type="file" id="chartFile" accept=".csv,.xlsx,.xls,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"></div>
 <div class="field"><label for="chartEncoding">CSV 編碼</label><select id="chartEncoding"><option value="utf-8">UTF-8</option><option value="big5">Big5（舊版 Excel）</option></select></div>
 <button class="primary" id="chartImport" type="button">匯入科目表（以檔案為準）</button><button id="chartExport" type="button">匯出科目表 CSV</button></div>
 <div id="chartStatus" class="note" aria-live="polite">目前尚未載入科目表。</div>
 <details id="chartDetails" class="fold"><summary id="chartSummaryLabel">查看科目表</summary><div class="toolbar" style="margin-top:8px"><input id="chartSearch" placeholder="搜尋科目代號或名稱"><select id="chartGroup"><option value="">全部類別</option><option value="bs">資產負債</option><option value="pl">損益</option></select></div>
-<div class="tablewrap" id="chartTable"></div></details></div>
-<div class="panel" id="ledgerDataPanel"><h2>📚 歷史會計科目對照庫（財務／管理員）</h2>
+<div class="tablewrap" id="chartTable"></div></details></div></div>
+<div class="db-pane hide" data-db="ledger"><div class="panel" id="ledgerDataPanel"><h2>📚 歷史會計科目對照庫（財務／管理員）</h2>
 <p class="muted">上傳過往「費用項目說明＋會計科目」紀錄後，財務覆核時，系統會依這些歷史案例建議每一筆費用明細的科目（發票登錄時不填科目）。<b>這和上面的「會計科目表」不同</b>：科目表是正確的科目清單，這裡只是過去「說明 → 科目」的案例，用來建議；項目說明只要符合（相同，或包含 3 字以上的歷史說明）就會建議對應的科目代號；建議的代號若不在科目表內，會提醒並要求改成表內的科目才能送簽。這也與門市／部門的科目代號編碼不同，不會修改既有組織資料。歷史資料由財務／管理員匯入後存在公司的雲端資料庫，所有申請人共用；不會自動傳送至外部 AI。</p>
 <div class="toolbar" style="align-items:end"><div class="field"><label for="ledgerHistoryFile">選擇歷史科目檔案（CSV／Excel）</label><input type="file" id="ledgerHistoryFile" accept=".csv,.xlsx,.xls,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"></div>
 <div class="field"><label for="ledgerEncoding">CSV 編碼</label><select id="ledgerEncoding"><option value="utf-8">UTF-8</option><option value="big5">Big5（舊版 Excel）</option></select></div>
 <button id="ledgerTemplate" type="button">下載科目匯入範本</button><button class="primary" id="ledgerImport" type="button">匯入歷史科目</button><button id="ledgerExport" type="button">匯出科目對照 CSV</button><button id="ledgerCleanSeeds" type="button" title="先前若把科目表當成歷史科目匯入，可用這個清掉">移除「科目表匯入」的歷史項目</button><button id="ledgerFixSaved" type="button" title="歷史資料裡科目代號與名稱放錯欄（例如名稱欄其實是代號）時，把校正結果永久存回雲端">整理歷史科目（修正代號與名稱）</button></div>
 <div id="ledgerImportStatus" class="note" aria-live="polite">目前尚未讀取科目名錄。</div>
 <div class="small muted">必要欄位：費用項目說明、會計科目代號（或科目名稱）；可選：廠商名稱、統編、部門。重複記錄只建立一組規則；不會覆寫舊發票或員工／帳號資料。Excel 解析模組需連線載入，若無法載入請另存 CSV。</div>
-<details id="ledgerDetails" class="fold" style="margin-top:10px"><summary id="ledgerSummaryLabel">查看歷史科目統計</summary><div class="toolbar" style="margin-top:8px"><input id="ledgerSearch" placeholder="搜尋項目說明、科目代號或科目名稱"></div><div class="tablewrap" id="ledgerSummary" style="margin-top:8px"></div></details></div></section>
+<details id="ledgerDetails" class="fold" style="margin-top:10px"><summary id="ledgerSummaryLabel">查看歷史科目統計</summary><div class="toolbar" style="margin-top:8px"><input id="ledgerSearch" placeholder="搜尋項目說明、科目代號或科目名稱"></div><div class="tablewrap" id="ledgerSummary" style="margin-top:8px"></div></details></div></div>
+<div class="db-pane hide" data-db="ceohistory"><div class="panel" id="ceoHistPanel"><h2>📚 歷史歸類資料庫（過去申請 → 費用部門）</h2>
+<p class="muted">這裡放執行長<b>過去申請過的紀錄</b>：統編、廠商、支付對象、用途，以及當時費用歸屬的部門（可以跨部門分攤）。上傳發票時，系統會拿這個資料庫，加上你在系統裡已送出簽核的單據，自動判斷這筆費用歸哪個部門。<b>這裡的資料只用來建議部門，不會產生任何單據，也不會進簽核流程。</b>只有執行長本人與管理員看得到。</p>
+<div class="toolbar"><div class="field" style="min-width:260px"><label for="ceoHistFile">匯入檔案（Excel 或 CSV）</label><input id="ceoHistFile" type="file" accept=".csv,.xlsx,.xls,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"></div><button id="ceoHistImport" class="primary" type="button">匯入</button><button id="ceoHistTemplate" type="button">下載範本</button><button id="ceoHistExport" type="button">匯出目前資料</button><button id="ceoHistClear" class="danger" type="button">清除全部</button></div>
+<div id="ceoHistStatus" class="note" aria-live="polite">載入中…</div>
+<details class="fold" id="ceoHistDetails"><summary>查看資料（<span id="ceoHistCount">0</span> 筆）</summary><div class="toolbar" style="margin-top:8px"><input id="ceoHistSearch" placeholder="搜尋統編、廠商、支付對象、用途、部門"></div><div class="tablewrap" id="ceoHistTable"></div></details></div>
+</div>
+<div class="db-pane hide" data-db="ceorules"><div class="panel" id="ceoRulePanel"><h2>📖 發票判斷標準（商家 → 要不要請款、附註）</h2>
+<p class="muted">這裡放執行長自己的<b>發票判斷標準</b>：哪些商家要請款（Y）、哪些是公司卡已付不請款（N）、附註要怎麼寫（Y／N-部門費用類別）、哪些是個人消費不處理、哪些還沒定案要自己確認。上傳發票時，廠商名稱、支付對象或用途只要含有規則的關鍵字，上傳畫面就會列出對應的判斷標準提醒你，並可以一鍵把附註加進備註。<b>這裡只提供建議，不會自動改單據，也不會進簽核流程。</b>只有執行長本人與管理員看得到。</p>
+<div class="toolbar"><div class="field" style="min-width:260px"><label for="ceoRuleFile">匯入標準檔（JSON）</label><input id="ceoRuleFile" type="file" accept=".json,application/json"></div><button id="ceoRuleImport" class="primary" type="button">匯入</button><button id="ceoRuleAdd" type="button">＋ 新增規則</button><button id="ceoRuleExport" type="button">匯出目前標準</button><button id="ceoRuleClear" class="danger" type="button">清除全部</button></div>
+<div id="ceoRuleStatus" class="note" aria-live="polite">載入中…</div>
+<details class="fold" id="ceoRuleDetails"><summary>查看規則（<span id="ceoRuleCount">0</span> 筆）</summary><div class="toolbar" style="margin-top:8px"><input id="ceoRuleSearch" placeholder="搜尋商家、關鍵字、附註、備註"></div><div class="tablewrap" id="ceoRuleTable"></div></details>
+<div id="ceoRuleDocs"></div></div></div>
+<div class="db-pane hide" data-db="qjrules" id="dbPane-qjrules"></div>
+</div></div></section>
 <section id="organization" class="view hide"><div class="panel"><h2>部門／門市編號、主管與員工架構</h2><div class="note">組織資料存在雲端，只有管理員可以修改。第一次使用請由管理員到「資料備份／說明」匯入「組織名冊_種子資料.json」，或在這一頁手動新增部門與員工。主管欄若為「執行長」，表示由執行長兼任，請先填妥上方執行長實際姓名。未提供主管或員工的門市保持空白。簽核順序為員工 → 部門主管 → 執行長 → 財務；若申請人就是部門主管，或部門主管由執行長兼任，直接送執行長，避免重複或自我簽核。</div><div class="note" id="orgRetentionNotice"><b>資料保留模式：</b>使用已建立的部門、門市編號、主管、員工及科目代號。系統升級不會重新匯入內建名冊，也不會覆寫現有組織資料。<span class="muted small" id="orgSeedInfo"></span></div>
  <div class="formgrid"><div class="field"><label for="ceoName">執行長姓名</label><input id="ceoName" placeholder="例如：陳○○"></div><div class="field" style="justify-content:end"><button type="button" class="primary" id="saveCEO">儲存執行長</button></div></div>
  <h3>新增／編輯部門及門市</h3><div class="formgrid"><div class="field"><label for="orgDeptCode">部門／門市編號</label><input id="orgDeptCode" maxlength="20" placeholder="如 002、A01（保留前導零）"></div><div class="field"><label for="orgDeptName">部門／門市名稱</label><input id="orgDeptName" placeholder="例如：永康東橋"></div><div class="field"><label for="orgAccountCode">科目代號編碼</label><input id="orgAccountCode" maxlength="20" placeholder="如 61、64"></div><div class="field"><label for="orgManagerName">主管姓名／職務</label><input id="orgManagerName" placeholder="例如：林○○；兼任可填 執行長"></div></div><div class="actions"><button type="button" class="primary" id="saveOrgDept">新增／更新部門與主管</button></div>
@@ -469,10 +550,10 @@ let authUser=null,accountEditId='',authBootstrap=false,curPage='home';
 // 有多個子頁面的功能群組：點進去之後，頁面變成主畫面上方的子頁籤
 const GROUPS={
  invoice:{pages:['entry','ceoentry','list','approval','executive']},
-  finance:{pages:['finance','subjects']},
- system:{pages:['organization','accounts','flows','settings']}
+  finance:{pages:['finance']},
+ system:{pages:['organization','accounts','flows','dbadmin','settings']}
 };
-const SUB_LABELS={...PAGE_LABELS,subjects:'會計科目'};
+const SUB_LABELS={...PAGE_LABELS,dbadmin:'🗄 資料庫'};
 const isFormPage=p=>p==='inbox'||p==='mine'||String(p).startsWith('form:')||String(p).startsWith('term:'); // term:＝職位終端（人事／採購／行銷…），和表單頁面分開的獨立頁
 const pageGroup=p=>Object.keys(GROUPS).find(g=>GROUPS[g].pages.includes(p))||'';
 const groupAccessible=g=>!!GROUPS[g]&&GROUPS[g].pages.some(p=>canPage(p));
@@ -490,7 +571,7 @@ const allUsers=async()=>(await InvCloud.get({action:'users'})).users;
 const getUser=async id=>{const k=normalizeAccount(id);return (await allUsers()).find(u=>normalizeAccount(u.id)===k)};
 const putUser=u=>InvCloud.call('userSave',{email:u.email||u.id,empNo:u.empNo,name:u.name,role:u.role,dept:u.dept||'',pages:u.pages,positions:u.positions,enabled:u.enabled!==false});
 const deleteUser=email=>InvCloud.call('userDelete',{email});
-function canPage(page){if(page==='subjects')page='finance'; // 「會計科目」頁籤沿用財務整合的權限（財務／管理員）
+function canPage(page){if(page==='dbadmin')return !!authUser&&authUser.role==='admin'; // 「資料庫」頁：所有資料庫集中管理，只有管理員（後端的資料庫總覽也只認管理員）
  if(String(page).startsWith('term:'))return !!authUser&&(authUser.role==='admin'||(authUser.positions||[]).includes(page.slice(5))); // 職位終端：擔任該職位的人（管理員可看全部）
  if(page==='home'||isFormPage(page))return !!authUser&&(page!=='form:invoice'||groupAccessible('invoice'));
  if(!authUser||!PAGE_LABELS[page])return false;if(page==='flows')return authUser.role==='admin'; // 簽核流程設定：只有管理員（後端也只認管理員）
@@ -701,7 +782,7 @@ window.addEventListener('unhandledrejection',e=>{const r=e.reason;if(r&&r.code&&
 
 const validTax=tax=>/^\d{8}$/.test(String(tax||'').trim());
 // 部門及員工架構：全部保存在 IndexedDB，仍非正式身分驗證。
-let orgDepartments=[],orgCEO='',orgMemoTiers=null;
+let orgDepartments=[],orgCEO='',orgMemoTiers=null,orgQjRec=null; // orgQjRec＝雲端的快速判讀規則（組織資料的 qjrules 紀錄）
 
 const ORG_ROSTER_VERSION='2026-10-16-store-roster-v1';
 const embeddedOrgRoster=[]; // 網頁版不內建名冊（員工姓名不放進公開的程式碼）；請由管理員匯入「組織名冊_種子資料.json」或手動建立
@@ -770,7 +851,8 @@ async function importEmbeddedRoster(force=false){
  await orgPut({...settings,rosterVersion:ORG_ROSTER_VERSION});
  return count;
 }
-async function loadOrg(){const values=await orgAll();orgDepartments=values.filter(d=>String(d.id||'').startsWith('dept:'));orgCEO=values.find(d=>d.id==='settings')?.ceo||'';orgMemoTiers=values.find(d=>d.id==='settings')?.memoTiers||null;
+async function loadOrg(){const values=await orgAll();orgDepartments=values.filter(d=>String(d.id||'').startsWith('dept:'));
+ orgQjRec=values.find(d=>d.id==='qjrules')||null;if(orgQjRec){const qr=QuickJudge.setRules(orgQjRec);if(!qr.ok){console.warn('雲端的快速判讀規則無法使用，改用內建預設：'+qr.error);QuickJudge.resetRules()}}else QuickJudge.resetRules();try{qjRefreshSingleAll()}catch(e){}orgCEO=values.find(d=>d.id==='settings')?.ceo||'';orgMemoTiers=values.find(d=>d.id==='settings')?.memoTiers||null;
  syncOrgControls();renderOrg();syncAccountDepartments();$('orgSeedInfo').textContent='目前儲存 '+orgDepartments.length+' 個部門／門市，'+orgDepartments.reduce((n,d)=>n+(d.employees||[]).length,0)+' 位員工；資料庫保持不變。';
 }
 function renderOrg(){const root=$('orgTree');if(!root)return;
@@ -904,7 +986,7 @@ async function verifySingleSeller(force=false){
 $('taxId').addEventListener('change',()=>verifySingleSeller());
 $('verifySellerTax').addEventListener('click',()=>verifySingleSeller(true));
 const uid=()=>crypto.randomUUID?crypto.randomUUID():Date.now()+'_'+Math.random().toString(36).slice(2);const now=()=>new Date().toLocaleString('zh-TW',{hour12:false});function audit(item,action,reason=''){item.history??=[];item.history.push({at:now(),actor:(($('actorName').value||'').trim()||roleNames[$('role').value])+'（'+roleNames[$('role').value]+'）',action,reason})}function badge(status){return `<span class="chip ${['pending','approved','rejected','draft','paid'].includes(status)?status:''}">${names[status]||status}</span>`}function toast(s){alert(s)}function can(...roles){return !!authUser&&roles.includes(authUser.role)}
-function tab(id){if(!authUser)return;if(id==='form:invoice')id=groupFirstPage('invoice');else if(id==='mod:system')id=groupFirstPage('system');else if(id==='mod:finance')id=groupFirstPage('finance');if(id==='batch'){id='entry';setEntryMode('batch')}if(!canPage(id))return toast('此帳號未獲授權使用這個頁面');curPage=id;if(id==='entry'||id==='ceoentry')applyEntryMode(id==='ceoentry'?'ceo':'normal');const viewId=id==='ceoentry'?'entry':isFormPage(id)?'memoPage':id;if(id==='organization')renderOrg();if(id==='accounts')renderAccounts();if(id==='flows')loadFlows();document.querySelectorAll('.view').forEach(el=>el.classList.toggle('hide',el.id!==viewId));document.querySelectorAll('.tab').forEach(el=>el.classList.toggle('active',el.dataset.tab===id));if(isFormPage(id)&&window.memoShow)memoShow(id);applyNav();render();if((id==='home'||isFormPage(id))&&window.memoRefresh)memoRefresh()}document.querySelectorAll('.tab').forEach(el=>el.onclick=()=>tab(el.dataset.tab));
+function tab(id){if(!authUser)return;if(id==='form:invoice')id=groupFirstPage('invoice');else if(id==='mod:system')id=groupFirstPage('system');else if(id==='mod:finance')id=groupFirstPage('finance');if(id==='batch'){id='entry';setEntryMode('batch')}if(!canPage(id))return toast('此帳號未獲授權使用這個頁面');curPage=id;document.body.dataset.view=(id==='entry'||id==='ceoentry')?'entry':'';if(id==='dbadmin')renderDbAdmin();if(id==='entry'||id==='ceoentry')applyEntryMode(id==='ceoentry'?'ceo':'normal');const viewId=id==='ceoentry'?'entry':isFormPage(id)?'memoPage':id;if(id==='organization')renderOrg();if(id==='accounts')renderAccounts();if(id==='flows')loadFlows();document.querySelectorAll('.view').forEach(el=>el.classList.toggle('hide',el.id!==viewId));document.querySelectorAll('.tab').forEach(el=>el.classList.toggle('active',el.dataset.tab===id));if(isFormPage(id)&&window.memoShow)memoShow(id);applyNav();render();if((id==='home'||isFormPage(id))&&window.memoRefresh)memoRefresh()}document.querySelectorAll('.tab').forEach(el=>el.onclick=()=>tab(el.dataset.tab));
 async function migrateCEOManagedPending(){
  if(!orgCEO)return 0;
  const records=await all();let updated=0;
@@ -1003,10 +1085,11 @@ function qjStripHtml(line,ctx,attr){
  const desc=String(line?.description||'').trim();if(!desc||desc==='發票費用')return '';
  const j=QuickJudge.judgeLine(desc,ctx);if(!j)return '';
  const sd=QuickJudge.suggestDepts(desc+' '+ctx.purposeText+' '+ctx.vendor,j.purpose,ctx.depts);
- let h=`<span class="qj-title">🔎 快速判讀</span><b>${esc(j.label)}</b>`+(j.acct.length?` → 科目 <span class="qj-acct">${esc(j.acct[0])}</span>`:'')+(j.basis==='context'?'<span class="muted small">（依請款用途／廠商判斷）</span>':j.basis==='item'&&j.cat==='食品'?'<span class="muted small">（依品名判斷）</span>':'');
- if(j.options.length)h+=`<span class="qj-opts">${j.needsPurpose?'用途請選：':'改成：'}${j.options.map(o=>`<button type="button" class="qj-chip${o===j.label?' on':''}" ${attr} data-qj-label="${esc(o)}">${esc(o)}</button>`).join('')}</span>`;
+ let h=`<span class="qj-title">🔎<span class="qj-t"> 快速判讀</span></span><b>${esc(j.label)}</b>`+(j.acct.length?`<span class="qj-to"> → 科目 <span class="qj-acct">${esc(j.acct[0])}</span></span>`:'')+(j.basis==='context'?'<span class="muted small">（依請款用途／廠商判斷）</span>':j.basis==='item'&&j.options.length?'<span class="muted small">（依品名判斷）</span>':'');
+ if(j.options.length)h+=`<span class="qj-opts"><span class="qj-lead">${j.needsPurpose?'用途請選：':'改成：'}</span>${j.options.map(o=>`<button type="button" class="qj-chip${o===j.label?' on':''}" ${attr} data-qj-label="${esc(o)}"><span class="qj-pre">${esc(o.slice(0,o.indexOf('-')+1))}</span>${esc(o.slice(o.indexOf('-')+1))}</button>`).join('')}</span>`;
  if(sd&&!qjSameDepts(line.allocations,sd.names))h+=`<span class="qj-dept">建議分攤 <b>${esc(sd.names.join('、'))}</b><span class="muted small">（${esc(sd.reason)}）</span><button type="button" class="qj-chip" ${attr} data-qj-dept="${esc(sd.names.join('|'))}">套用</button></span>`;
- return `<div class="qj">${h}</div>`;
+ const tip=[j.basis==='context'?'依請款用途／廠商判斷':j.basis==='item'&&j.options.length?'依品名判斷':'',sd?sd.reason:''].filter(Boolean).join('；');
+ return `<div class="qj"${tip?` title="${esc(tip)}"`:''}>${h}</div>`;
 }
 // 依品類整理：同品類的項目（食品：咖啡、雞腿飯）合成一項、金額加總；分攤沿用組內第一項；會計科目到財務覆核再判斷。回傳 null＝沒有可以合併的
 function qjRegroup(items,ctx,fallbackDept){
@@ -1211,12 +1294,19 @@ function normalizeClaim(old,invoice={}){
  const qjRefreshSingleAll=()=>singleClaimItems.forEach((_,i)=>qjRefreshSingle(i));
 // 每一個請款項目各自有「費用分攤」：預設是申請部門 100%，可點選其他單位、比例自動均分；新增項目就多一列、多一組分攤
 function ensureItemAllocations(items,dept,legacy){for(const it of items||[]){if(!Array.isArray(it.allocations)||!it.allocations.length)it.allocations=(legacy&&legacy.length?legacy:[{dept:dept||'',ratio:100}]).map(a=>({dept:a.dept,ratio:a.ratio}))}}
-function itemAllocHtml(it,idx,chipAttr,rowAttr,disabled,showPre=false){
+// fold＝發票登錄頁用：預設收成一行「分攤：門市A 100% ▾」，點開才看到分攤按鈕與比例（省高度，一頁看完）；分攤有錯會自動展開
+const allocFoldOpen=new Set();
+const allocSummary=al=>(al||[]).map(a=>a.dept?a.dept+' '+a.ratio+'%':'未選單位').join('、')||'未選單位';
+function itemAllocHtml(it,idx,chipAttr,rowAttr,disabled,showPre=false,fold=false){
  const err=allocationErrors(it.allocations);
- return `<div class="item-alloc" data-ia-host="${idx}"><div class="alloc-label">費用分攤單位（點選；可多選，比例自動均分）</div><div class="alloc-chips">${allocationChipsHtml(it.allocations,chipAttr,disabled)}</div><div class="alloc-rows">${allocationRowsHtml(it.allocations,moneyValue(it.amount),rowAttr,disabled,showPre)}</div><div class="allocation-feedback ${err?'invalid':'valid'}">${err?'⚠ '+esc(err):'✓ 分攤比例合計 100%'}</div></div>`;
+ const inner=`<div class="item-alloc" data-ia-host="${idx}"><div class="alloc-label">費用分攤單位（點選；可多選，比例自動均分）</div><div class="alloc-chips">${allocationChipsHtml(it.allocations,chipAttr,disabled)}</div><div class="alloc-rows">${allocationRowsHtml(it.allocations,moneyValue(it.amount),rowAttr,disabled,showPre)}</div><div class="allocation-feedback ${err?'invalid':'valid'}">${err?'⚠ '+esc(err):'✓ 分攤比例合計 100%'}</div></div>`;
+ if(!fold)return inner;
+ return `<details class="item-alloc-fold${err?' bad':''}" data-ia-fold="${idx}"${allocFoldOpen.has(String(idx))||err?' open':''}><summary>費用分攤：${esc(allocSummary(it.allocations))}${err?' ⚠':''}</summary>${inner}</details>`;
 }
+document.addEventListener('toggle',e=>{const d=e.target;if(d&&d.matches&&d.matches('details[data-ia-fold]')){if(d.open)allocFoldOpen.add(d.dataset.iaFold);else allocFoldOpen.delete(d.dataset.iaFold)}},true);
 function refreshItemAlloc(host,it){
  if(!host||!it)return;
+ const sm=host.closest('details[data-ia-fold]');if(sm){const s=sm.querySelector('summary'),er=allocationErrors(it.allocations);if(s)s.textContent='費用分攤：'+allocSummary(it.allocations)+(er?' ⚠':'');sm.classList.toggle('bad',!!er)}
  calcAllocationAmounts(moneyValue(it.amount),it.allocations).forEach((x,j)=>{const c=host.querySelector(`[data-aloc-money="${j}"]`);if(c)c.textContent='NT$ '+fmt(x.amount)});
  const err=allocationErrors(it.allocations),fb=host.querySelector('.allocation-feedback');
  if(fb){fb.className='allocation-feedback '+(err?'invalid':'valid');fb.textContent=err?'⚠ '+err:'✓ 分攤比例合計 100%'}
@@ -1262,16 +1352,37 @@ function aggregateAllocations(items){
  ratios[0]=Math.round((ratios[0]+100-ratios.reduce((n,x)=>n+x,0))*100)/100;
  return depts.map((d,i)=>({dept:d,ratio:ratios[i],amount:cents.get(d)/100}));
 }
+// 請款項目很多時，只讓「項目清單」在自己的框裡捲動（框高＝畫面剩下的高度），整頁不用上下捲；合計、新增項目、送出按鈕永遠看得到
+function fitClaimBox(){
+ const box=document.querySelector('#invoiceForm .claim-scroll');if(!box||!box.offsetParent)return;
+ box.style.maxHeight='';
+ const below=(document.querySelector('#invoiceForm .claim-bar')?.offsetHeight||0)+(document.getElementById('claimAmountWarning')?.offsetHeight||0)+(document.querySelector('#invoiceForm .sticky-actions')?.offsetHeight||0)+14;
+ const h=Math.max(150,Math.floor(window.innerHeight-box.getBoundingClientRect().top-below));box.style.maxHeight=h+'px';
+ // 框下面到頁尾還有留白（面板邊距、頁面底部邊距）：項目多到要捲動時，把多出來的整頁高度也扣掉，整頁才不會多出捲軸
+ const over=document.documentElement.scrollHeight-window.innerHeight;
+ if(over>0&&box.scrollHeight>box.clientHeight)box.style.maxHeight=Math.max(150,h-over)+'px';
+}
+window.addEventListener('resize',fitClaimBox);
 function displaySingleClaimItems(){
  ensureItemAllocations(singleClaimItems,$('dept').value);
- $('claimItemsBody').innerHTML=singleClaimItems.map((r,i)=>`<tr><td>${i+1}</td><td><input aria-label="第${i+1}項目" data-ci="${i}" data-ck="description" value="${esc(r.description)}" placeholder="例如：服務費／稅額"><div class="qj-host" data-qj-host="${i}">${qjStripHtml(r,qjCtxSingle(),`data-qj-s="${i}"`)}</div>${itemAllocHtml(r,String(i),`data-ia-chip="${i}"`,`data-ia-row="${i}"`,false)}</td><td><input aria-label="第${i+1}項小計" type="number" data-ci="${i}" data-ck="amount" min="0" step="0.01" value="${esc(r.amount)}"></td><td><button type="button" data-ci-remove="${i}" ${singleClaimItems.length===1?'disabled':''}>×</button></td></tr>`).join('');
- updateSingleClaimTotal();
+ $('claimItemsBody').innerHTML=singleClaimItems.map((r,i)=>`<tr><td>${i+1}</td><td><input aria-label="第${i+1}項目" data-ci="${i}" data-ck="description" value="${esc(r.description)}" placeholder="例如：服務費／稅額"><div class="qj-host" data-qj-host="${i}">${qjStripHtml(r,qjCtxSingle(),`data-qj-s="${i}"`)}</div>${itemAllocHtml(r,String(i),`data-ia-chip="${i}"`,`data-ia-row="${i}"`,false,false,true)}</td><td><input aria-label="第${i+1}項小計" type="number" data-ci="${i}" data-ck="amount" min="0" step="0.01" value="${esc(r.amount)}"></td><td><button type="button" data-ci-remove="${i}" ${singleClaimItems.length===1?'disabled':''}>×</button></td></tr>`).join('');
+ updateSingleClaimTotal();fitClaimBox();
 }
 
 function updateSingleClaimTotal(){const total=claimSum({items:singleClaimItems});$('claimTotal').textContent='NT$ '+fmt(total);singleClaimItems.forEach((it,i)=>refreshItemAlloc($('claimItemsBody').querySelector('[data-ia-host="'+i+'"]'),it));
  const inv=Number($('amount').value)||0;$('claimAmountWarning').textContent=inv>0&&Math.abs(total-inv)>0.01?'⚠ 請款合計與發票總計不同，無法送出：請調整項目金額，讓合計等於發票總計（存草稿不受影響）。':'';
  $('voucherProvided').value=($('files').files.length+(Number($('editId').dataset.existingFiles)||0))+' 件';
+ {const c=$('fstepCount');if(c)c.textContent=' ('+singleClaimItems.length+')'+($('claimAmountWarning').textContent?' ⚠':'')}
 }
+// 發票登錄表單分步（窄螢幕：發票資料／請款項目／付款與備註三步，每步一頁看完；桌機兩欄全部同時顯示，步驟列不出現）
+function setFormStep(n){const f=$('invoiceForm');f.dataset.step=String(n);f.querySelectorAll('[data-fstep]').forEach(b=>{const on=b.dataset.fstep===String(n);b.classList.toggle('on',on);b.setAttribute('aria-selected',String(on))});fitClaimBox()}
+// 上方的選檔列、辨識結果、申請欄位高度變了（例如展開辨識結果），請款項目框跟著重算
+if(window.ResizeObserver){const ro=new ResizeObserver(()=>fitClaimBox());for(const s of ['#uploadControls','#singleMode .entry-top','#singleMode .ocr-box','#invoiceForm .fstep-top'])document.querySelectorAll(s).forEach(n=>ro.observe(n))}
+$('invoiceForm').addEventListener('click',e=>{const b=e.target.closest('[data-fstep]');if(b)setFormStep(b.dataset.fstep)});
+$('ocrStatus').addEventListener('click',()=>$('ocrStatus').classList.toggle('open')); // 手機版辨識狀態預設只顯示一行，點一下展開全文
+$('entryToCsv').onclick=()=>$('chooseCSV').click(); // 手機版單筆登錄時，上方「拍照／CSV」選擇列收起來，改從標題列切到 CSV 匯入
+// 送出前的欄位檢查：第一個有問題的欄位如果在別的步驟，先切過去（看不見的欄位瀏覽器沒辦法提示）
+function reportFormValidity(){const f=$('invoiceForm'),bad=f.querySelector(':invalid'),st=bad&&bad.closest('.fstep');if(st&&getComputedStyle(st).display==='none')setFormStep(st.dataset.step);return f.reportValidity()}
 function linkSingleAmount(){if(singleAmountLinked&&singleClaimItems.length===1){singleClaimItems[0].amount=moneyValue($('amount').value);displaySingleClaimItems()}else updateSingleClaimTotal()}
 let singlePassbookExisting=null;
 function loadSingleClaim(claim,item){
@@ -1326,23 +1437,165 @@ $('claimItemsBody').addEventListener('click',e=>{const b=e.target.closest('[data
  displaySingleClaimItems()});
 $('qjGroup').onclick=()=>{const next=qjRegroup(singleClaimItems,qjCtxSingle(),$('dept').value);if(!next)return toast('沒有可以合併的項目：同一品類（例如咖啡、雞腿飯都是食品）的項目才會合併');
  const n=singleClaimItems.length;singleClaimItems=next;singleAmountLinked=false;displaySingleClaimItems();toast('已把 '+n+' 項整理成 '+next.length+' 項（金額合計不變）；分攤沿用每組的第一項，請確認用途與分攤')};
+// 辨識出發票明細（QR code）之後轉成分類：同品類合併成請款項目。auto＝辨識完自動做，只有請款項目還沒動過（空白，或還是上次自動整理的結果）才取代；
+// 按「重新依發票明細整理」（auto=false）則是已經填了內容會先問。回傳整理後的項數（0＝沒做）
+const qjItemsSnap=items=>JSON.stringify((items||[]).map(l=>[l.description,Number(l.amount)||0]));
+const qjItemsBlank=items=>(items||[]).every(x=>(!x.description||x.description==='發票費用')&&!moneyValue(x.amount));
+function qjGroupsFromQR(qr,ctx,dept){
+ const cl=window.EInvoiceQR.claimLines(qr),groups=QuickJudge.groupLines(cl.lines,ctx);
+ return {note:cl.note,groups,items:groups.map(g=>({description:g.description,amount:g.amount,accountCode:'',accountName:'',allocations:[{dept:dept||'',ratio:100}]}))};
+}
+function qjFillSingle(qr,auto){
+ if(!qr||!qr.items||!qr.items.length)return 0;
+ const r=qjGroupsFromQR(qr,qjCtxSingle(),$('dept').value);if(!r.groups.length)return 0;
+ const untouched=qjItemsBlank(singleClaimItems)||qjItemsSnap(singleClaimItems)===window.qjAutoSnap;
+ if(auto?!untouched:!untouched&&!confirm('目前已經填了請款項目，要換成依發票明細整理的結果嗎？'))return 0;
+ singleClaimItems=r.items;singleAmountLinked=false;displaySingleClaimItems();window.qjAutoSnap=qjItemsSnap(singleClaimItems);
+ return r.groups.length;
+}
 $('ocrValues').addEventListener('click',e=>{if(!e.target.closest('#qjFromQR')||!window.qjQR)return;
- const cl=window.EInvoiceQR.claimLines(window.qjQR),groups=QuickJudge.groupLines(cl.lines,qjCtxSingle());
- if(singleClaimItems.some(x=>(x.description&&x.description!=='發票費用')||moneyValue(x.amount)>0)&&!confirm('目前已經填了請款項目，要換成依發票明細整理的結果嗎？'))return;
- singleClaimItems=groups.map(g=>({description:g.description,amount:g.amount,accountCode:'',accountName:'',allocations:[{dept:$('dept').value||'',ratio:100}]}));singleAmountLinked=false;displaySingleClaimItems();
- toast('已依發票明細整理成 '+groups.length+' 項（'+cl.note+'）；食品請選用途，並確認分攤')});
+ const n=qjFillSingle(window.qjQR,false);if(n)toast('已依發票明細整理成 '+n+' 項；食品請選用途，並確認分攤')});
+// ===== 🗄 資料庫（集中管理）：所有資料庫的總覽與維護，只有管理員。各表單只讀取使用；原本散在「會計科目」頁與「執行長發票上傳」頁的資料庫面板都搬到這裡 =====
+const DB_CATALOG=[
+ {id:'accounts',pane:'accounts',icon:'📒',name:'會計科目表',store:'accounts',desc:'正確的科目代號與名稱：財務覆核只能選表內的科目，輸入代號自動帶出名稱',used:'財務覆核、快速判讀',who:'管理員、財務'},
+ {id:'ledger',pane:'ledger',icon:'📚',name:'歷史會計科目對照庫',store:'ledger',desc:'過去「項目說明 → 科目」的案例，用來建議科目（和科目表分開存放）',used:'財務覆核',who:'管理員、財務'},
+ {id:'ceohistory',pane:'ceohistory',icon:'🗂',name:'歷史歸類資料庫',store:'ceohistory',desc:'執行長過去申請：統編／廠商／支付對象／用途 → 費用歸哪個部門',used:'執行長發票上傳',who:'管理員、執行長'},
+ {id:'ceorules',pane:'ceorules',icon:'📖',name:'發票判斷標準',store:'ceorules',desc:'商家／關鍵字 → 要不要請款、附註（Y／N-部門費用類別）、卡別、不處理清單',used:'執行長發票上傳',who:'管理員、執行長'},
+ {id:'qjrules',pane:'qjrules',icon:'🔎',name:'快速判讀規則',store:'organization',countText:()=>QuickJudge.getRules().cats.length+' 個品類',desc:'品名 → 品類 → 用途 → 科目名稱的關鍵字表（食品-研發／職工福利／交際費…）；存在組織資料的 qjrules 紀錄',used:'發票登錄、財務覆核',who:'管理員'},
+ {id:'org',page:'organization',icon:'🏢',name:'部門／組織',store:'organization',desc:'部門、主管、科目代號編碼、金額分級（快速判讀規則也存在同一個資料集）',used:'所有表單',who:'管理員'},
+ {id:'users',page:'accounts',icon:'👤',name:'帳號／權限',store:null,desc:'Gmail 登入名單、角色、頁面權限、職位（存在雲端指令碼屬性，不是資料夾檔案）',used:'登入、簽核',who:'管理員'},
+ {id:'flows',page:'flows',icon:'🧭',name:'簽核流程設定',store:'flowcfg',desc:'各表單的簽核流程、職位清單與變更紀錄',used:'簽呈、請購單等',who:'管理員'},
+ {id:'invoices',page:'list',icon:'🧾',name:'發票與請款單',store:'invoices',desc:'所有發票登錄、請款、簽核與付款紀錄（附件另存在「附件」資料夾）',used:'請款流程',who:'依簽核流程'},
+ {id:'memos',page:'inbox',icon:'📝',name:'簽呈與各式表單',store:'memos',desc:'請購單、出差申請單、印刷品送印申請等所有簽呈（附件另存）',used:'簽呈流程',who:'依簽核流程'},
+ {id:'vendors',icon:'🏷',name:'廠商資料庫（舊版）',store:'vendors',desc:'舊版留下的資料，畫面已經不使用，可留著備查',used:'（已停用）',who:'—'}
+];
+let dbInfoData=null,dbPane='overview',dbBusy=false,dbErr='';
+const dbStoreInfo=s=>dbInfoData&&dbInfoData.stores&&dbInfoData.stores.find(x=>x.store===s);
+const fmtBytes=n=>n>=1048576?(n/1048576).toFixed(1)+' MB':n>=1024?Math.round(n/1024)+' KB':(Number(n)||0)+' B';
+const fmtAt=ms=>ms?new Date(ms).toLocaleString('zh-TW',{hour12:false}):'—';
+async function loadDbInfo(){
+ if(dbBusy)return;dbBusy=true;dbErr='';
+ try{dbInfoData=await InvCloud.get({action:'dbinfo'})}catch(e){dbErr=/unknown|未知/.test(e.message||'')?'資料庫總覽需要新版後端（還沒部署）':(e.message||String(e))}
+ finally{dbBusy=false}
+ renderDbOverview();renderDbList();
+}
+function dbCount(c){if(c.countText)return c.countText();const s=c.store&&dbStoreInfo(c.store);if(c.id==='users')return dbInfoData?dbInfoData.users+' 人':'—';return s?s.count+' 筆':'—'}
+function renderDbList(){
+ const items=[{id:'overview',icon:'🗄',name:'總覽',sub:dbInfoData?dbInfoData.stores.length+' 個資料集｜'+fmtBytes(dbInfoData.bytes):''}].concat(DB_CATALOG.filter(c=>c.pane).map(c=>({id:c.pane,icon:c.icon,name:c.name,sub:dbCount(c)})));
+ $('dbList').innerHTML=items.map(x=>'<button type="button" class="db-item'+(x.id===dbPane?' on':'')+'" data-db-open="'+x.id+'"><span>'+x.icon+' '+esc(x.name)+'</span><small>'+esc(x.sub||'')+'</small></button>').join('');
+}
+function renderDbOverview(){
+ const host=$('dbPane-overview');if(!host)return;
+ const rows=DB_CATALOG.map(c=>{const s=c.store&&dbStoreInfo(c.store);
+  return '<tr><td data-label="資料庫"><b>'+c.icon+' '+esc(c.name)+'</b><div class="muted small">'+esc(c.desc)+'</div></td><td data-label="筆數">'+esc(dbCount(c))+'</td><td data-label="大小">'+(s?esc(fmtBytes(s.bytes)):'—')+'</td><td data-label="最後更新">'+(s&&s.at?esc(fmtAt(s.at))+'<div class="muted small">'+esc(s.by||'')+'｜第 '+s.v+' 版</div>':'—')+'</td><td data-label="誰能改">'+esc(c.who)+'</td><td data-label="用在哪">'+esc(c.used)+'</td><td data-label=""  class="act"><div class="cv"><button type="button" '+(c.pane?'data-db-open="'+c.pane+'"':c.page?'data-db-page="'+c.page+'"':'disabled')+'>'+(c.pane?'管理':c.page?'前往':'—')+'</button></div></td></tr>'}).join('');
+ host.innerHTML='<div class="panel"><div class="flex"><h2 style="margin:0">🗄 資料庫總覽</h2><div class="spacer"></div><button type="button" id="dbRefresh">🔄 重新整理</button>'+(dbInfoData&&dbInfoData.folderUrl?'<a class="btn" href="'+esc(dbInfoData.folderUrl)+'" target="_blank" rel="noopener">📁 開啟雲端資料夾</a>':'')+'<button type="button" data-db-page="settings">💾 備份與還原</button></div>'+
+  (dbErr?'<div class="warn" style="margin-top:10px">'+esc(dbErr)+'</div>':'')+
+  '<p class="muted">每種資料各存成一個檔案，放在同一個雲端資料夾（「發票簽核系統_雲端資料」）；每天凌晨自動完整備份。'+(dbInfoData?'目前共 '+dbInfoData.stores.length+' 個資料集、'+fmtBytes(dbInfoData.bytes)+'、帳號 '+dbInfoData.users+' 人。':(dbBusy?'讀取中…':''))+'</p>'+
+  '<div class="tablewrap"><table><thead><tr><th>資料庫</th><th>筆數</th><th>大小</th><th>最後更新</th><th>誰能改</th><th>用在哪</th><th></th></tr></thead><tbody>'+rows+'</tbody></table></div></div>';
+}
+function dbShow(id){
+ dbPane=id||'overview';
+ document.querySelectorAll('#dbadmin .db-pane').forEach(p=>p.classList.toggle('hide',p.dataset.db!==dbPane));
+ if(dbPane==='overview')loadDbInfo();
+ else if(dbPane==='ceohistory')loadCeoHist(false);
+ else if(dbPane==='ceorules'){loadCeoRules(false);ceoRuleRender()}
+ else if(dbPane==='qjrules')renderQjEditor(true);
+ renderDbList();
+}
+function renderDbAdmin(){if(!canPage('dbadmin'))return;renderDbList();dbShow(dbPane)}
+$('dbadmin').addEventListener('click',e=>{
+ const o=e.target.closest('[data-db-open]');if(o)return dbShow(o.dataset.dbOpen);
+ const g=e.target.closest('[data-db-page]');if(g)return tab(g.dataset.dbPage);
+ if(e.target.closest('#dbRefresh'))loadDbInfo();
+});
+
+// --- 快速判讀規則編輯（品類、用途關鍵字、對應科目名稱）：存在組織資料的 qjrules 紀錄，所有人讀得到、只有管理員寫得進去 ---
+let qjDraft=null;
+const qjSplit=s=>String(s||'').split(/[\n,，、;；]+/).map(x=>x.trim()).filter(Boolean);
+const qjJoin=a=>(a||[]).join('、');
+function qjTypeOf(c){return c.purposes?'purposes':c.fixed?'fixed':'plain'}
+function renderQjEditor(reload){
+ const host=$('dbPane-qjrules');if(!host)return;
+ if(!qjDraft||reload)qjDraft=QuickJudge.getRules();
+ const rec=orgQjRec;
+ host.innerHTML='<div class="panel qj-ed"><h2>🔎 快速判讀規則</h2>'+
+  '<p class="muted">發票登錄與財務覆核的「快速判讀」都用這裡的規則：品名含<b>品類關鍵字</b>就歸那一類（多個都符合時取最長的關鍵字）；品類若標成「要再判斷用途」（例如食品），再依品名、請款用途、廠商名稱裡的<b>用途關鍵字</b>判斷是哪一個用途，用途對應一個會計科目名稱。名稱都要和<b>會計科目表</b>裡的科目名稱一樣才找得到代號。改完按「儲存到雲端」，所有人下次開網頁就會用新規則；只是建議，不會自動改單據。</p>'+
+  '<div class="note" id="qjEdNote">'+(rec?'目前使用雲端自訂規則（'+esc(rec.by||'')+'，'+esc(String(rec.at||'').slice(0,16).replace('T',' '))+' 儲存）。':'目前使用內建預設規則（還沒有自訂過）。')+'下面是編輯中的草稿，按「儲存到雲端」才會生效。</div>'+
+  '<h3>① 用途（研發／職工福利／交際費…）</h3><div class="tablewrap"><table class="qj-tbl"><thead><tr><th>用途名稱</th><th>對應會計科目名稱</th><th>用途關鍵字（用「、」或換行分開）</th><th></th></tr></thead><tbody id="qjPurposeBody"></tbody></table></div><div class="actions"><button type="button" id="qjAddPurpose">＋ 新增用途</button></div>'+
+  '<h3>② 品類（咖啡、雞腿飯 → 食品…）</h3><div class="tablewrap"><table class="qj-tbl"><thead><tr><th>品類名稱</th><th>類型</th><th>會計科目名稱（依序找第一個有的）</th><th>品類關鍵字（用「、」或換行分開）</th><th></th></tr></thead><tbody id="qjCatBody"></tbody></table></div><div class="actions"><button type="button" id="qjAddCat">＋ 新增品類</button></div>'+
+  '<div class="actions" style="margin-top:14px"><button class="primary" type="button" id="qjSave">儲存到雲端</button><button type="button" id="qjResetDraft">草稿還原成內建預設</button><button type="button" id="qjDropCloud"'+(rec?'':' disabled')+'>刪除雲端自訂規則（回到內建預設）</button><button type="button" id="qjExport">匯出 JSON</button><label class="btn" for="qjImportFile" style="cursor:pointer">匯入 JSON</label><input id="qjImportFile" type="file" accept=".json,application/json" class="hide"></div>'+
+  '<h3>③ 試試看（用目前的草稿判讀）</h3><div class="toolbar"><input id="qjTry" placeholder="品名或項目說明，例如：咖啡、雞腿飯、蛋白粉" style="min-width:260px"><input id="qjTryCtx" placeholder="（選填）請款用途或廠商，例如：拜訪客戶" style="min-width:260px"></div><div id="qjTryOut" class="note" style="margin-top:6px">輸入品名就會顯示判讀結果。</div></div>';
+ renderQjTables();
+}
+function renderQjTables(){
+ const d=qjDraft;if(!d)return;
+ $('qjPurposeBody').innerHTML=d.purposes.map((p,i)=>'<tr><td><input data-qp="'+i+'" data-qk="name" value="'+esc(p.name)+'" maxlength="8"></td><td><input data-qp="'+i+'" data-qk="acct" value="'+esc(p.acct)+'" maxlength="20" placeholder="例如：研發費"></td><td><textarea data-qp="'+i+'" data-qk="cues" rows="2">'+esc(qjJoin(p.cues))+'</textarea></td><td><button type="button" data-qp-del="'+i+'"'+(d.purposes.length<=1?' disabled':'')+'>×</button></td></tr>').join('');
+ $('qjCatBody').innerHTML=d.cats.map((c,i)=>{const ty=qjTypeOf(c);
+  return '<tr><td><input data-qc="'+i+'" data-qk="label" value="'+esc(c.label)+'" maxlength="12"></td><td><select data-qc="'+i+'" data-qk="type"><option value="plain"'+(ty==='plain'?' selected':'')+'>一般（直接對應科目）</option><option value="purposes"'+(ty==='purposes'?' selected':'')+'>要再判斷用途</option><option value="fixed"'+(ty==='fixed'?' selected':'')+'>固定用途</option></select>'+(ty==='fixed'?'<input data-qc="'+i+'" data-qk="fixed" value="'+esc(c.fixed||'')+'" maxlength="8" placeholder="用途名稱" style="margin-top:4px">':'')+'</td><td>'+(ty==='purposes'?'<span class="muted small">依用途（上表）決定</span>':'<input data-qc="'+i+'" data-qk="acct" value="'+esc(qjJoin(c.acct))+'" placeholder="例如：差旅費">')+'</td><td><textarea data-qc="'+i+'" data-qk="kw" rows="2">'+esc(qjJoin(c.kw))+'</textarea></td><td><button type="button" data-qc-del="'+i+'"'+(d.cats.length<=1?' disabled':'')+'>×</button></td></tr>'}).join('');
+}
+function qjTryRun(){
+ const out=$('qjTryOut'),q=$('qjTry').value.trim();if(!out)return;
+ if(!q){out.textContent='輸入品名就會顯示判讀結果。';return}
+ const r=QuickJudge.sanitize(qjDraft);if(!r.ok){out.textContent='草稿有問題：'+r.error;return}
+ const keep=QuickJudge.getRules();QuickJudge.setRules(r);
+ let j;try{j=QuickJudge.judgeLine(q,{purposeText:$('qjTryCtx').value})}finally{QuickJudge.setRules(keep)}
+ out.innerHTML=j?'品類：<b>'+esc(j.cat)+'</b>｜結果：<b>'+esc(j.label)+'</b>'+(j.acct.length?'｜會計科目名稱：<b>'+esc(j.acct.join(' 或 '))+'</b>':'')+(j.needsPurpose?'｜<span class="muted">用途判斷不出來，登錄時會請申請人選：'+esc(j.options.join('、'))+'</span>':'')+(j.basis==='context'?'<span class="muted">（依請款用途／廠商判斷）</span>':''):'認不出品類（登錄時不會有快速判讀）。';
+}
+$('dbPane-qjrules').addEventListener('input',e=>{
+ const x=e.target,d=qjDraft;if(!d)return;
+ if(x.dataset.qp!==undefined){const p=d.purposes[+x.dataset.qp];if(!p)return;const k=x.dataset.qk;p[k]=k==='cues'?qjSplit(x.value):x.value;qjTryRun()}
+ else if(x.dataset.qc!==undefined){const c=d.cats[+x.dataset.qc];if(!c)return;const k=x.dataset.qk;
+  if(k==='type')return;
+  if(k==='kw'||k==='acct')c[k]=qjSplit(x.value);else c[k]=x.value;qjTryRun()}
+ else if(x.id==='qjTry'||x.id==='qjTryCtx')qjTryRun();
+});
+$('dbPane-qjrules').addEventListener('change',e=>{
+ const x=e.target,d=qjDraft;if(!d)return;
+ if(x.dataset.qc!==undefined&&x.dataset.qk==='type'){const c=d.cats[+x.dataset.qc];if(!c)return;delete c.purposes;delete c.fixed;
+  if(x.value==='purposes'){c.purposes=true;c.acct=[]}else if(x.value==='fixed')c.fixed=c.fixed||d.purposes[0]?.name||'用途';
+  renderQjTables();qjTryRun()}
+ else if(x.id==='qjImportFile'&&x.files[0]){const f=x.files[0];x.value='';
+  f.text().then(txt=>{let cfg;try{cfg=JSON.parse(txt)}catch(er){return toast('不是有效的 JSON 檔')}const r=QuickJudge.sanitize(cfg);if(!r.ok)return toast('匯入失敗：'+r.error);qjDraft={cats:r.cats,purposes:r.purposes};renderQjTables();qjTryRun();toast('已匯入成草稿（還沒儲存到雲端）'+(r.warnings.length?'；'+r.warnings.join('；'):''))})}
+});
+$('dbPane-qjrules').addEventListener('click',async e=>{
+ const d=qjDraft;if(!d)return;
+ const dp=e.target.closest('[data-qp-del]'),dc=e.target.closest('[data-qc-del]');
+ if(dp){d.purposes.splice(+dp.dataset.qpDel,1);renderQjTables();return}
+ if(dc){d.cats.splice(+dc.dataset.qcDel,1);renderQjTables();return}
+ const id=e.target.closest('button')?.id;
+ if(id==='qjAddPurpose'){d.purposes.push({name:'',acct:'',cues:[]});renderQjTables()}
+ else if(id==='qjAddCat'){d.cats.push({label:'',acct:[],kw:[]});renderQjTables()}
+ else if(id==='qjResetDraft'){if(!confirm('把編輯中的草稿換成內建預設規則？（雲端的規則不會變，要按「儲存到雲端」才會生效）'))return;qjDraft=QuickJudge.defaultRules();renderQjTables();qjTryRun()}
+ else if(id==='qjExport'){const r=QuickJudge.sanitize(d);download('快速判讀規則.json',JSON.stringify(r.ok?{cats:r.cats,purposes:r.purposes}:d,null,1),'application/json')}
+ else if(id==='qjSave')await qjSave();
+ else if(id==='qjDropCloud')await qjDropCloud();
+});
+async function qjSave(){
+ const r=QuickJudge.sanitize(qjDraft);if(!r.ok)return toast('不能儲存：'+r.error);
+ const rec={...(orgQjRec||{}),id:'qjrules',cats:r.cats,purposes:r.purposes,at:new Date().toISOString(),by:authUser?.name||authUser?.email||''};
+ try{
+  orgQjRec=await orgPut(rec);QuickJudge.setRules(orgQjRec);qjDraft=QuickJudge.getRules();
+  renderQjEditor(false);renderDbList();qjRefreshSingleAll();
+  toast('已儲存快速判讀規則'+(r.warnings.length?'（'+r.warnings.join('；')+'）':''));
+ }catch(e){toast('儲存失敗：'+(e.message||e))}
+}
+async function qjDropCloud(){
+ if(!orgQjRec||!confirm('刪除雲端自訂的快速判讀規則，所有人改用內建預設規則？'))return;
+ try{await InvCloud.call('del',{store:'organization',id:'qjrules'});await idbDel(OSTORE,'qjrules');orgQjRec=null;QuickJudge.resetRules();qjDraft=QuickJudge.getRules();renderQjEditor(false);renderDbList();qjRefreshSingleAll();toast('已刪除，回到內建預設規則')}
+ catch(e){toast('刪除失敗：'+(e.message||e))}
+}
 
 $('files').addEventListener('change',updateSingleClaimTotal);
 $('payment').addEventListener('change',updateTransferMode);$('transferHistory').addEventListener('change',updateTransferMode);
-function resetForm(){$('invoiceForm').reset();$('editId').value='';$('editId').dataset.existingFiles='0';$('entryTitle').textContent=entryBaseTitle();
+function resetForm(){$('invoiceForm').reset();setFormStep(1);allocFoldOpen.clear();$('editId').value='';$('editId').dataset.existingFiles='0';$('entryTitle').textContent=entryBaseTitle();
  // 清除（含送出簽核後）會把部門清空；一般員工只有自己的部門，直接帶回去，不用每張單重選
  try{const as=allowedDeptNames();if(authUser&&authUser.dept&&as.includes(authUser.dept))$('dept').value=authUser.dept}catch(e){}$('invoiceDate').value=claimToday();$('requestDate').value='';singlePassbookExisting=null;$('passbookFile').value='';singleClaimItems=[{description:'發票費用',amount:0,accountCode:'',accountName:'',allocations:[{dept:$('dept').value||'',ratio:100}]}];singleAmountLinked=true;displaySingleClaimItems();updateTransferMode();syncApplicantHints();syncVoucherMode();ceoResetState();window.lastSingleOCRVendor='';window.lastSingleOCRTax='';$('vendorLookupStatus').textContent='請輸入賣方統編以核對廠商名稱';$('vendorLookupStatus').className='lookup-note'}$('resetForm').onclick=resetForm;resetForm();
 async function readFiles(){const fl=Array.from($('files').files);if(fl.length>5)throw Error('一次最多上傳 5 個附件');const allowed=['image/jpeg','image/png','image/webp','application/pdf'];for(const f of fl){if(!allowed.includes(f.type))throw Error('僅支援 JPG、PNG、WEBP、PDF');if(f.size>10*1024*1024)throw Error('單一附件不得超過 10MB')}return fl.map(f=>({name:f.name,type:f.type,size:f.size,blob:f}))}
-async function saveInvoiceCore(status){if(!canPage('entry'))return toast('沒有發票登錄權限');if(status==='pending'&&!$('invoiceForm').reportValidity())return;try{if(!canSubmitAs($('dept').value,$('applicant').value))throw Error('只能以本人姓名與所屬部門提出申請');const id=$('editId').value;const old=id?await get(id):null;if(old&&!canReadInvoice(old))throw Error('無法編輯其他人的發票');if(old&&!['draft','rejected'].includes(old.status))throw Error('此筆發票目前無法編輯');const attachments=[...(old?.attachments||[]),...(await readFiles())];if(attachments.length>5)throw Error('單筆發票最多保留 5 個附件');const claim=collectSingleClaim(attachments);claim.passbook=await getSinglePassbook();claim.requestDate=status==='pending'?claimToday():'';const issues=claimIssues(claim,Number($('amount').value),status==='pending');if(issues.length){if(issues.some(m=>/分攤/.test(m)))document.querySelector('#claimItemsBody .allocation-feedback.invalid')?.scrollIntoView({block:'center'});throw Error(issues.join('；'))}const missing=claim.voucherMissing;let invNo=$('invoiceNo').value.trim(),vendorName=$('vendor').value.trim();
+async function saveInvoiceCore(status){if(!canPage('entry'))return toast('沒有發票登錄權限');if(status==='pending'&&!reportFormValidity())return;try{if(!canSubmitAs($('dept').value,$('applicant').value))throw Error('只能以本人姓名與所屬部門提出申請');const id=$('editId').value;const old=id?await get(id):null;if(old&&!canReadInvoice(old))throw Error('無法編輯其他人的發票');if(old&&!['draft','rejected'].includes(old.status))throw Error('此筆發票目前無法編輯');const attachments=[...(old?.attachments||[]),...(await readFiles())];if(attachments.length>5)throw Error('單筆發票最多保留 5 個附件');const claim=collectSingleClaim(attachments);claim.passbook=await getSinglePassbook();claim.requestDate=status==='pending'?claimToday():'';const issues=claimIssues(claim,Number($('amount').value),status==='pending');if(issues.length){setFormStep(issues.some(m=>/請款項目|合計|分攤/.test(m))?2:issues.some(m=>/支付對象|存摺/.test(m))?3:1);if(issues.some(m=>/分攤/.test(m)))document.querySelector('#claimItemsBody .allocation-feedback.invalid')?.scrollIntoView({block:'center'});throw Error(issues.join('；'))}const missing=claim.voucherMissing;let invNo=$('invoiceNo').value.trim(),vendorName=$('vendor').value.trim();
  if(missing>0){if(!invNo)invNo='待補-'+claimToday().replace(/-/g,'')+'-'+Math.random().toString(36).slice(2,6).toUpperCase();if(!vendorName)vendorName=claim.payee||'（待補憑證）'}else if(/^待補-/.test(invNo))throw Error('請填入真正的發票號碼，或勾選「目前還沒有發票／憑證」');
  const voucherObj=missing>0?{state:'pending',placeholder:/^待補-/.test(invNo)}:(old?.voucher&&old.voucher.state!=='pending'?old.voucher:null);
  let item={id:old?.id||uid(),invoiceDate:$('invoiceDate').value,invoiceNo:invNo,vendor:vendorName,taxId:$('taxId').value.trim(),vendorSource:$('vendorLookupStatus').textContent,dept:$('dept').value,applicant:$('applicant').value.trim(),category:old?.category||'其他費用',amount:Number($('amount').value),payment:claim.paymentMethod,description:claim.purpose,memo:entryMode==='ceo'?'':$('memo').value.trim(),claim,attachments,status,history:old?.history||[],createdAt:old?.createdAt||now(),updatedAt:new Date().toISOString(),...(voucherObj?{voucher:voucherObj}:{})};if(status==='pending'&&(!item.invoiceNo||!item.vendor||!(item.amount>0)||!item.dept||!item.applicant))throw Error('請填完整發票基本資料');prepareRouting(item);audit(item,status==='draft'?'儲存草稿':routingAction(item));await put(item);resetForm();if(window.clearRecognitionPanel)window.clearRecognitionPanel();await refresh();if(canPage('list'))tab('list');toast(status==='draft'?'草稿儲存成功':item.skipManagerApproval?'已送交執行長簽核':'已送交部門主管簽核')}catch(e){toast(e.message)}}$('invoiceForm').onsubmit=e=>{e.preventDefault();saveInvoice('pending')};$('saveDraft').onclick=()=>saveInvoice('draft');
-async function editItem(id){let i=await get(id);if(!canPage('entry')||!canReadInvoice(i)||!['draft','rejected'].includes(i.status))return toast('此筆無法編輯');for(const k of ['invoiceDate','invoiceNo','vendor','taxId','dept','amount','memo'])$(k).value=i[k]??'';$('editId').value=id;$('editId').dataset.existingFiles=String((i.attachments||[]).length);loadSingleClaim(i.claim,i);syncApplicantHints();$('applicant').value=i.applicant||'';syncApplicantSubmitLabel();updateWhoChip();$('entryTitle').textContent='編輯發票與請款單：'+i.invoiceNo;$('files').value='';tab(canPage('entry')?'entry':'ceoentry');setEntryMode('single')}
+async function editItem(id){let i=await get(id);if(!canPage('entry')||!canReadInvoice(i)||!['draft','rejected'].includes(i.status))return toast('此筆無法編輯');for(const k of ['invoiceDate','invoiceNo','vendor','taxId','dept','amount','memo'])$(k).value=i[k]??'';$('editId').value=id;$('editId').dataset.existingFiles=String((i.attachments||[]).length);loadSingleClaim(i.claim,i);syncApplicantHints();$('applicant').value=i.applicant||'';syncApplicantSubmitLabel();updateWhoChip();$('entryTitle').textContent='編輯發票與請款單：'+i.invoiceNo;$('files').value='';tab(canPage('entry')?'entry':'ceoentry');setEntryMode('single');setFormStep(1)}
 async function deleteDraft(id){const i=await get(id);if(!i||i.status!=='draft')return toast('只能刪除草稿；這張已不是草稿或已不存在');
  if(!confirm('確定要刪除這張草稿嗎？\n\n發票號碼：'+(i.invoiceNo||'（未填）')+'\n廠商：'+(i.vendor||'（未填）')+'\n金額：NT$ '+fmt(i.amount)+'\n\n刪除後無法復原。'))return;
  try{await idbDel(STORE,id);if($('editId').value===id)resetForm();await refresh();toast('草稿已刪除');
@@ -1568,8 +1821,6 @@ function applyEntryMode(mode){
  $('entryHomeDesc').textContent=ceo?(authUser&&authUser.role==='admin'?'管理員代執行長上傳：申請人預設是執行長（組織設定的執行長），略過主管關卡；':'執行長的發票請在這裡上傳。申請人固定是執行長；')+'費用屬於哪個部門，系統會依你過去申請過的紀錄（統編、廠商、支付對象、用途）自動歸類，找不到紀錄再自己選。':'單張或多張發票共用同一個上傳入口；也可以匯入 CSV 清單。';
  if(!$('editId').value)$('entryTitle').textContent=entryBaseTitle();
  $('ceoDeptHint').classList.toggle('hide',!ceo);
- $('ceoHistPanel').classList.toggle('hide',!(ceo&&canCeoHistPanel()));
- $('ceoRulePanel').classList.toggle('hide',!(ceo&&canCeoHistPanel()));
  if(ceo){loadCeoHist(false);loadCeoRules(false)}
  ceoRuleRender();
  ceoState.sig='';
@@ -2595,7 +2846,7 @@ async function applyQRToSingle(file){
  try{const lookup=await window.lookupSeller(detected.taxId,'');if(lookup.name)detected.vendor=lookup.name;vendorSource=sellerLookupMessage(lookup);
   el('vendorLookupStatus').textContent=vendorSource;el('vendorLookupStatus').className='lookup-note '+(lookup.verified&&!lookup.conflict?'ok':'warn')}
  catch(e){vendorSource='查詢廠商名稱失敗，請手動輸入';el('vendorLookupStatus').textContent=vendorSource;el('vendorLookupStatus').className='lookup-note warn'}
- const labels={invoiceDate:'發票日期',invoiceNo:'發票號碼',taxId:'廠商統編',vendor:'廠商名稱',amount:'含稅金額'},cards=[];let filled=0;
+ const labels={invoiceDate:'發票日期',invoiceNo:'發票號碼',taxId:'廠商統編',vendor:'廠商名稱',amount:'含稅金額'},cards=[];let filled=0,qjDone=0;
  for(const [key,label] of Object.entries(labels)){const val=detected[key];
   if(val!==undefined&&val!==''){el(key).value=val;if(key==='amount'&&AUTO_FILL_CLAIM_ITEMS)linkSingleAmount();filled++;el(key).style.outline='2px solid #7dafdf';
    cards.push('<div><b>'+label+'（'+(key==='vendor'?esc(vendorSource):'QR code')+'）</b>'+esc(val)+'</div>')}
@@ -2611,12 +2862,14 @@ async function applyQRToSingle(file){
   cards.push('<div><b>發票明細（QR code）</b>'+esc(cl.note)+'：'+esc(cl.lines.map(l=>l.description+' '+fmt(l.amount)).join('、'))+'</div>');
  }else{cards.push('<div><b>發票明細（QR code，僅供參考，未自動填入）</b>'+esc(qr.items.length?qr.items.map(i=>i.name+' ×'+i.qty+' @'+i.price).join('；'):'QR code 沒有品項資料')+'</div>');
   // 快速判讀：按了才把明細依品類整理成請款項目（咖啡、雞腿飯 → 食品），不會自動填
-  if(qr.items.length){window.qjQR=qr;cards.push('<div><b>快速判讀</b><button type="button" id="qjFromQR">🔎 依發票明細快速判讀，整理成請款項目</button><span class="muted small">　同一品類合併、金額合計等於發票總計；食品再選用途（研發／職工福利／交際費）</span></div>')}}
+  // 快速判讀：辨識出發票明細之後自動轉成分類（咖啡、雞腿飯 → 食品…），同品類合併成請款項目；請款項目已經有人填過的不取代
+  if(qr.items.length){window.qjQR=qr;qjDone=qjFillSingle(qr,true);
+   cards.push('<div><b>快速判讀</b>'+(qjDone?'已依發票明細自動轉成分類，整理成 '+qjDone+' 項請款項目（同品類合併、合計等於發票總計）。食品請再選用途（研發／職工福利／交際費），並確認分攤。':'請款項目已經有內容，沒有自動取代。')+' <button type="button" id="qjFromQR">🔎 重新依發票明細整理</button></div>')}}
  if(qr.buyerId&&qr.buyerId!=='00000000')cards.push('<div><b>買方統編</b>'+esc(qr.buyerId)+'（請確認是本公司）</div>');
  el('ocrValues').innerHTML=cards.join('');
  el('ocrRaw').textContent='資料來源：發票 QR code（'+(qr.hasRight?'左＋右':'只讀到左邊')+'）\n隨機碼 '+qr.randomCode+'；銷售額 '+qr.sales+'；總計額 '+qr.total+'；品項 '+qr.items.length+'/'+(qr.declaredTotal||qr.items.length);
  el('ocrReview').classList.remove('hide');
- const doneMsg='已從發票 QR code 讀取：'+filled+'/5 欄'+(AUTO_FILL_CLAIM_ITEMS?'，發票明細 '+cl.lines.length+' 筆':'（請款項目明細請自行填寫，QR code 讀到的品項只列在下方供參考）')+'。廠商名稱來源：'+vendorSource+'。請核對後再儲存或送出簽核。';
+ const doneMsg='已從發票 QR code 讀取：'+filled+'/5 欄'+(AUTO_FILL_CLAIM_ITEMS?'，發票明細 '+cl.lines.length+' 筆':qjDone?'，發票明細已自動轉成分類，整理成 '+qjDone+' 項請款項目（食品請選用途、確認分攤）':'（請款項目明細請自行填寫，QR code 讀到的品項只列在下方供參考）')+'。廠商名稱來源：'+vendorSource+'。請核對後再儲存或送出簽核。';
  if(!AUTO_FILL_CLAIM_ITEMS){show(doneMsg);return true}
  show(doneMsg+'（正在背景讀取交易明細的附餐明細…）');
  const snap=claimSnapshot(singleClaimItems),invNo=qr.invoiceNo;
@@ -2764,7 +3017,7 @@ function renderBatch(){
    </div>
    <div class="cgrid">${makeField(i,'dueDate','預定付款日','date','ceo-off')}${makeField(i,'feeDeduction','匯費處理','selectFee','ceo-off')}${makeField(i,'voucherMissing','待補憑證張數','numberZero','ceo-off')}${makeField(i,'memo','備註','textarea','ceo-off')}</div>
    <div style="overflow-x:auto"><table class="claim-lines"><thead><tr><th>序號</th><th>項目說明</th><th>小計（元）</th><th>刪除</th></tr></thead><tbody>
-   ${(r.claim?.items||[]).map((x,k)=>`<tr><td>${k+1}</td><td><input data-bci="${i}" data-bline="${k}" data-blinekey="description" value="${safeVal(x.description)}" ${r.saved?'disabled':''}><div class="qj-host" data-qj-host="b${i}-${k}">${r.saved?'':qjStripHtml(x,qjCtxBatch(r),`data-qj-b="${i}" data-qj-line="${k}"`)}</div>${itemAllocHtml(x,i+'-'+k,'data-bia-chip="'+i+'" data-bia-line="'+k+'"','data-bia-row="'+i+'" data-bia-line="'+k+'"',r.saved)}</td><td><input type="number" min="0" step="0.01" data-bci="${i}" data-bline="${k}" data-blinekey="amount" value="${safeVal(x.amount)}" ${r.saved?'disabled':''}></td><td><button type="button" data-bline-remove="${i}" data-bline-index="${k}" ${(r.claim?.items||[]).length<=1||r.saved?'disabled':''}>×</button></td></tr>`).join('')}
+   ${(r.claim?.items||[]).map((x,k)=>`<tr><td>${k+1}</td><td><input data-bci="${i}" data-bline="${k}" data-blinekey="description" value="${safeVal(x.description)}" ${r.saved?'disabled':''}><div class="qj-host" data-qj-host="b${i}-${k}">${r.saved?'':qjStripHtml(x,qjCtxBatch(r),`data-qj-b="${i}" data-qj-line="${k}"`)}</div>${itemAllocHtml(x,i+'-'+k,'data-bia-chip="'+i+'" data-bia-line="'+k+'"','data-bia-row="'+i+'" data-bia-line="'+k+'"',r.saved,false,true)}</td><td><input type="number" min="0" step="0.01" data-bci="${i}" data-bline="${k}" data-blinekey="amount" value="${safeVal(x.amount)}" ${r.saved?'disabled':''}></td><td><button type="button" data-bline-remove="${i}" data-bline-index="${k}" ${(r.claim?.items||[]).length<=1||r.saved?'disabled':''}>×</button></td></tr>`).join('')}
    </tbody></table></div>
    <div class="actions" style="margin:8px 0"><button type="button" data-bline-add="${i}" ${r.saved?'disabled':''}>＋ 新增項目</button> <button type="button" data-bqj-group="${i}" ${r.saved?'disabled':''} title="把同一品類的項目合併（例如咖啡、雞腿飯 → 食品），並標上用途">🔎 依品類整理</button>${r.qjQR&&!r.saved?` <button type="button" data-bqj-qr="${i}" title="依 QR code 讀到的發票明細，同品類合併成請款項目">🔎 依發票明細整理</button>`:''}</div>
    <div class="claim-total"><span>請款合計</span><strong id="bclaim-total-${i}">NT$ ${fmt(claimSum(r.claim))}</strong></div>
@@ -2897,7 +3150,14 @@ function selectCrossChecked(rounds){
 }
 function applyQRToBatchRow(r,qr){
  const cl=window.EInvoiceQR.claimLines(qr);
- if(!AUTO_FILL_CLAIM_ITEMS){r.qrNote='請款項目明細請自行填寫（未自動帶入 QR code 的品項；可按「依發票明細整理」快速判讀）';r.qjQR=qr.items.length?qr:null;return}
+ if(!AUTO_FILL_CLAIM_ITEMS){
+  r.qjQR=qr.items.length?qr:null;
+  // 快速判讀：辨識出發票明細之後自動轉成分類（同品類合併成請款項目）；請款項目已經有人填過（不是空白、也不是上次自動整理的結果）就不取代
+  if(r.qjQR&&(qjItemsBlank(r.claim.items)||qjItemsSnap(r.claim.items)===r.qjAutoSnap)){
+   const g=qjGroupsFromQR(qr,qjCtxBatch(r),r.values.dept);
+   if(g.groups.length){r.claim.items=g.items;r.claimAutoAmount=false;r.qjAutoSnap=qjItemsSnap(r.claim.items);r.qrNote='發票明細已自動轉成分類，整理成 '+g.groups.length+' 項請款項目（食品請選用途、確認分攤）；'+g.note;return}
+  }
+  r.qrNote='請款項目明細請自行填寫（未自動帶入 QR code 的品項；可按「依發票明細整理」快速判讀）';return}
  r.claim.items=cl.lines.map(l=>({description:l.description,amount:l.amount,accountCode:'',accountName:''}));
  r.claimAutoAmount=cl.lines.length===1;
  if(cl.itemsText&&cl.mode==='total'){const t='發票品項（QR code）：'+cl.itemsText;if(!String(r.values.memo||'').includes(t))r.values.memo=(r.values.memo?r.values.memo+'\n':'')+t}
