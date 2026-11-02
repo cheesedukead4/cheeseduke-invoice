@@ -6,6 +6,7 @@
   'use strict';
 
   var PAID_BY_CARD = '公司卡（已付）'; // N（公司卡已付、不請款）的付款方式
+  var CEO_NAME = '王奕凱'; // 執行長發票的申請人固定是執行長：優先用組織設定的執行長，組織還沒設定時才用這個
 
   // 費用類別 → 部門、會計科目名稱（草稿，部門名稱要和組織裡的部門一樣才會套用；科目名稱要和會計科目表一樣才找得到代號）
   var DEFAULT_TYPES = [
@@ -159,6 +160,6 @@
     });
   }
 
-  var api = { PAID_BY_CARD: PAID_BY_CARD, PAYEE_Y: PAYEE_Y, PAYEE_N: PAYEE_N, payeeFor: payeeFor, isFixedPayee: isFixedPayee, CARD_N: CARD_N, cardFor: cardFor, typesForAcct: typesForAcct, DEFAULT_TYPES: DEFAULT_TYPES, defaultTypes: function () { return clone(DEFAULT_TYPES); }, sanitizeTypes: sanitizeTypes, parseNote: parseNote, typeFor: typeFor, ynFromCard: ynFromCard, resolveCategory: resolveCategory, judgeRule: judgeRule, buildNote: buildNote, toClaim: toClaim, missing: missing, duplicates: duplicates };
+  var api = { PAID_BY_CARD: PAID_BY_CARD, CEO_NAME: CEO_NAME, PAYEE_Y: PAYEE_Y, PAYEE_N: PAYEE_N, payeeFor: payeeFor, isFixedPayee: isFixedPayee, CARD_N: CARD_N, cardFor: cardFor, typesForAcct: typesForAcct, DEFAULT_TYPES: DEFAULT_TYPES, defaultTypes: function () { return clone(DEFAULT_TYPES); }, sanitizeTypes: sanitizeTypes, parseNote: parseNote, typeFor: typeFor, ynFromCard: ynFromCard, resolveCategory: resolveCategory, judgeRule: judgeRule, buildNote: buildNote, toClaim: toClaim, missing: missing, duplicates: duplicates };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.CeoJudge = api;
 })(typeof window !== 'undefined' ? window : this);
