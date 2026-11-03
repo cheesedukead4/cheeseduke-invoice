@@ -272,6 +272,12 @@ input.ro{background:#eef2f8;color:#334155}
 #entry .cgrid{gap:5px 10px;margin:0 0 5px}#entry .voucher-toggle{margin:0 0 5px;padding:4px 10px}
 #entry #invoiceForm .claim-block{margin:0}#entry .sticky-actions{margin-top:6px;padding:6px 0 calc(6px + env(safe-area-inset-bottom))}
 .claim-scroll{overflow:auto;-webkit-overflow-scrolling:touch}#invoiceForm .claim-scroll thead th{position:sticky;top:0;z-index:1}
+/* 執行長發票頁：上方狀態列（即時狀態）＋「上傳發票」「我的發票明細」兩個畫面；只在執行長模式出現 */
+#entry:not(.ceo-mode) .ceo-only{display:none!important}#entry.ceo-mode:not(.ceo-view-mine) #ceoMine{display:none}#entry.ceo-mode.ceo-view-mine>*:not(#ceoBar):not(#ceoMine){display:none!important}
+.ceo-bar{padding:8px 12px}.ceo-bar-top{display:flex;flex-wrap:wrap;gap:8px 12px;align-items:center;justify-content:space-between}.ceo-views{display:flex;gap:6px;flex-wrap:wrap}.ceo-views button{white-space:nowrap;background:#fff;border:1px solid #b6c5da;border-radius:999px;padding:7px 16px;cursor:pointer}.ceo-views button.on{background:var(--blue);color:#fff;border-color:var(--blue)}.ceo-live{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.ceo-kpis{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}.ceo-kpi{display:inline-flex;align-items:baseline;gap:6px;padding:4px 12px;border:1px solid #cfd8e6;border-radius:999px;background:var(--light);font-size:13px;cursor:pointer;min-height:0}.ceo-kpi b{font-size:16px}.ceo-kpi.zero{opacity:.55}.ceo-kpi.on{border-color:var(--blue);background:#dbe7fa}.ceo-kpi.warn b{color:#b42318}
+.ceo-steps{display:flex;flex-wrap:wrap;align-items:center;gap:3px 4px;margin-top:5px;font-size:12px}.ceo-step{padding:1px 8px;border-radius:999px;border:1px solid #cfd8e6;color:var(--muted);background:#fff;white-space:nowrap}.ceo-step.done{background:#e7f6ec;border-color:#9ad3ae;color:#1d6b3a}.ceo-step.cur{background:#fff4d6;border-color:#e8b84a;color:#8a5a00;font-weight:700}.ceo-steps i{width:8px;height:1px;background:#cfd8e6}
+#ceoMineTable tr.ceo-changed td{animation:ceoFlash 3s ease-out}@keyframes ceoFlash{from{background:#fff2b8}to{background:transparent}}.ceo-latest{font-size:12px;color:var(--muted);max-width:260px}.ceo-latest b{color:var(--ink);font-weight:600}
 #entry .claim-lines td{padding:5px}#entry .claim-bar{margin:4px 0}#entry .claim-lines td:nth-child(3){width:120px}#entry .claim-lines td:last-child{width:46px}
 /* 發票登錄頁的快速判讀列收成一行（說明文字改成滑鼠停留提示）；財務覆核視窗維持完整說明 */
 #entry .qj{padding:3px 8px;margin-top:4px}#entry .qj-t,#entry .qj .muted,#entry .qj-pre,#entry .qj-lead{display:none}#entry .qj-chip{padding:2px 9px;min-height:0}
@@ -364,6 +370,7 @@ main{padding-bottom:12px}
 </section>
 
 <section id="entry" class="view hide">
+<div class="panel ceo-only ceo-bar" id="ceoBar"><div class="ceo-bar-top"><div class="ceo-views" role="group" aria-label="執行長發票頁面"><button type="button" class="on" id="ceoViewUpload" data-ceoview="upload" aria-pressed="true">＋ 上傳發票</button><button type="button" id="ceoViewMine" data-ceoview="mine" aria-pressed="false">📋 我的發票明細<span id="ceoMineCount" class="fstep-n"></span></button></div><div class="ceo-live"><span id="ceoLiveNote" class="muted small" aria-live="polite">即時狀態</span><button type="button" id="ceoRefresh">立即更新</button></div></div><div class="ceo-kpis" id="ceoKpis" aria-live="polite"></div></div>
 <div class="panel entry-home compact"><h2 id="entryHomeTitle">發票登錄</h2><p class="muted" id="entryHomeDesc">單張或多張發票共用同一個上傳入口；也可以匯入 CSV 清單。</p>
 <div class="entry-cards" role="group" aria-label="選擇發票登錄方式">
 <button type="button" class="entry-choice" id="chooseSingle" aria-expanded="false"><span class="entry-icon">📷</span><strong>發票拍照／上傳</strong><span>一張自動單筆，多張自動批次</span></button>
@@ -435,6 +442,7 @@ main{padding-bottom:12px}
 <div id="batchProgress" class="note" aria-live="polite">選好多張發票照片後會自動開始辨識，不用再按按鈕。電子發票會優先讀取 QR code；沒有 QR code 的才用文字辨識（首次需要下載辨識模型）。</div>
 <div class="batch-table" id="batchTable"></div><div class="actions"><button id="batchDraft" type="button">儲存勾選項目為草稿</button><button id="batchSubmit" class="primary" type="button">勾選項目送出簽核</button></div>
 <p class="muted small">批次操作會保存每筆發票原始檔作為附件。每張表單均可獨立儲存或送簽；未完成欄位的項目需修正後才能匯入；會檢查與既有紀錄及本次批次重複的發票號碼（搭配統編）。資料可見範圍與簽核權限由雲端後端檢查。</p></div></div>
+<div class="panel ceo-only" id="ceoMine"><div class="toolbar"><input id="ceoMineSearch" placeholder="搜尋發票號碼、廠商、費用類別"><select id="ceoMineStatus"><option value="">全部狀態</option><option value="draft">草稿</option><option value="pending">待主管簽核</option><option value="executive_pending">待執行長簽核</option><option value="approved">待財務覆核</option><option value="finance_ok">已覆核／待付款</option><option value="paid">已付款</option><option value="rejected">已退回</option><option value="v:pending">待補憑證</option></select><input type="month" id="ceoMineMonth" aria-label="月份"><button type="button" id="ceoMineClear">清除條件</button></div><div class="tablewrap" id="ceoMineTable"></div></div>
 </section>
 <section id="list" class="view hide"><div class="panel"><h2>所有發票紀錄</h2><div id="voucherBanner" class="note hide" aria-live="polite"></div><div class="toolbar"><input id="listSearch" placeholder="搜尋號碼、廠商、申請人"><select id="listStatus"><option value="">全部狀態</option><option value="draft">草稿</option><option value="pending">待主管簽核</option><option value="executive_pending">待執行長簽核</option><option value="approved">待財務覆核</option><option value="finance_ok">已覆核／待付款</option><option value="rejected">退回</option><option value="paid">已付款</option><option value="v:pending">待補憑證</option><option value="v:submitted">憑證待財務確認</option></select><input type="month" id="listMonth"><button id="clearList">清除條件</button></div><div class="tablewrap" id="invoiceTable"></div></div></section>
 <section id="approval" class="view hide"><div class="panel"><h2>主管簽核工作台</h2><p class="muted">只有登入帳號的姓名與此張發票指定主管相符，才可核准或退回；管理員可測試所有流程。</p><div class="tablewrap" id="approvalTable"></div></div></section>
@@ -560,7 +568,7 @@ main{padding-bottom:12px}
 'use strict';const DB='invoice_cloud_cache_v1', STORE='invoices', OSTORE='organization', ASTORE='accounts', USTORE='users', LSTORE='ledger_account_history';let database;let current=[];let detailURLs=[];const $=id=>document.getElementById(id);const fmt=v=>new Intl.NumberFormat('zh-TW',{maximumFractionDigits:2}).format(Number(v)||0);const datestr=()=>new Date().toISOString().slice(0,10);const esc=s=>String(s??'').replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));const names={draft:'草稿',pending:'待主管簽核',executive_pending:'待執行長簽核',approved:'待財務覆核',finance_ok:'已覆核／待付款',rejected:'已退回',paid:'已付款'};const roleNames={staff:'員工',manager:'部門主管',executive:'執行長',finance:'財務人員',admin:'系統管理者'};
 
 // ===== 登入身分與頁面權限（Google 登入；雲端後端另外檢查可見範圍與簽核順序）=====
-const PAGE_LABELS={entry:'發票登錄／上傳',ceoentry:'執行長發票上傳',list:'發票明細',approval:'主管簽核',executive:'執行長簽核',finance:'財務整合',organization:'部門／人員架構',settings:'資料備份／說明',accounts:'帳號／權限管理',flows:'簽核流程設定'};
+const PAGE_LABELS={entry:'發票登錄／上傳',ceoentry:'執行長發票',list:'發票明細',approval:'主管簽核',executive:'執行長簽核',finance:'財務整合',organization:'部門／人員架構',settings:'資料備份／說明',accounts:'帳號／權限管理',flows:'簽核流程設定'};
 const ALL_PAGES=Object.keys(PAGE_LABELS);
 const DEFAULT_PAGES={staff:['entry','list'],manager:['entry','list','approval'],executive:['entry','ceoentry','list','executive'],finance:['list','finance'],admin:ALL_PAGES};
 let authUser=null,accountEditId='',authBootstrap=false,curPage='home';
@@ -582,7 +590,7 @@ function applyNav(){if(!authUser)return;
  sub.innerHTML=pages.map(p=>'<button type="button" class="subtab'+(p===curPage?' active':'')+'" data-tab="'+p+'">'+esc(SUB_LABELS[p]||p)+'</button>').join('');
  if(window.renderNav)renderNav()}
 $('subTabs').addEventListener('click',e=>{const b=e.target.closest('.subtab');if(b)tab(b.dataset.tab)});
-let entryMode='normal';const ceoState={deptTouched:false,applying:false,sig:'',catDept:''};
+let entryMode='normal';const ceoState={deptTouched:false,applying:false,sig:'',catDept:''};const ceoMine={view:'upload',status:'',seen:null,flash:new Map(),empty:true};
 const ceoJ={sel:{yn:'',card:'',category:'',status:'',ruleId:'',ruleName:''},touched:{yn:false,card:false,category:false},overrideSkip:false,confirmed:false,judge:null,ruleKey:''}; // 執行長發票判斷的目前選擇（單張登錄）
 function ceoJReset(){ceoJ.sel={yn:'',card:'',category:'',status:'',ruleId:'',ruleName:''};ceoJ.touched={yn:false,card:false,category:false};ceoJ.overrideSkip=false;ceoJ.confirmed=false;ceoJ.judge=null;ceoJ.ruleKey='';ceoJ.catFromItem=false;ceoJ.itemSugg=[];ceoJ.cardAuto=false;ceoState.catDept=''}let ceoRules=[],ceoRulesV=null,ceoRulesBusy=false,ceoRulesErr='',ceoRuleMatches=[];const entryBaseTitle=()=>entryMode==='ceo'?'執行長發票上傳':'發票登錄';
 const normalizeAccount=s=>String(s||'').trim().toLowerCase();
@@ -632,7 +640,8 @@ async function authEnter(me){authUser=meToUser(me);applyAuthUser();let warm=fals
   else{authLock(true);InvCloud.showGate('載入雲端資料中…',false,{hideLogin:true});await bootData(boot)}
   appStarted=true;startPolling()}
  authLock(false);syncOrgControls();render();try{performance.mark('inv-ui-ready')}catch(_){}
- tab('home');if(window.memoRefresh)memoRefresh(true);
+ tab('home');if(location.hash==='#ceo'&&canPage('ceoentry'))tab('ceoentry'); // 網址後面加 #ceo＝登入後直接進執行長發票頁
+ if(window.memoRefresh)memoRefresh(true);
  if(warm)backgroundSync().then(()=>{try{performance.mark('inv-synced')}catch(_){}});else setSyncState('ok');
  if(authUser.role==='admin')await renderAccounts()}
 // 雲端通知「你的角色／部門／頁面變了」：立刻套用，必要時重抓可見的發票
@@ -1026,7 +1035,7 @@ async function migrateCEOManagedPending(){
 async function refresh(){current=(await all()).sort((a,b)=>String(b.updatedAt).localeCompare(String(a.updatedAt)));const counter=$('invoiceResetCount');if(counter)counter.textContent='目前發票筆數：'+current.length+' 筆';render()}function metrics(items){let total=items.reduce((sum,x)=>sum+ +x.amount,0);return [{k:'發票筆數',v:items.length},{k:'登錄金額',v:'NT$ '+fmt(total)},{k:'待主管簽核',v:items.filter(x=>x.status==='pending').length},{k:'待執行長簽核',v:items.filter(x=>x.status==='executive_pending').length},{k:'待財務覆核',v:items.filter(x=>x.status==='approved').length},{k:'待補憑證',v:items.filter(x=>voucherState(x)==='pending').length},{k:'待確認憑證',v:items.filter(x=>voucherState(x)==='submitted').length}].map(x=>`<div class="kpi"><div class="muted">${x.k}</div><strong>${x.v}</strong></div>`).join('')}
 const columns=`<thead><tr><th>日期</th><th>發票號碼</th><th>廠商</th><th>部門／申請人</th><th class="right">金額</th><th>用途</th><th>狀態</th><th>操作</th></tr></thead>`;function table(items,mode='list'){if(!items.length)return '<p class="muted">目前沒有符合條件的紀錄。</p>';return `<table>${columns}<tbody>`+items.map(i=>`<tr><td>${esc(i.invoiceDate)}</td><td><b>${esc(i.invoiceNo)}</b><div class="muted small">附件 ${i.attachments?.length||0} 個</div></td><td>${esc(i.vendor)}</td><td>${esc(departmentLabel(i.dept))}<div class="muted small">${esc(i.applicant)}</div><div class="muted small">主管：${esc(i.skipManagerApproval?(i.ceoApplicant?'執行長本人（略過主管簽核）':i.managerApplicant?'申請人本人（略過主管簽核）':'執行長兼任（略過主管簽核）'):(i.managerName||managerFor(i.dept)||'未設定'))}</div></td><td class="right">${fmt(i.amount)}</td><td>${esc(i.claim?.purpose||i.description||'')}</td><td>${badge(i.status)}${voucherBadge(i)}</td><td><div class="flex"><button data-detail="${esc(i.id)}">查看</button>${mode==='list'&&canSupplementVoucher(i)?`<button type="button" class="primary" data-voucher="${esc(i.id)}">補憑證</button>`:''}${mode==='list'&&canPage('entry')&&['draft','rejected'].includes(i.status)?`<button data-edit="${esc(i.id)}">編輯</button>`:''}${mode==='list'&&i.status==='draft'&&(authUser?.role==='admin'||(canPage('entry')&&i.applicant===authUser?.name&&(i.dept===authUser?.dept||isCeoUser())))?`<button type="button" class="danger" data-delete="${esc(i.id)}">刪除草稿</button>`:''}${mode==='approval'&&i.status==='pending'&&actorMatches(i.managerName||managerFor(i.dept),'manager')?`<button data-action="approve" data-id="${esc(i.id)}">主管核准</button><button data-action="reject" data-id="${esc(i.id)}">退回</button>`:''}${mode==='executive'&&i.status==='executive_pending'&&actorMatches(i.executiveName||orgCEO,'executive')?`<button data-action="execApprove" data-id="${esc(i.id)}">執行長核准</button><button data-action="execReject" data-id="${esc(i.id)}">退回</button>`:''}${mode==='finance'&&can('finance','admin')?`<button type="button" data-claim-print="${esc(i.id)}">🖨️ 列印整份</button>`:''}${mode==='finance'&&can('finance','admin')&&i.status==='approved'?`<button data-action="review" data-id="${esc(i.id)}">財務覆核</button>`:''}${mode==='finance'&&can('finance','admin')&&i.status==='finance_ok'?`<button data-action="paid" data-id="${esc(i.id)}">完成付款</button>`:''}${mode==='finance'&&can('finance','admin')&&['approved','finance_ok'].includes(i.status)?`<button class="danger" data-action="finReject" data-id="${esc(i.id)}">財務退件</button>`:''}${mode==='finance'&&can('finance','admin')&&voucherState(i)==='submitted'?`<button data-action="voucherConfirm" data-id="${esc(i.id)}">確認憑證</button><button class="danger" data-action="voucherReturn" data-id="${esc(i.id)}">退回補件</button>`:''}</div></td></tr>`).join('')+'</tbody></table>'}
 function filtered(type){let items=visibleInvoices(current);if(type==='list'){let q=$('listSearch').value.toLowerCase().trim(),s=$('listStatus').value,m=$('listMonth').value;return items.filter(i=>(!q||[i.invoiceNo,i.vendor,i.applicant,i.dept,i.description].some(v=>String(v||'').toLowerCase().includes(q)))&&(!s||statusMatch(i,s))&&(!m||i.invoiceDate.startsWith(m)))}if(type==='approval')return items.filter(i=>i.status==='pending'&&(authUser?.role==='admin'||i.managerName===authUser?.name));if(type==='executive')return items.filter(i=>i.status==='executive_pending'&&(authUser?.role==='admin'||authUser?.role==='executive'));if(type==='finance'){let m=$('finMonth').value,d=$('finDept').value,s=$('finStatus').value;return items.filter(i=>(!m||i.invoiceDate.startsWith(m))&&(!d||i.dept===d)&&(!s||statusMatch(i,s)))}return items}
-function render(){if(!authUser)return;const scope=visibleInvoices(current);renderVoucherBanner(scope);$('invoiceTable').innerHTML=table(filtered('list'));$('approvalTable').innerHTML=table(filtered('approval'),'approval');$('executiveTable').innerHTML=table(filtered('executive'),'executive');let fi=filtered('finance');$('financeTable').innerHTML=table(fi,'finance');$('finMetrics').innerHTML=metrics(fi);if(window.moduleRender)moduleRender()}
+function render(){if(!authUser)return;const scope=visibleInvoices(current);renderVoucherBanner(scope);$('invoiceTable').innerHTML=table(filtered('list'));$('approvalTable').innerHTML=table(filtered('approval'),'approval');$('executiveTable').innerHTML=table(filtered('executive'),'executive');let fi=filtered('finance');$('financeTable').innerHTML=table(fi,'finance');$('finMetrics').innerHTML=metrics(fi);ceoMineRender();if(window.moduleRender)moduleRender()}
 ['listSearch','listStatus','listMonth','finMonth','finDept','finStatus'].forEach(id=>$(id).addEventListener('input',render));$('clearList').onclick=()=>{$('listSearch').value='';$('listStatus').value='';$('listMonth').value='';render()};
 // ===== v5.4 歷史會計科目建議：只從已提供的歷史紀錄提案，不捏造科目 =====
 let ledgerHistory=[],ledgerInverted=new Map(),ledgerLabels=[];
@@ -1707,7 +1716,7 @@ async function saveInvoiceCore(status){if(!canPage('entry'))return toast('沒有
  const missing=claim.voucherMissing;let invNo=$('invoiceNo').value.trim(),vendorName=$('vendor').value.trim();
  if(missing>0){if(!invNo)invNo='待補-'+claimToday().replace(/-/g,'')+'-'+Math.random().toString(36).slice(2,6).toUpperCase();if(!vendorName)vendorName=claim.payee||'（待補憑證）'}else if(/^待補-/.test(invNo))throw Error('請填入真正的發票號碼，或勾選「目前還沒有發票／憑證」');
  const voucherObj=missing>0?{state:'pending',placeholder:/^待補-/.test(invNo)}:(old?.voucher&&old.voucher.state!=='pending'?old.voucher:null);
- let item={id:old?.id||uid(),invoiceDate:$('invoiceDate').value,invoiceNo:invNo,vendor:vendorName,taxId:$('taxId').value.trim(),vendorSource:$('vendorLookupStatus').textContent,dept:$('dept').value,applicant:$('applicant').value.trim(),category:old?.category||'其他費用',amount:Number($('amount').value),payment:claim.paymentMethod,description:claim.purpose,memo:entryMode==='ceo'?'':$('memo').value.trim(),claim,attachments,status,history:old?.history||[],createdAt:old?.createdAt||now(),updatedAt:new Date().toISOString(),...(voucherObj?{voucher:voucherObj}:{})};if(status==='pending'&&(!item.invoiceNo||!item.vendor||!(item.amount>0)||!item.dept||!item.applicant))throw Error('請填完整發票基本資料');prepareRouting(item);audit(item,status==='draft'?'儲存草稿':routingAction(item));await put(item);resetForm();if(window.clearRecognitionPanel)window.clearRecognitionPanel();await refresh();if(canPage('list'))tab('list');toast(status==='draft'?'草稿儲存成功':item.skipManagerApproval?'已送交執行長簽核':'已送交部門主管簽核')}catch(e){toast(e.message)}}$('invoiceForm').onsubmit=e=>{e.preventDefault();saveInvoice('pending')};$('saveDraft').onclick=()=>saveInvoice('draft');
+ let item={id:old?.id||uid(),invoiceDate:$('invoiceDate').value,invoiceNo:invNo,vendor:vendorName,taxId:$('taxId').value.trim(),vendorSource:$('vendorLookupStatus').textContent,dept:$('dept').value,applicant:$('applicant').value.trim(),category:old?.category||'其他費用',amount:Number($('amount').value),payment:claim.paymentMethod,description:claim.purpose,memo:entryMode==='ceo'?'':$('memo').value.trim(),claim,attachments,status,history:old?.history||[],createdAt:old?.createdAt||now(),updatedAt:new Date().toISOString(),...(voucherObj?{voucher:voucherObj}:{})};if(status==='pending'&&(!item.invoiceNo||!item.vendor||!(item.amount>0)||!item.dept||!item.applicant))throw Error('請填完整發票基本資料');prepareRouting(item);audit(item,status==='draft'?'儲存草稿':routingAction(item));await put(item);resetForm();if(window.clearRecognitionPanel)window.clearRecognitionPanel();await refresh();if(entryMode==='ceo'&&canPage('ceoentry'))ceoSetView('mine');else if(canPage('list'))tab('list');toast(status==='draft'?'草稿儲存成功':item.skipManagerApproval?'已送交執行長簽核':'已送交部門主管簽核')}catch(e){toast(e.message)}}$('invoiceForm').onsubmit=e=>{e.preventDefault();saveInvoice('pending')};$('saveDraft').onclick=()=>saveInvoice('draft');
 async function editItem(id){let i=await get(id);if(!canPage('entry')||!canReadInvoice(i)||!['draft','rejected'].includes(i.status))return toast('此筆無法編輯');tab(i.claim&&i.claim.ceo&&canPage('ceoentry')?'ceoentry':canPage('entry')?'entry':'ceoentry'); // 執行長上傳的單（有判斷結果）回到執行長上傳頁編輯；先切頁，再填欄位（切到執行長頁會清掉預定付款日與備註）
  for(const k of ['invoiceDate','invoiceNo','vendor','taxId','dept','amount','memo'])$(k).value=i[k]??'';$('editId').value=id;$('editId').dataset.existingFiles=String((i.attachments||[]).length);loadSingleClaim(i.claim,i);syncApplicantHints();$('applicant').value=i.applicant||'';syncApplicantSubmitLabel();updateWhoChip();$('entryTitle').textContent='編輯發票與請款單：'+i.invoiceNo;$('files').value='';setEntryMode('single');setFormStep(1)}
 async function deleteDraft(id){const i=await get(id);if(!i||i.status!=='draft')return toast('只能刪除草稿；這張已不是草稿或已不存在');
@@ -1938,6 +1947,7 @@ function applyEntryMode(mode){
  {const po=$('payment').querySelector('option[value="公司卡（已付）"]');if(po)po.hidden=!ceo;if(!ceo&&$('payment').value===CeoJudge.PAID_BY_CARD){$('payment').value='匯款';$('payment').dispatchEvent(new Event('change',{bubbles:true}))}if(prevMode!==mode)ceoJReset()}
  if(ceo){$('dueDate').value='';$('memo').value='';$('transferHistory').value='非首次匯款';$('feeDeduction').value='不扣匯費';$('transferHistory').dispatchEvent(new Event('change',{bubbles:true}))}
  $('entry').classList.toggle('ceo-mode',ceo);
+ if(ceo){ceoSetView('upload');ceoLiveNote()}else $('entry').classList.remove('ceo-view-mine');
  $('entryHomeTitle').textContent=entryBaseTitle();
  $('entryHomeDesc').textContent=ceo?(authUser&&authUser.role==='admin'?'管理員代執行長上傳：申請人預設是執行長（組織設定的執行長），略過主管關卡；':'執行長的發票請在這裡上傳。申請人固定是執行長；')+'只要選「費用類別」：部門、用途、會計科目都由費用類別帶出來，申請部門與用途不用填；費用類別沒有對照部門時，才需要在請款項目選「費用分攤單位」。':'單張或多張發票共用同一個上傳入口；也可以匯入 CSV 清單。';
  if(!$('editId').value)$('entryTitle').textContent=entryBaseTitle();
@@ -2197,6 +2207,57 @@ function ceoRuleShort(m){
  const n=(r.notes||[])[0];
  return '判斷標準：'+CEO_RULE_TAG[r.action||'process']+'｜'+r.name+(r.yn?'｜'+(r.yn==='Y'?'要請款':'不請款'):'')+(n?'｜附註 '+n+((r.notes||[]).length>1?' 等':''):'')+(m.length>1?'（另有 '+(m.length-1)+' 條符合）':'');
 }
+// ===== 執行長發票頁（自成一頁）：上方即時狀態列＋「上傳發票」「我的發票明細」兩個畫面。明細只列執行長自己的發票（有判斷結果，或申請人是執行長），每 20 秒自動檢查一次，狀態變了會提醒 =====
+const ceoOwn=i=>!!i&&((i.claim&&i.claim.ceo)||String(i.applicant||'').trim()===ceoApplicantName());
+const CEO_KPI=[['draft','草稿'],['pending','待主管簽核'],['executive_pending','待執行長簽核'],['approved','待財務覆核'],['finance_ok','待付款'],['paid','已付款'],['rejected','已退回']];
+function ceoLiveNote(){const e=$('ceoLiveNote');if(e)e.textContent='即時狀態・'+new Date().toTimeString().slice(0,8)+' 更新（每 20 秒自動檢查）'}
+function ceoSetView(v){
+ ceoMine.view=v==='mine'?'mine':'upload';
+ $('entry').classList.toggle('ceo-view-mine',ceoMine.view==='mine'&&entryMode==='ceo');
+ for(const b of document.querySelectorAll('#ceoBar [data-ceoview]')){const on=b.dataset.ceoview===ceoMine.view;b.classList.toggle('on',on);b.setAttribute('aria-pressed',String(on))}
+ ceoMineRender();
+}
+// 一張發票走到哪一步：草稿／退回直接說明；其他畫出流程（公司卡已付的沒有「待付款」，財務覆核完就結案）
+function ceoStepsHtml(i){
+ if(i.status==='draft')return '<div class="ceo-steps"><span class="ceo-step">草稿，尚未送出</span></div>';
+ if(i.status==='rejected')return '<div class="ceo-steps"><span class="ceo-step" style="background:#fde8e6;border-color:#f0a8a0;color:#b42318">已退回，可修改後重送</span></div>';
+ const card=(i.claim&&i.claim.paymentMethod)===CeoJudge.PAID_BY_CARD;
+ const flow=[...(i.skipManagerApproval?[]:[['pending','主管簽核']]),['executive_pending','執行長簽核'],['approved','財務覆核'],...(card?[['paid','已結案']]:[['finance_ok','待付款'],['paid','已付款']])];
+ const idx=flow.findIndex(f=>f[0]===i.status),paid=i.status==='paid';
+ return '<div class="ceo-steps">'+flow.map((f,k)=>{const done=paid||k<idx;return `<span class="ceo-step${done?' done':k===idx?' cur':''}">${done?'✓ ':''}${esc(f[1])}</span>`}).join('<i></i>')+'</div>';
+}
+function ceoLatestHtml(i){const h=(i.history||[]).slice(-1)[0];return h?`<div class="ceo-latest"><b>${esc(h.action||'')}</b>${h.reason?'：'+esc(h.reason):''}<br>${esc(h.actor||'')}${h.actor&&h.at?'・':''}${esc(h.at||'')}</div>`:''}
+function ceoMineTableHtml(items){
+ if(!items.length)return '<p class="muted">'+(ceoMine.empty?'還沒有發票。到「＋ 上傳發票」上傳第一張，送出後這裡會即時顯示簽核進度。':'沒有符合條件的發票。')+'</p>';
+ return '<table><thead><tr><th>日期</th><th>發票／廠商</th><th>費用類別／部門</th><th class="right">金額</th><th>狀態與進度</th><th>最新動態</th><th>操作</th></tr></thead><tbody>'+items.map(i=>{
+  const c=i.claim&&i.claim.ceo,id=esc(i.id),yn=c?(c.yn==='Y'?'要請款':c.yn==='N'?'不請款（公司卡已付）':''):'';
+  const canEdit=['draft','rejected'].includes(i.status)&&canPage('ceoentry'),canDel=i.status==='draft'&&(authUser.role==='admin'||(isCeoUser()&&i.applicant===authUser.name));
+  return `<tr data-ceorow="${id}"${(ceoMine.flash.get(i.id)||0)>Date.now()?' class="ceo-changed"':''}><td>${esc(i.invoiceDate)}</td><td><b>${esc(i.invoiceNo)}</b><div class="muted small">${esc(i.vendor)}</div></td><td>${esc((c&&c.category)||(i.claim&&i.claim.purpose)||i.description||'')}<div class="muted small">${esc([yn,c&&c.card,i.dept?'歸 '+departmentLabel(i.dept):''].filter(Boolean).join('・'))}</div></td><td class="right">${fmt(i.amount)}</td><td>${badge(i.status)}${voucherBadge(i)}${ceoStepsHtml(i)}</td><td>${ceoLatestHtml(i)}</td><td><div class="flex"><button type="button" data-detail="${id}">查看</button>${canSupplementVoucher(i)?`<button type="button" class="primary" data-voucher="${id}">補憑證</button>`:''}${canEdit?`<button type="button" data-edit="${id}">編輯</button>`:''}${canDel?`<button type="button" class="danger" data-delete="${id}">刪除草稿</button>`:''}</div></td></tr>`}).join('')+'</tbody></table>';
+}
+function ceoMineRender(){
+ if(!authUser||!$('ceoBar'))return;
+ if(entryMode!=='ceo'){$('entry').classList.remove('ceo-view-mine');return}
+ const all=visibleInvoices(current).filter(ceoOwn),st=ceoMine.status,cnt=k=>all.filter(i=>i.status===k).length;
+ $('ceoKpis').innerHTML=CEO_KPI.filter(([k])=>k!=='pending'||cnt(k)).map(([k,t])=>{const n=cnt(k);return `<button type="button" class="ceo-kpi${n?'':' zero'}${k==='rejected'&&n?' warn':''}${st===k?' on':''}" data-ceostatus="${k}" title="只看「${t}」（再按一次取消）">${t} <b>${n}</b></button>`}).join('');
+ $('ceoMineCount').textContent=all.length?' ('+all.length+')':'';
+ // 狀態變了（例如財務覆核完成）：這一列閃一下，並跳出提醒；第一次載入只記錄、不提醒
+ const prev=ceoMine.seen,next={};all.forEach(i=>{next[i.id]=i.status});
+ if(prev)for(const i of all)if(prev[i.id]!==undefined&&prev[i.id]!==i.status){ceoMine.flash.set(i.id,Date.now()+4000);toast('發票 '+i.invoiceNo+'：'+(names[prev[i.id]]||prev[i.id])+' → '+(names[i.status]||i.status))}
+ ceoMine.seen=next;ceoMine.empty=!all.length;
+ if(ceoMine.view!=='mine')return;
+ const q=$('ceoMineSearch').value.toLowerCase().trim(),m=$('ceoMineMonth').value;
+ const rows=all.filter(i=>(!q||[i.invoiceNo,i.vendor,i.claim&&i.claim.ceo&&i.claim.ceo.category,i.claim&&i.claim.purpose,i.dept].some(v=>String(v||'').toLowerCase().includes(q)))&&(!st||statusMatch(i,st))&&(!m||String(i.invoiceDate||'').startsWith(m)));
+ $('ceoMineTable').innerHTML=ceoMineTableHtml(rows);
+}
+$('ceoBar').addEventListener('click',e=>{
+ const v=e.target.closest('[data-ceoview]');if(v){ceoSetView(v.dataset.ceoview);return}
+ const k=e.target.closest('[data-ceostatus]');if(k){ceoMine.status=ceoMine.status===k.dataset.ceostatus?'':k.dataset.ceostatus;$('ceoMineStatus').value=ceoMine.status;ceoSetView('mine')}
+});
+$('ceoMineStatus').addEventListener('change',()=>{ceoMine.status=$('ceoMineStatus').value;ceoMineRender()});
+$('ceoMineSearch').addEventListener('input',ceoMineRender);$('ceoMineMonth').addEventListener('change',ceoMineRender);
+$('ceoMineClear').onclick=()=>{$('ceoMineSearch').value='';$('ceoMineMonth').value='';$('ceoMineStatus').value='';ceoMine.status='';ceoMineRender()};
+$('ceoRefresh').onclick=async()=>{const b=$('ceoRefresh');b.disabled=true;try{await pollOnce();await refresh();ceoLiveNote()}finally{b.disabled=false}};
+setInterval(async()=>{if(!authUser||entryMode!=='ceo'||curPage!=='ceoentry'||document.hidden)return;await pollOnce();ceoLiveNote()},20000);
 // ===== 執行長發票判斷：依「發票判斷標準」第一條命中的規則，自動填請款別（Y／N）、卡別、費用類別（對照部門與會計科目），存進單據的 claim.ceo =====
 // 規則換了、而且某個欄位沒被人動過，才會依新規則重填；N＝公司卡已付、不請款 → 付款方式自動變「公司卡（已付）」；費用類別有對照部門就自動歸那個部門（你自己選過部門就不動）
 // 單張登錄用 ceoJ，批次登錄每一張各有一份（r.cj），結構一樣
