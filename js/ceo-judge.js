@@ -67,10 +67,11 @@
     return '';
   }
 
-  // 執行長發票的「支付對象」統一填寫：要請款（Y）填王奕凱；不請款（N，公司卡已付）填「公司卡，掛號已付」
-  var PAYEE_Y = '王奕凱', PAYEE_N = '公司卡，掛號已付';
+  // 執行長發票的「支付對象」統一填寫：要請款（Y）填王奕凱；不請款（N，公司卡已付）填「公司卡」
+  //   PAYEE_N_OLD＝舊版 N 的支付對象，已存的單據還有，也當成統一填寫的值（比對時略過、改請款別時會被換掉）
+  var PAYEE_Y = '王奕凱', PAYEE_N = '公司卡', PAYEE_N_OLD = '公司卡，掛號已付';
   function payeeFor(yn) { return yn === 'Y' ? PAYEE_Y : yn === 'N' ? PAYEE_N : ''; }
-  function isFixedPayee(p) { p = String(p == null ? '' : p).trim(); return p === PAYEE_Y || p === PAYEE_N; }
+  function isFixedPayee(p) { p = String(p == null ? '' : p).trim(); return p === PAYEE_Y || p === PAYEE_N || p === PAYEE_N_OLD; }
   // 請款別 N（不請款、公司卡已付）的卡別預設填「玉山卡」：卡別空白，或規則帶出來的卡別是 Y 的卡（中信、富邦…，和 N 對不起來）而且沒被人改過，就用玉山卡；人自己填過的不動
   var CARD_N = '玉山卡';
   function cardFor(yn, card, touched) {
@@ -125,14 +126,14 @@
     var category = String((sel && sel.category) || '').trim(), card = String((sel && sel.card) || '').trim();
     return { yn: yn, card: card.slice(0, 60), category: category.slice(0, 80), note: buildNote(yn, category), status: String((sel && sel.status) || ''), ruleId: String((sel && sel.ruleId) || '').slice(0, 60), ruleName: String((sel && sel.ruleName) || '').slice(0, 80) };
   }
-  // 送出前還缺什麼：請款別一定要有；N（公司卡已付）要有卡別與費用類別；Y 若規則有多個類別，要選一個；不處理的要特別確認
+  // 送出前還缺什麼：請款別、卡別、費用類別一定要有（Y、N 都要；部門與用途由費用類別帶出）；規則有多個類別要選一個；不處理的要特別確認
   function missing(ceo, opt) {
     opt = opt || {};
     var out = [];
     if (!ceo || (ceo.yn !== 'Y' && ceo.yn !== 'N')) out.push('請款別（要請款 Y／不請款 N）');
     else {
       if (!String(ceo.card || '').trim()) out.push('卡別');
-      if (ceo.yn === 'N' && !String(ceo.category || '').trim()) out.push('費用類別（N 要註明部門歸帳）');
+      if (!String(ceo.category || '').trim()) out.push('費用類別（部門、用途與會計科目都由費用類別決定）');
     }
     if (opt.needCategoryPick) out.push('費用類別（規則有多個附註，請選一個）');
     // 付款方式要和請款別一致：N＝公司卡已付，Y＝要付款給 James（匯款／現金）
