@@ -60,7 +60,7 @@ details.fold{border:1px solid #dce3ed;border-radius:8px;padding:8px 12px;margin-
 .cgrid.cg5{grid-template-columns:repeat(5,minmax(0,1fr))}
 @media(max-width:760px){.cgrid.cg5{grid-template-columns:repeat(3,minmax(0,1fr))}}
 @media(max-width:480px){.cgrid.cg5{grid-template-columns:repeat(2,minmax(0,1fr))}}
-#entry.ceo-mode .ceo-off{display:none}#entry.ceo-mode .who-dept{display:none}#entry.ceo-mode.ceo-cat-dept .item-alloc-fold{display:none}#entry.ceo-mode #invoiceForm .fgrid .field.span2{grid-column:1/-1} /* 執行長發票：不填申請部門（部門由費用類別或分攤決定）、申請人固定 */
+#entry.ceo-mode .ceo-off{display:none}#entry.ceo-mode .who-dept{display:none}#entry.ceo-mode.ceo-cat-dept .item-alloc-fold{display:none}#entry.ceo-mode .qj-host{display:none}#entry.ceo-mode #invoiceForm .claim-scroll{max-height:none!important;overflow:visible}#entry.ceo-mode #invoiceForm .claim-scroll thead th{position:static}#entry.ceo-mode #invoiceForm .fgrid .field.span2{grid-column:1/-1} /* 執行長發票：不填申請部門（部門由費用類別或分攤決定）、申請人固定 */
 .claim-lines{min-width:0!important}.claim-lines th:nth-child(2),.claim-lines th:nth-child(3){min-width:0!important}
 #finReviewBody .claim-lines td:last-child{width:auto!important;text-align:left!important}#finReviewBody .claim-lines th:nth-child(4){min-width:240px!important}#finReviewBody .claim-lines th:nth-child(5){min-width:300px!important}#finReviewBody .claim-lines td:nth-child(4){text-align:left!important}
 #suggestBox{position:fixed;z-index:3000;background:#fff;border:1px solid #b9c6d6;border-radius:8px;box-shadow:0 8px 24px #13233d33;overflow:auto;padding:4px;box-sizing:border-box}
@@ -1947,7 +1947,7 @@ function applyEntryMode(mode){
  ceoRuleRender();
  ceoState.sig='';
 }
-function ceoResetState(){ceoJReset();ceoPayeeSync();ceoPurposeSync();ceoState.deptTouched=false;ceoState.autoApplied=false;ceoState.sig='';const h=$('ceoDeptHint');if(h){h.textContent='';h.className='lookup-note'+(entryMode==='ceo'?'':' hide')}const rb=$('ceoRuleBox');if(rb){rb.innerHTML='';rb.classList.add('hide')}ceoRuleMatches=[]}
+function ceoResetState(){ceoJReset();ceoPayeeSync();ceoPurposeSync();ceoState.deptTouched=false;ceoState.autoApplied=false;ceoState.sig='';const h=$('ceoDeptHint');if(h){h.textContent='';h.className='lookup-note'+(entryMode==='ceo'?'':' hide')}const rb=$('ceoRuleBox');if(rb&&entryMode!=='ceo'){rb.innerHTML='';rb.classList.add('hide')}ceoRuleMatches=[];if(entryMode==='ceo')setTimeout(ceoRuleRender,0)}
 // 用執行長過去申請過的發票（已送出簽核以後的）判斷這筆費用歸哪個部門：統編相同、廠商相同、支付對象相同、用途相同或相近，各有不同的分數；
 // 同樣的分攤方式（部門與比例）分數加總，最高的勝出，分數至少 2 才算有把握
 function ceoSuggestDept(ctx){
@@ -2311,11 +2311,11 @@ function cjNoteHtml(cj=ceoJ,pay=$('payment').value,items=singleClaimItems){
   +(miss.length?'<div class="cj-miss">⚠ 送出前還要：'+esc(miss.join('、'))+'</div>':'<div class="cj-ok">✓ 判斷資料齊了</div>');
 }
 // 判斷面板的 HTML（單張與批次共用）：A(key)＝各欄位的屬性字串（單張用 id、批次用 data-bcj）；dlId＝卡別建議清單的 id（null＝不放，批次另外放一份）
-function ceoJudgeHtml(cj,m,A,pay,dlId,items){
+function ceoJudgeHtml(cj,m,A,pay,dlId,items,idle){
  const j=cj.judge||CeoJudge.judgeRule(null,orgExpenseTypes),s=cj.sel;
- const tag=`<span class="cr-tag cr-${j.status==='none'?'confirm':j.status}">${j.status==='none'?'新商家':CEO_RULE_TAG[j.status]}</span>`;
+ const tag=idle?'':`<span class="cr-tag cr-${j.status==='none'?'confirm':j.status}">${j.status==='none'?'新商家':CEO_RULE_TAG[j.status]}</span>`;
  const cards=[...new Set([...ceoRuleList().map(r=>r.card).filter(Boolean),'現金代墊'])];
- return `<div class="cj"><div class="cj-head"><b>📖 判斷標準</b> ${tag} <b>${esc(j.ruleName||'沒有符合的規則（新商家請自己確認）')}</b>${m.length>1?`<span class="muted small">　另有 ${m.length-1} 條也符合，依規則順序採用第一條</span>`:''}${j.remark?`<div class="muted small">${esc(j.remark)}</div>`:''}</div>
+ return `<div class="cj"><div class="cj-head"><b>📖 判斷標準</b> ${tag} <b>${esc(idle?'輸入廠商名稱後，依判斷標準自動判斷（也可以直接選）':(j.ruleName||'沒有符合的規則（新商家請自己確認）'))}</b>${m.length>1?`<span class="muted small">　另有 ${m.length-1} 條也符合，依規則順序採用第一條</span>`:''}${j.remark?`<div class="muted small">${esc(j.remark)}</div>`:''}</div>
   <div class="cj-grid"><div class="field"><label>請款別 *</label><select ${A('yn')} aria-label="請款別"><option value="">請選擇</option><option value="Y"${s.yn==='Y'?' selected':''}>Y 要請款（個人卡代墊）</option><option value="N"${s.yn==='N'?' selected':''}>N 不請款（公司卡已付）</option></select></div>
   <div class="field"><label>卡別 *</label><input ${A('card')} aria-label="卡別" list="${dlId||'cjCardsB'}" autocomplete="off" value="${esc(s.card)}" placeholder="例如：玉山卡">${dlId?`<datalist id="${dlId}">${cards.map(c=>`<option value="${esc(c)}">`).join('')}</datalist>`:''}</div>
   <div class="field cj-cat"><label>費用類別 *</label><select ${A('cat')} aria-label="費用類別">${ceoCatOptionsHtml(s.category,cj)}</select></div></div>
@@ -2328,10 +2328,10 @@ function ceoRuleRender(){
  const box=$('ceoRuleBox');if(!box)return;
  if(entryMode!=='ceo'||!canCeoHistPanel()){ceoPayeeSync();ceoPurposeSync();$('entry').classList.remove('ceo-cat-dept');box.classList.add('hide');box.innerHTML='';ceoRuleMatches=[];return}
  const ctx={taxId:$('taxId').value,vendor:$('vendor').value,payee:$('payee').value,purpose:ceoPurposeText()};
- if(!ctx.vendor.trim()&&!ctx.payee.trim()&&!ctx.purpose.trim()&&!ceoJ.sel.yn){ceoPayeeSync();ceoPurposeSync();$('entry').classList.remove('ceo-cat-dept');box.classList.add('hide');box.innerHTML='';ceoRuleMatches=[];return}
+ const idle=!ctx.vendor.trim()&&!ctx.payee.trim()&&!ctx.purpose.trim()&&!ceoJ.sel.yn; // 判斷標準面板永遠在：還沒輸入廠商時顯示「等待輸入」的狀態，欄位照樣可以直接選
  const m=ceoJudgeUpdate(ceoJ,ctx);ceoRuleMatches=m;
  ceoApplyItemCat(ceoJ,singleClaimItems,qjCtx({purposeText:ceoPurposeText(),vendor:$('vendor').value}),$('dept').value||ceoDeptFromAlloc(singleClaimItems));
- box.innerHTML=ceoJudgeHtml(ceoJ,m,k=>'id="'+CJ_IDS[k]+'"',$('payment').value,'cjCards',singleClaimItems);
+ box.innerHTML=ceoJudgeHtml(ceoJ,m,k=>'id="'+CJ_IDS[k]+'"',$('payment').value,'cjCards',singleClaimItems,idle);
  box.classList.remove('hide');
  ceoJSync();$('cjNote').innerHTML=cjNoteHtml(ceoJ);
 }
