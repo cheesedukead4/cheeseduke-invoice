@@ -10,24 +10,31 @@
 
   // 費用類別 → 部門、會計科目名稱（草稿，部門名稱要和組織裡的部門一樣才會套用；科目名稱要和會計科目表一樣才找得到代號）
   var DEFAULT_TYPES = [
-    { name: '管理部雜支', dept: '管理部', acct: '什項購置' },
+    { name: '管理部雜支', dept: '管理部', acct: '其他費用' },
     { name: '管理部交際費', dept: '管理部', acct: '交際費' },
     { name: '管理部AI軟體使用費', dept: '管理部', acct: '什項購置' },
     { name: '管理部AI工具', dept: '管理部', acct: '什項購置' },
     { name: '行銷後勤軟體費', dept: '行銷部(新)', acct: '什項購置' },
-    { name: '行銷後勤', dept: '行銷部(新)', acct: '什項購置' },
+    { name: '行銷後勤', dept: '行銷部(新)', acct: '教育訓練' },
     { name: '行銷通路差旅費', dept: '行銷部(新)', acct: '差旅費' },
     { name: '行銷通路年費', dept: '行銷部(新)', acct: '什項購置' },
     { name: '行銷部軟體使用費', dept: '行銷部(新)', acct: '什項購置' },
     { name: '研發費用', dept: '生產組', acct: '研發費' },
     { name: '生產部職工', dept: '生產組', acct: '職工福利' },
-    { name: '生產部工具', dept: '生產組', acct: '什項購置' },
+    { name: '生產部工具', dept: '生產組', acct: '其他費用' },
     { name: '京站職工', dept: '京站百貨', acct: '職工福利' },
     { name: '通路部職工', dept: '通路', acct: '職工福利' },
     { name: '東橋職工', dept: '永康東橋', acct: '職工福利' },
     { name: '物管職工', dept: '物管組', acct: '職工福利' },
     { name: '行銷職工', dept: '行銷部(新)', acct: '職工福利' },
-    { name: '不請款', dept: '', acct: '' }
+    { name: '不請款', dept: '', acct: '' },
+    { name: '行銷差旅費', dept: '行銷部(新)', acct: '' },
+    { name: 'AI工具', dept: '管理部', acct: '租金支出' },
+    { name: '軟體使用費', dept: '行銷部(新)', acct: '租金支出' },
+    { name: '軟體費', dept: '行銷部(新)', acct: '租金支出' },
+    { name: '年費', dept: '行銷部(新)', acct: '租金支出' },
+    { name: '雜支', dept: '管理部', acct: '其他費用' },
+    { name: '職工', dept: '生產組', acct: '職工福利' }
   ];
 
   function clone(x) { return JSON.parse(JSON.stringify(x)); }
