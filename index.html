@@ -1421,7 +1421,7 @@ function collectSingleClaim(existingAttachments=[]){
  const items=singleClaimItems.map(x=>({description:String(x.description||'').trim(),amount:moneyValue(x.amount),accountCode:String(x.accountCode||'').trim(),accountName:String(x.accountName||'').trim(),ledgerManual:!!x.ledgerManual,ledgerSource:x.ledgerSource||'',ledgerConfidence:Number(x.ledgerConfidence)||0,allocations:(x.allocations||[]).map(a=>({dept:String(a.dept||'').trim(),ratio:Number(a.ratio)||0}))})).filter(x=>x.description||x.amount>0);
  return {requestDate:$('requestDate').value,dueDate:entryMode==='ceo'?'':$('dueDate').value,payee:$('payee').value.trim(),purpose:$('description').value.trim(),items,allocations:aggregateAllocations(items),
  paymentMethod:$('payment').value,transferHistory:entryMode==='ceo'?'非首次匯款':$('transferHistory').value,feeDeduction:entryMode==='ceo'?'不扣匯費':$('feeDeduction').value,voucherMissing:Math.max(0,Math.trunc(+$('voucherMissing').value||0)),
- voucherProvided:existingAttachments.length,...(entryMode==='ceo'?{ceo:CeoJudge.toClaim(ceoJ.sel)}:{})};
+ voucherProvided:existingAttachments.length,...(entryMode==='ceo'?{ceo:CeoJudge.toClaim(ceoJ.sel,ceoJ.judge)}:{})};
 }
 function claimIssues(c,invoiceAmount,submitting){
  if(!submitting)return [];
@@ -1764,7 +1764,7 @@ function qjAdjustReview(line,inv,force=false,keep=false){
  const j=QuickJudge.judgeLine(qjReviewDesc(line),qjCtx({purposeText:inv.claim?.purpose||inv.description,vendor:inv.vendor}));
  line.qj=j||null;
  // 執行長發票：判斷標準的費用類別有對照會計科目，優先用它（財務可以再改）
- {const cc=inv.claim&&inv.claim.ceo&&inv.claim.ceo.category,ti=cc&&!keep&&!force?CeoJudge.resolveCategory(orgExpenseTypes,cc):null;
+ {const cc=inv.claim&&inv.claim.ceo&&inv.claim.ceo.category,ti=cc&&!keep&&!force?{...CeoJudge.resolveCategory(orgExpenseTypes,cc),...(inv.claim.ceo.acct?{acct:inv.claim.ceo.acct}:{})}:null;
   if(ti&&ti.acct){const d0=line.allocations?.[0]?.dept||inv.dept,h0=chartFindByName(ti.acct,ledgerDeptPrefix(d0));
    if(h0.length){const a0=h0[0];line.accountCode=String(a0.code);line.accountName=a0.name;line.ledgerSource='quick';line.ledgerStatus='執行長判斷標準：'+cc+' → '+a0.code+' '+a0.name;line.ledgerConfidence=1;
     const cs=line.ledgerCandidates||[];if(!cs.some(c=>String(c.code)===String(a0.code)))line.ledgerCandidates=[{code:a0.code,name:a0.name,score:1,dept:true},...cs];return}}}
@@ -2283,17 +2283,17 @@ function ceoPurposeSync(){
 // 比對判斷標準的「用途」文字：執行長發票沒有用途欄，改看請款項目的項目說明；一般發票看用途欄
 const ceoPurposeText=()=>entryMode==='ceo'?singleClaimItems.map(x=>String(x.description||'').trim()).filter(d=>d&&d!=='發票費用').join(' '):$('description').value;
 // 會計科目代號＝費用類別對照的會計科目名稱 ＋ 每個費用分攤單位的科目代號編碼（研發費 ＋ 生產組 51 → 5171）；財務覆核時照同樣的規則自動帶入，這裡先預覽
-function ceoAcctCodes(category,items){
- const info=CeoJudge.resolveCategory(orgExpenseTypes,category);if(!info.acct)return [];
+function ceoAcctCodes(category,items,judge){
+ const info=CeoJudge.catInfo(orgExpenseTypes,category,judge);if(!info.acct)return [];
  const all=chartFindByName(info.acct,'');
  return aggregateAllocations(items||[]).filter(a=>a.dept).map(a=>{
   const pre=ledgerDeptPrefix(a.dept),hit=pre?all.find(x=>String(x.code).startsWith(pre)):all[0];
   return {dept:a.dept,pre,code:hit?String(hit.code):'',why:!accountChart.length?'科目表還沒載入':!all.length?'科目表裡沒有「'+info.acct+'」':!pre?'這個部門沒設科目代號編碼':'科目表裡沒有 '+pre+' 開頭的「'+info.acct+'」'};
  });
 }
-function ceoAcctCodesHtml(category,items){
- const info=CeoJudge.resolveCategory(orgExpenseTypes,category);if(!info.acct)return '';
- const list=ceoAcctCodes(category,items);
+function ceoAcctCodesHtml(category,items,judge){
+ const info=CeoJudge.catInfo(orgExpenseTypes,category,judge);if(!info.acct)return '';
+ const list=ceoAcctCodes(category,items,judge);
  if(!list.length)return '<div class="cj-codes muted">會計科目代號：「'+esc(info.acct)+'」＋費用分攤單位的科目代號編碼（選好費用分攤單位就會算出來）</div>';
  return '<div class="cj-codes">會計科目代號（「'+esc(info.acct)+'」＋分攤單位編碼）：'+list.map(x=>x.code?'<b>'+esc(x.dept)+' '+esc(x.code)+'</b>':'<span class="cj-miss">'+esc(x.dept)+'：'+esc(x.why)+'</span>').join('；')+'</div>';
 }
@@ -2339,7 +2339,7 @@ function ceoJSync(){
  const s=ceoJ.sel,pay=$('payment'),PAID=CeoJudge.PAID_BY_CARD;
  if(s.yn==='N'){if(pay.value!==PAID){pay.value=PAID;pay.dispatchEvent(new Event('change',{bubbles:true}))}}
  else if(pay.value===PAID){pay.value='匯款';pay.dispatchEvent(new Event('change',{bubbles:true}))}
- const info=CeoJudge.resolveCategory(orgExpenseTypes,s.category),prevCat=ceoState.catDept;ceoState.catDept='';
+ const info=CeoJudge.catInfo(orgExpenseTypes,s.category,ceoJ.judge),prevCat=ceoState.catDept;ceoState.catDept='';
  if(prevCat&&!info.dept&&!ceoState.deptTouched){ // 之前由費用類別帶出的部門，現在類別換成沒有對照部門的（或清掉了）：自動帶出的部門與分攤一併清掉，不要偷偷沿用舊類別的部門
   ceoState.applying=true;
   try{$('dept').value='';$('dept').dispatchEvent(new Event('change',{bubbles:true}));singleClaimItems.forEach(x=>{if(!x.allocManual)x.allocations=[{dept:'',ratio:100}]});displaySingleClaimItems()}finally{ceoState.applying=false}
@@ -2361,7 +2361,7 @@ function ceoJSync(){
 function ceoCatOptionsHtml(selected,cj=ceoJ){
  const sugg=cj.judge?cj.judge.options:[],seen=new Set();
  let h='<option value="">（請選擇）</option>';
- if(sugg.length)h+='<optgroup label="規則建議">'+sugg.map(o=>{seen.add(o.category);return `<option value="${esc(o.category)}"${o.category===selected?' selected':''}>${esc(o.note)}</option>`}).join('')+'</optgroup>';
+ if(sugg.length)h+='<optgroup label="規則建議">'+sugg.map(o=>{seen.add(o.category);return `<option value="${esc(o.category)}"${o.category===selected?' selected':''}>${esc(o.label||o.note)}${o.xdept?'（'+esc(o.xdept)+'）':''}</option>`}).join('')+'</optgroup>';
  const isg=(cj.itemSugg||[]).filter(n=>!seen.has(n));
  if(isg.length){isg.forEach(n=>seen.add(n));h+='<optgroup label="依項目說明建議">'+isg.map(n=>{const ty=orgExpenseTypes.find(x=>x.name===n);return `<option value="${esc(n)}"${n===selected?' selected':''}>${esc(n)}${ty&&ty.dept?'（'+esc(ty.dept)+'）':''}</option>`}).join('')+'</optgroup>'}
  h+='<optgroup label="全部費用類別">'+orgExpenseTypes.filter(t=>!seen.has(t.name)).map(t=>`<option value="${esc(t.name)}"${t.name===selected?' selected':''}>${esc(t.name)}${t.dept?'（'+esc(t.dept)+'）':''}</option>`).join('')+'</optgroup>';
@@ -2369,10 +2369,10 @@ function ceoCatOptionsHtml(selected,cj=ceoJ){
  return h;
 }
 function cjNoteHtml(cj=ceoJ,pay=$('payment').value,items=singleClaimItems){
- const s=cj.sel,c=CeoJudge.toClaim(s),info=CeoJudge.resolveCategory(orgExpenseTypes,s.category);
+ const s=cj.sel,c=CeoJudge.toClaim(s,cj.judge),info=CeoJudge.catInfo(orgExpenseTypes,s.category,cj.judge);
  const miss=CeoJudge.missing(c,{needCategoryPick:ceoPickNeeded(cj),overrideSkip:cj.overrideSkip,confirmed:cj.confirmed,payment:pay});
  return (c.note?'附註：<b>'+esc(c.note)+'</b>'+(cj.catFromItem?'<span class="muted">（依項目說明帶入）</span>':'')+(info.dept||info.acct?' → '+(info.dept?'部門 <b>'+esc(info.dept)+'</b>':'')+(info.acct?'　會計科目 <b>'+esc(info.acct)+'</b>':''):(s.category?' <span class="muted">（這個類別還沒有對照部門與會計科目：請在請款項目選「費用分攤單位」，或請管理員到「資料庫 → 費用類別對照」補上）</span>':'')):'')
-  +ceoAcctCodesHtml(s.category,items)
+  +ceoAcctCodesHtml(s.category,items,cj.judge)
   +(miss.length?'<div class="cj-miss">⚠ 送出前還要：'+esc(miss.join('、'))+'</div>':'<div class="cj-ok">✓ 判斷資料齊了</div>');
 }
 // 判斷面板的 HTML（單張與批次共用）：A(key)＝各欄位的屬性字串（單張用 id、批次用 data-bcj）；dlId＝卡別建議清單的 id（null＝不放，批次另外放一份）
@@ -3394,7 +3394,7 @@ function ceoBatchRow(r){
  if(s.category){v.description=s.category;r.purposeAuto=true}else if(r.purposeAuto){v.description='';r.purposeAuto=false} // 用途＝費用類別
  {const fp=CeoJudge.payeeFor(s.yn);if(fp)v.payee=fp;else if(CeoJudge.isFixedPayee(v.payee))v.payee=''} // 支付對象統一填寫
  if(s.yn==='N')v.payment=PAID;else if(v.payment===PAID)v.payment='匯款';
- const info=CeoJudge.resolveCategory(orgExpenseTypes,s.category),set=t=>{r.ceoHint=t};
+ const info=CeoJudge.catInfo(orgExpenseTypes,s.category,cj.judge),set=t=>{r.ceoHint=t};
  r.ceoCatDept=false;
  if(info.dept&&!r.ceoDeptManual&&(window.companyDepartments||[]).includes(info.dept)){ // 費用類別對照到部門
   r.ceoCatDept=true;v.dept=info.dept;
@@ -3581,7 +3581,7 @@ async function saveBatch(status, onlyIndices=null){
   else if(!ceoOn&&!window.companyApplicantOptions?.(v.dept).some(p=>p.name===String(v.applicant||'').trim()))r.error='請從該部門的員工／主管名冊選擇申請人';
   else if(!canSubmitAs(v.dept,v.applicant))r.error='此登入帳號僅可使用本人姓名與所屬部門';
   else if(status==='pending'&&!window.companyHasRoute?.(v.dept,v.applicant))r.error='請先在部門／人員架構設定主管與執行長';else if(exists.has(key)||seen.has(key))r.error='重複發票：與既有資料或本批次重複';
-  else if(status==='pending'&&ceoOn&&(miss=CeoJudge.missing(CeoJudge.toClaim((r.cj||(r.cj=ceoCardJ())).sel),{needCategoryPick:ceoPickNeeded(r.cj),overrideSkip:r.cj.overrideSkip,confirmed:r.cj.confirmed,payment:v.payment})).length)r.error='執行長發票還要確認：'+miss.join('、');
+  else if(status==='pending'&&ceoOn&&(miss=CeoJudge.missing(CeoJudge.toClaim((r.cj||(r.cj=ceoCardJ())).sel,r.cj.judge),{needCategoryPick:ceoPickNeeded(r.cj),overrideSkip:r.cj.overrideSkip,confirmed:r.cj.confirmed,payment:v.payment})).length)r.error='執行長發票還要確認：'+miss.join('、');
   else {r.error='';seen.add(key)}
   if(r.error)problems++
  }
@@ -3594,7 +3594,7 @@ async function saveBatch(status, onlyIndices=null){
  try{
   for(const r of candidates){
    const v=r.values;const stamp=new Date().toISOString();
-   const claim={requestDate:status==='pending'?claimToday():'',dueDate:v.dueDate||'',payee:v.payee,purpose:v.description||'',items:r.claim.items.map(({allocManual,_ledgerTimer,...x})=>({...x,allocations:(x.allocations||[]).map(a=>({dept:a.dept,ratio:a.ratio}))})),allocations:aggregateAllocations(r.claim.items),paymentMethod:v.payment||'匯款',transferHistory:v.transferHistory||'非首次匯款',feeDeduction:v.feeDeduction||'不扣匯費',voucherMissing:Number(v.voucherMissing)||0,voucherProvided:1,passbook:isFirstTransfer(v.payment,v.transferHistory)&&r.passbookFile?{name:r.passbookFile.name,type:r.passbookFile.type,size:r.passbookFile.size,blob:r.passbookFile}:null,...(ceoOn&&r.cj?{ceo:CeoJudge.toClaim(r.cj.sel)}:{})};const item={id:uid(),invoiceDate:v.invoiceDate,invoiceNo:String(v.invoiceNo).trim(),vendor:String(v.vendor).trim(),taxId:String(v.taxId||'').trim(),vendorSource:r.vendorSource||'人工核對',dept:v.dept,applicant:String(v.applicant).trim(),category:'其他費用',amount:Number(v.amount),payment:claim.paymentMethod,description:String(v.description).trim(),memo:String(v.memo||'').trim(),claim,attachments:[{name:r.file.name,type:r.file.type,size:r.file.size,blob:r.file}],status,history:[],createdAt:now(),updatedAt:stamp,...(claim.voucherMissing>0?{voucher:{state:'pending',placeholder:false}}:{})};
+   const claim={requestDate:status==='pending'?claimToday():'',dueDate:v.dueDate||'',payee:v.payee,purpose:v.description||'',items:r.claim.items.map(({allocManual,_ledgerTimer,...x})=>({...x,allocations:(x.allocations||[]).map(a=>({dept:a.dept,ratio:a.ratio}))})),allocations:aggregateAllocations(r.claim.items),paymentMethod:v.payment||'匯款',transferHistory:v.transferHistory||'非首次匯款',feeDeduction:v.feeDeduction||'不扣匯費',voucherMissing:Number(v.voucherMissing)||0,voucherProvided:1,passbook:isFirstTransfer(v.payment,v.transferHistory)&&r.passbookFile?{name:r.passbookFile.name,type:r.passbookFile.type,size:r.passbookFile.size,blob:r.passbookFile}:null,...(ceoOn&&r.cj?{ceo:CeoJudge.toClaim(r.cj.sel,r.cj.judge)}:{})};const item={id:uid(),invoiceDate:v.invoiceDate,invoiceNo:String(v.invoiceNo).trim(),vendor:String(v.vendor).trim(),taxId:String(v.taxId||'').trim(),vendorSource:r.vendorSource||'人工核對',dept:v.dept,applicant:String(v.applicant).trim(),category:'其他費用',amount:Number(v.amount),payment:claim.paymentMethod,description:String(v.description).trim(),memo:String(v.memo||'').trim(),claim,attachments:[{name:r.file.name,type:r.file.type,size:r.file.size,blob:r.file}],status,history:[],createdAt:now(),updatedAt:stamp,...(claim.voucherMissing>0?{voucher:{state:'pending',placeholder:false}}:{})};
    prepareRouting(item);audit(item,status==='draft'?'批次登錄草稿':routingAction(item));
    try{await put(item);r.saved=true;r.submitted=status==='pending';r.selected=false;r.note='已成功儲存';count++}catch(e){r.error='儲存失敗：'+e.message;break}
   }
@@ -3695,7 +3695,7 @@ function validate(r,nextStatus){
   if(Number(v.amount)>0&&Math.abs(sum-Number(v.amount))>0.01)errors.push('項目金額合計 NT$ '+fmt(sum)+' 與含稅金額 NT$ '+fmt(Number(v.amount))+' 不同');
   if(isFirstTransfer(v.payment,v.transferHistory))errors.push('首次匯款請先匯入為草稿，再到發票明細上傳存摺影本後送簽');
   if(!window.companyHasRoute?.(v.dept,v.applicant))errors.push('該部門主管或執行長尚未設定');
-  if(ceoOn()){const miss=CeoJudge.missing(CeoJudge.toClaim(r.cj.sel),{needCategoryPick:ceoPickNeeded(r.cj),overrideSkip:r.cj.overrideSkip,confirmed:r.cj.confirmed,payment:v.payment});if(miss.length)errors.push('執行長發票還要確認：'+miss.join('、'))}
+  if(ceoOn()){const miss=CeoJudge.missing(CeoJudge.toClaim(r.cj.sel,r.cj.judge),{needCategoryPick:ceoPickNeeded(r.cj),overrideSkip:r.cj.overrideSkip,confirmed:r.cj.confirmed,payment:v.payment});if(miss.length)errors.push('執行長發票還要確認：'+miss.join('、'))}
  }
  if(!canSubmitAs(v.dept,v.applicant))errors.push('此登入帳號僅可使用本人姓名與所屬部門');
  return errors;
@@ -3847,7 +3847,7 @@ async function saveCSV(nextStatus){
   for(const r of chosen){
    const v=r.values,t=new Date().toISOString();
    const items=r.claim.items.map(x=>({description:String(x.description||'').trim(),amount:Number(x.amount),allocations:(x.allocations||[]).map(a=>({dept:a.dept,ratio:a.ratio}))}));
-   const claim={requestDate:nextStatus==='pending'?claimToday():'',dueDate:ceo?'':(v.dueDate||''),payee:v.payee,purpose:v.description,items,allocations:aggregateAllocations(items),paymentMethod:v.payment||'匯款',transferHistory:ceo?'非首次匯款':(v.transferHistory||'非首次匯款'),feeDeduction:ceo?'不扣匯費':(v.feeDeduction||'不扣匯費'),voucherMissing:Number(v.voucherMissing)||0,voucherProvided:0,passbook:null,...(ceo?{ceo:CeoJudge.toClaim(r.cj.sel)}:{})};
+   const claim={requestDate:nextStatus==='pending'?claimToday():'',dueDate:ceo?'':(v.dueDate||''),payee:v.payee,purpose:v.description,items,allocations:aggregateAllocations(items),paymentMethod:v.payment||'匯款',transferHistory:ceo?'非首次匯款':(v.transferHistory||'非首次匯款'),feeDeduction:ceo?'不扣匯費':(v.feeDeduction||'不扣匯費'),voucherMissing:Number(v.voucherMissing)||0,voucherProvided:0,passbook:null,...(ceo?{ceo:CeoJudge.toClaim(r.cj.sel,r.cj.judge)}:{})};
    const item={id:uid(),invoiceDate:v.invoiceDate,invoiceNo:v.invoiceNo,vendor:v.vendor,taxId:v.taxId,dept:v.dept,applicant:v.applicant,category:'其他費用',amount:Number(v.amount),payment:claim.paymentMethod,description:v.description,memo:[ceo?'':v.memo,'CSV 匯入（尚未附發票影像）'].filter(Boolean).join('；'),claim,attachments:[],status:nextStatus,history:[],createdAt:now(),updatedAt:t,...(claim.voucherMissing>0?{voucher:{state:'pending',placeholder:false}}:{})};
    prepareRouting(item);audit(item,nextStatus==='draft'?'CSV 匯入草稿':routingAction(item));
    try{await put(item);r.saved=true;r.selected=false;r.error='';success++}catch(e){r.error='儲存失敗：'+e.message;break}

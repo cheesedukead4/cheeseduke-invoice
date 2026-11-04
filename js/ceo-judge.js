@@ -29,9 +29,7 @@
     { name: '行銷職工', dept: '行銷部(新)', acct: '職工福利' },
     { name: '不請款', dept: '', acct: '' },
     { name: '行銷差旅費', dept: '行銷部(新)', acct: '' },
-    { name: 'AI工具', dept: '管理部', acct: '租金支出' },
-    { name: '軟體使用費', dept: '行銷部(新)', acct: '租金支出' },
-    { name: '軟體費', dept: '行銷部(新)', acct: '租金支出' },
+    { name: '軟體使用費', dept: '', acct: '租金支出' },
     { name: '年費', dept: '行銷部(新)', acct: '租金支出' },
     { name: '雜支', dept: '管理部', acct: '其他費用' },
     { name: '職工', dept: '生產組', acct: '職工福利' }
@@ -56,9 +54,15 @@
   }
 
   // 附註「Y-管理部雜支（衛生紙）」「N-不請款」→ {yn, text}；格式不對回傳 null
+  //   類別名稱後面可以用「｜」接這一條規則自己指定的部門與會計科目：「N-軟體使用費｜管理部｜租金支出」→ {yn, text:'軟體使用費', dept:'管理部', acct:'租金支出'}
+  //   （同一個類別名稱，不同規則可以歸不同部門；沒寫的部門、科目才去費用類別對照找）
   function parseNote(note) {
     var m = /^\s*([YyNn])\s*(?:[-－]\s*(.*))?$/.exec(String(note == null ? '' : note));
-    return m ? { yn: m[1].toUpperCase(), text: String(m[2] || '').trim() } : null;
+    if (!m) return null;
+    var parts = String(m[2] || '').split('｜').map(function (x) { return x.trim(); }), out = { yn: m[1].toUpperCase(), text: parts[0] || '' };
+    if (parts[1]) out.dept = parts[1];
+    if (parts[2]) out.acct = parts[2];
+    return out;
   }
   // 類別文字（管理部雜支（計程車費））→ 對照到的費用類別（名稱最長的、開頭相符的）
   function typeFor(types, text) {
@@ -102,6 +106,13 @@
     var t = typeFor(types, text);
     return t ? { name: t.name, dept: t.dept || '', acct: t.acct || '' } : { name: '', dept: '', acct: '' };
   }
+  // 同上，但如果這個類別是判斷標準規則的選項、而且規則自己指定了部門或會計科目（附註的「｜部門｜科目」），以規則指定的為準
+  function catInfo(types, category, judge) {
+    var info = resolveCategory(types, category);
+    var o = ((judge && judge.options) || []).filter(function (x) { return x.category === category; })[0];
+    if (o) { if (o.xdept) info.dept = o.xdept; if (o.xacct) info.acct = o.xacct; }
+    return info;
+  }
 
   // 判斷標準的一條規則 → 系統單據要用的資料。rule＝null 代表沒有任何規則命中（新商家）
   //   status：process（依標準處理）／skip（不處理）／confirm（待確認）／none（沒有規則）
@@ -112,7 +123,7 @@
     var options = (Array.isArray(rule.notes) ? rule.notes : []).map(function (n) {
       var p = parseNote(n); if (!p) return null;
       var info = resolveCategory(types, p.text);
-      return { note: String(n).trim(), yn: p.yn, text: p.text, category: p.text, type: info.name, dept: info.dept, acct: info.acct };
+      return { note: String(n).trim(), label: p.yn + '-' + p.text, yn: p.yn, text: p.text, category: p.text, type: info.name, dept: p.dept || info.dept, acct: p.acct || info.acct, xdept: p.dept || '', xacct: p.acct || '' };
     }).filter(Boolean);
     var yn = rule.yn === 'Y' || rule.yn === 'N' ? rule.yn : '';
     if (!yn && options.length && options.every(function (o) { return o.yn === options[0].yn; })) yn = options[0].yn;
@@ -128,10 +139,15 @@
     return yn + '-' + c;
   }
   // 要存進單據的 claim.ceo；paymentMethod 要怎麼設（N＝公司卡已付）也一併回傳
-  function toClaim(sel) {
+  //   judge（選填）：判斷結果；選的類別是規則的選項、而且規則自己指定了部門／會計科目，就一併存進 dept、acct（財務覆核優先用 acct）
+  function toClaim(sel, judge) {
     var yn = sel && (sel.yn === 'Y' || sel.yn === 'N') ? sel.yn : '';
     var category = String((sel && sel.category) || '').trim(), card = String((sel && sel.card) || '').trim();
-    return { yn: yn, card: card.slice(0, 60), category: category.slice(0, 80), note: buildNote(yn, category), status: String((sel && sel.status) || ''), ruleId: String((sel && sel.ruleId) || '').slice(0, 60), ruleName: String((sel && sel.ruleName) || '').slice(0, 80) };
+    var out = { yn: yn, card: card.slice(0, 60), category: category.slice(0, 80), note: buildNote(yn, category), status: String((sel && sel.status) || ''), ruleId: String((sel && sel.ruleId) || '').slice(0, 60), ruleName: String((sel && sel.ruleName) || '').slice(0, 80) };
+    var o = category ? ((judge && judge.options) || []).filter(function (x) { return x.category === category; })[0] : null;
+    if (o && o.xdept) out.dept = o.xdept.slice(0, 60);
+    if (o && o.xacct) out.acct = o.xacct.slice(0, 40);
+    return out;
   }
   // 送出前還缺什麼：請款別、卡別、費用類別一定要有（Y、N 都要；部門與用途由費用類別帶出）；規則有多個類別要選一個；不處理的要特別確認
   function missing(ceo, opt) {
@@ -168,6 +184,6 @@
     });
   }
 
-  var api = { PAID_BY_CARD: PAID_BY_CARD, CEO_NAME: CEO_NAME, PAYEE_Y: PAYEE_Y, PAYEE_N: PAYEE_N, payeeFor: payeeFor, isFixedPayee: isFixedPayee, CARD_N: CARD_N, cardFor: cardFor, typesForAcct: typesForAcct, DEFAULT_TYPES: DEFAULT_TYPES, defaultTypes: function () { return clone(DEFAULT_TYPES); }, sanitizeTypes: sanitizeTypes, parseNote: parseNote, typeFor: typeFor, ynFromCard: ynFromCard, resolveCategory: resolveCategory, judgeRule: judgeRule, buildNote: buildNote, toClaim: toClaim, missing: missing, duplicates: duplicates };
+  var api = { PAID_BY_CARD: PAID_BY_CARD, CEO_NAME: CEO_NAME, PAYEE_Y: PAYEE_Y, PAYEE_N: PAYEE_N, payeeFor: payeeFor, isFixedPayee: isFixedPayee, CARD_N: CARD_N, cardFor: cardFor, typesForAcct: typesForAcct, DEFAULT_TYPES: DEFAULT_TYPES, defaultTypes: function () { return clone(DEFAULT_TYPES); }, sanitizeTypes: sanitizeTypes, parseNote: parseNote, typeFor: typeFor, ynFromCard: ynFromCard, resolveCategory: resolveCategory, catInfo: catInfo, judgeRule: judgeRule, buildNote: buildNote, toClaim: toClaim, missing: missing, duplicates: duplicates };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.CeoJudge = api;
 })(typeof window !== 'undefined' ? window : this);
