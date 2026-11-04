@@ -509,7 +509,7 @@ main{padding-bottom:12px}
 <div class="flow-layout"><div id="flowList" class="flow-list"><p class="muted">載入中…</p></div><div id="flowEditor"></div></div></div>
 <div class="panel"><h2>職位管理</h2><p class="muted">職位是加在「員工／部門主管／執行長／財務」之外的簽核身分，可以用在表單的簽核關卡。<b>要指派誰擔任</b>，到「帳號／權限管理」編輯人員、勾選職位。職位還用在某張表單的流程裡時不能刪除。</p><div class="tablewrap" id="flowPositions"></div></div>
 <div class="panel"><h2>變更紀錄</h2><p class="muted small">最近 100 筆調整（誰、什麼時候、哪張表單、調整前 → 調整後）。</p><div class="tablewrap" id="flowLog"></div></div></section>
-<section id="settings" class="view hide"><div class="panel"><h2>備份、還原及系統說明</h2><div class="note" id="invoiceOnlyResetInfo"><b>發票資料清空（僅管理員）</b><p id="invoiceResetCount" style="margin:5px 0">正在讀取發票筆數…</p><div class="small">本功能只清除<strong>發票草稿、已送審與已付款紀錄、附件、簽核歷程及付款紀錄</strong>。<strong>不刪除：</strong>人員名單（Gmail）、可見頁面權限、部門／門市編號、主管與員工名冊、執行長設定，以及已建檔的廠商名稱與統編。清除前請確認不需要保留發票資料，或先使用下方 JSON 備份。</div></div><div class="warn"><b>重要：</b>資料存在公司的 Google 雲端硬碟，由雲端後端檢查登入身分、可見範圍與簽核順序；每天自動備份一份（保留 30 份）。仍請：只把 Gmail 開給需要的人、員工離職或換單位時立刻停用或修改、定期下載完整備份，並避免在公用電腦登入。</div><div class="actions"><button class="primary" id="backupJSON">完整備份：發票、部門及廠商（含附件）</button><button id="restoreBtn">匯入備份 JSON（組織只補不存在的項目）</button><input id="restoreFile" class="hide" type="file" accept="application/json,.json"><button class="danger" id="clearAll">只清除全部發票（保留個人資料）</button></div><div class="note" id="upgradePreservationStatus"><b>資料保護：</b>備份還原與清空發票都不會動到人員名單（Gmail）、頁面權限、組織名冊與廠商資料。從舊的單機版（v5.4）搬資料：先在舊版「完整備份」匯出 JSON，再回到這裡以管理員身分「匯入備份 JSON」；舊版的帳號密碼不會匯入，請到「帳號／權限管理」用 Gmail 重新建立人員。</div><div class="note">完整備份包含發票、金額、附件與存摺影本，請將 JSON 視為敏感檔案妥善保存，不要放進網站資料夾或上傳到任何公開位置。</div><h3>目前功能範圍</h3><p>發票上傳與手動登錄、草稿、送主管簽核、主管核准／退回、執行長核准／退回、財務覆核、付款完成、各式查詢、請款單與發票影像同頁列印、CSV 匯出、JSON 完整備份與還原、操作歷程。</p><h3>建議交由 Claude 接續開發</h3><p>後端正式登入及伺服器端權限驗證（申請人／主管／執行長／財務／管理者）、多人即時同步、附件雲端儲存、電子發票 OCR、發票號碼及統編驗證、重複憑證提醒、簽核層級、通知與退回補件、完整不可竄改稽核軌跡、財會系統銜接、付款批次與憑證歸檔。</p></div></section>
+<section id="settings" class="view hide"><div class="panel"><h2>備份、還原及系統說明</h2><div class="note" id="invoiceOnlyResetInfo"><b>發票資料清空（僅管理員）</b><p id="invoiceResetCount" style="margin:5px 0">正在讀取發票筆數…</p><div class="small">本功能只清除<strong>發票草稿、已送審與已付款紀錄、附件、簽核歷程及付款紀錄</strong>。<strong>不刪除：</strong>人員名單（Gmail）、可見頁面權限、部門／門市編號、主管與員工名冊、執行長設定，以及已建檔的廠商名稱與統編。清除前請確認不需要保留發票資料，或先使用下方 JSON 備份。</div></div><div class="note" id="memoResetInfo"><b>簽呈與表單清空（僅管理員）</b><p id="memoResetCount" style="margin:5px 0">正在讀取簽呈與表單筆數…</p><div class="small">本功能清除<strong>所有簽呈與各種表單（請購單、設備維修…）、簽核歷程與簽呈附件</strong>（附件會丟進雲端硬碟的垃圾桶），單號會從頭開始。<strong>不刪除：</strong>發票、人員名單、頁面權限、組織與廠商。每天的自動備份裡還有一份，但只能由 Apps Script 還原，網頁上不能復原。</div><div class="actions"><button class="danger" id="clearMemosBtn">清空全部簽呈與表單</button></div></div><div class="warn"><b>重要：</b>資料存在公司的 Google 雲端硬碟，由雲端後端檢查登入身分、可見範圍與簽核順序；每天自動備份一份（保留 30 份）。仍請：只把 Gmail 開給需要的人、員工離職或換單位時立刻停用或修改、定期下載完整備份，並避免在公用電腦登入。</div><div class="actions"><button class="primary" id="backupJSON">完整備份：發票、部門及廠商（含附件）</button><button id="restoreBtn">匯入備份 JSON（組織只補不存在的項目）</button><input id="restoreFile" class="hide" type="file" accept="application/json,.json"><button class="danger" id="clearAll">只清除全部發票（保留個人資料）</button></div><div class="note" id="upgradePreservationStatus"><b>資料保護：</b>備份還原與清空發票都不會動到人員名單（Gmail）、頁面權限、組織名冊與廠商資料。從舊的單機版（v5.4）搬資料：先在舊版「完整備份」匯出 JSON，再回到這裡以管理員身分「匯入備份 JSON」；舊版的帳號密碼不會匯入，請到「帳號／權限管理」用 Gmail 重新建立人員。</div><div class="note">完整備份包含發票、金額、附件與存摺影本，請將 JSON 視為敏感檔案妥善保存，不要放進網站資料夾或上傳到任何公開位置。</div><h3>目前功能範圍</h3><p>發票上傳與手動登錄、草稿、送主管簽核、主管核准／退回、執行長核准／退回、財務覆核、付款完成、各式查詢、請款單與發票影像同頁列印、CSV 匯出、JSON 完整備份與還原、操作歷程。</p><h3>建議交由 Claude 接續開發</h3><p>後端正式登入及伺服器端權限驗證（申請人／主管／執行長／財務／管理者）、多人即時同步、附件雲端儲存、電子發票 OCR、發票號碼及統編驗證、重複憑證提醒、簽核層級、通知與退回補件、完整不可竄改稽核軌跡、財會系統銜接、付款批次與憑證歸檔。</p></div></section>
 </main>
 <dialog id="financeReviewDialog" style="width:min(1180px,96vw);max-width:min(1180px,96vw)"><div class="flex"><h2 style="margin:0">財務覆核：確認會計科目</h2><div class="spacer"></div><button type="button" id="finReviewClose">關閉</button></div><div id="finReviewBody" style="margin-top:12px"></div></dialog>
 <dialog id="voucherDialog"><div class="flex"><h2 style="margin:0">補上憑證</h2><div class="spacer"></div><button type="button" id="vcClose">關閉</button></div>
@@ -4098,8 +4098,19 @@ el('csvDraft').onclick=()=>saveCSV('draft');el('csvSubmit').onclick=()=>saveCSV(
   homeTodos=todos;
   $('homeTodo').innerHTML=todos.length?todos.map((x,i)=>`<button type="button" class="todo" data-todo="${i}"><b>${x.n}</b><span>${esc(x.t)}</span></button>`).join(''):'<span class="muted">目前沒有待處理的事項 🎉</span>';
   $('homeRecent').innerHTML=memoLoaded?rows(memos.slice(0,5),false,true):'<p class="muted">載入中…</p>'}
- function moduleRender(){homeRender();memoRenderPage()}
+ function moduleRender(){homeRender();memoRenderPage();const c=$('memoResetCount');if(c)c.textContent=memoLoaded?'目前共 '+memos.length+' 筆簽呈與表單（含草稿與已結案）。':'正在讀取簽呈與表單筆數…'}
  window.moduleRender=moduleRender;
+ // ---- 管理員：清空所有簽呈與表單（測試資料用；後端 clear 只認管理員，附件一起丟垃圾桶）----
+ async function clearAllMemos(){
+  if(!authUser||authUser.role!=='admin')return toast('只有管理員可以清空簽呈與表單');
+  if(!memoLoaded)return toast('資料還在載入，請稍後再試');
+  const n=memos.length;
+  if(!n)return toast('目前沒有任何簽呈或表單');
+  if(!confirm('確定要清空所有簽呈與表單（共 '+n+' 筆）嗎？\n\n簽核歷程與簽呈附件也會一起清掉，單號會從頭開始。\n發票、人員名單、權限、組織都不會動。\n網頁上不能復原（每天的自動備份裡還有一份）。'))return;
+  if(prompt('最後確認：請輸入「清空」兩個字，再按確定。')!=='清空')return toast('已取消，沒有刪除任何資料');
+  try{await InvCloud.call('clear',{store:'memos'});memos=[];memoVer=null;if($('memoDetail').open)$('memoDetail').close();renderNav();moduleRender();memoRefresh(true);toast('已清空所有簽呈與表單（原本 '+n+' 筆）')}
+  catch(e){toast('清空失敗：'+(e.message||e))}}
+ $('clearMemosBtn').onclick=clearAllMemos;
 
  // ---- 新增／編輯：依表單定義動態產生欄位 ----
  const inputType={date:'date',datetime:'datetime-local',number:'number',money:'number'};
