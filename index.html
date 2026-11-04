@@ -577,7 +577,7 @@ const GROUPS={
  system:{pages:['organization','accounts','flows','dbadmin','settings']}
 };
 const SUB_LABELS={...PAGE_LABELS,dbadmin:'🗄 資料庫'};
-const isFormPage=p=>p==='inbox'||p==='mine'||String(p).startsWith('form:')||String(p).startsWith('term:'); // term:＝職位終端（人事／採購／行銷…），和表單頁面分開的獨立頁
+const isFormPage=p=>p==='inbox'||p==='mine'||String(p).startsWith('form:');
 const pageGroup=p=>Object.keys(GROUPS).find(g=>GROUPS[g].pages.includes(p))||'';
 const groupAccessible=g=>!!GROUPS[g]&&GROUPS[g].pages.some(p=>canPage(p));
 const groupFirstPage=g=>GROUPS[g]&&GROUPS[g].pages.find(p=>canPage(p))||'home';
@@ -597,7 +597,6 @@ const getUser=async id=>{const k=normalizeAccount(id);return (await allUsers()).
 const putUser=u=>InvCloud.call('userSave',{email:u.email||u.id,empNo:u.empNo,name:u.name,role:u.role,dept:u.dept||'',pages:u.pages,positions:u.positions,enabled:u.enabled!==false});
 const deleteUser=email=>InvCloud.call('userDelete',{email});
 function canPage(page){if(page==='dbadmin')return !!authUser&&authUser.role==='admin'; // 「資料庫」頁：所有資料庫集中管理，只有管理員（後端的資料庫總覽也只認管理員）
- if(String(page).startsWith('term:'))return !!authUser&&(authUser.role==='admin'||(authUser.positions||[]).includes(page.slice(5))); // 職位終端：擔任該職位的人（管理員可看全部）
  if(page==='home'||isFormPage(page))return !!authUser&&(page!=='form:invoice'||groupAccessible('invoice'));
  if(!authUser||!PAGE_LABELS[page])return false;if(page==='flows')return authUser.role==='admin'; // 簽核流程設定：只有管理員（後端也只認管理員）
  const pg=authUser.pages||[];
@@ -3888,25 +3887,15 @@ el('csvDraft').onclick=()=>saveCSV('draft');el('csvSubmit').onclick=()=>saveCSV(
  const noteVer=v=>{if(memoVer!==null&&Number(memoVer)+1===Number(v))memoVer=v};
  const stepNames=a=>a.map(k=>STEP_NAMES[k]||k).join(' → ');
 
- // ---- 職位終端：擔任「人事／採購／行銷…」職位的人各有一個自己的終端（和表單頁面分開）----
- // 待處理＝輪到這個職位、而且我可以簽；已處理＝這個職位已經簽過（或在這一關退回）的；全部相關單＝流程裡有這個職位這一關的所有單（草稿除外）
- const termName=key=>(positions.find(p=>p.key===key)||{}).name||key;
- const termStepAt=(m,key)=>m.flow&&Array.isArray(m.flow.steps)?m.flow.steps.findIndex(s=>s.key==='pos:'+key):-1;
- const termAll=(m,key)=>m.status!=='draft'&&termStepAt(m,key)>=0;
- const termTodo=(m,key)=>m.status==='in_review'&&termStepAt(m,key)===curIdx(m)&&canSign(m);
- const termDone=(m,key)=>{const i=termStepAt(m,key);return m.status!=='draft'&&i>=0&&(m.status==='approved'||m.status==='closed'||i<curIdx(m)||(m.status==='rejected'&&i===curIdx(m)))};
  // 到貨：有「到貨」按鈕的表單（def.arrive），核准後由階段填寫的職位、申請人本人、管理員按，按了就結案
  const arriveDef=m=>{const d=defOf(m.docType);return d&&d.arrive?d:null};
  // 送印／購買：核准後多一個按鈕（def.dispatch＝{field,label}），按了才記下日期；只有階段填寫那個職位的人（行銷、採購）與管理員能按，避免簽完沒有真的送印、沒有真的去買
  const dispatchDef=m=>{const d=defOf(m.docType);return d&&d.dispatch?d:null};
  const isDispatched=m=>{const d=dispatchDef(m);return !!d&&!!(m.data&&m.data[d.dispatch.field])};
  const canDispatch=m=>{const d=dispatchDef(m);return !!d&&!!authUser&&m.status==='approved'&&!isDispatched(m)&&(authUser.role==='admin'||(!!d.stage&&(authUser.positions||[]).includes(d.stage.pos)))};
- const termDispatch=(m,key)=>{const d=dispatchDef(m);return !!d&&!!d.stage&&d.stage.pos===key&&canDispatch(m)};
  const canArrive=m=>{const d=arriveDef(m);return !!d&&!!authUser&&m.status==='approved'&&(!d.dispatch||isDispatched(m))&&(authUser.role==='admin'||isMine(m)||(!!d.stage&&(authUser.positions||[]).includes(d.stage.pos)))};
- const termArrive=(m,key)=>{const d=arriveDef(m);return !!d&&!!d.stage&&d.stage.pos===key&&canArrive(m)};
  const arrivedOn=m=>{const h=[...(m.history||[])].reverse().find(x=>String(x.action).indexOf('到貨')===0);return h?String(h.at).split(' ')[0]:''};
  const localYmd=d=>new Date(d.getTime()-d.getTimezoneOffset()*60000).toISOString().slice(0,10);
- const termKeys=()=>!authUser?[]:positions.filter(p=>authUser.role==='admin'||(authUser.positions||[]).includes(p.key)).map(p=>p.key);
 
  // ---- 載入：表單目錄（後端提供，存一份在本機讓導覽馬上出現）與申請資料 ----
  function applyForms(j){forms=j.forms||[];cats=j.cats||[];positions=Array.isArray(j.positions)?j.positions:positions;for(const p of positions)STEP_NAMES['pos:'+p.key]=p.name;formsLoaded=forms.length>0}
@@ -3940,7 +3929,6 @@ el('csvDraft').onclick=()=>saveCSV('draft');el('csvSubmit').onclick=()=>saveCSV(
   const inboxN=memos.filter(inboxTodo).length,cur=curPage,curCat=cur.startsWith('form:')?(defOf(cur.slice(5))||{}).cat:(pageGroup(cur)==='invoice'?'fin':'');
   const btn=(t,label,cls)=>'<button type="button" class="tab'+(cls||'')+(navActive(t)?' active':'')+'" data-tab="'+esc(t)+'">'+label+'</button>';
   let h=btn('home','🏠 主畫面')+btn('inbox','📥 待我簽核'+(inboxN?' <span class="nav-n">'+inboxN+'</span>':''))+btn('mine','📤 我的申請');
-  for(const k of termKeys()){const n=memos.filter(m=>termTodo(m,k)||termDispatch(m,k)||termArrive(m,k)).length;h+=btn('term:'+k,'🖥 '+esc(termName(k))+'終端'+(n?' <span class="nav-n">'+n+'</span>':''))}
   if(!formsLoaded)h+='<div class="nav-note">表單目錄載入中…</div>';
   else h+=cats.map(c=>{
    const list=forms.filter(f=>f.cat===c.key).map(f=>btn('form:'+f.key,esc(f.icon)+' '+esc(f.name),' navform'));
@@ -3963,11 +3951,11 @@ el('csvDraft').onclick=()=>saveCSV('draft');el('csvSubmit').onclick=()=>saveCSV(
  // ---- 目前在看哪一頁：某張表單的清單、待我簽核、我的申請 ----
  const viewId=v=>v.mode+':'+v.key;
  function memoShow(id){
-  const nv=id==='inbox'?{mode:'inbox',key:''}:id==='mine'?{mode:'mine',key:''}:id.startsWith('term:')?{mode:'term',key:id.slice(5)}:{mode:'form',key:id.slice(5)};
+  const nv=id==='inbox'?{mode:'inbox',key:''}:id==='mine'?{mode:'mine',key:''}:{mode:'form',key:id.slice(5)};
   if(viewId(nv)!==viewId(view)){view=nv;memoFilter=null}
   if(nv.mode==='form'){const d=defOf(nv.key);if(d)openCats.add(d.cat)}}
  window.memoShow=memoShow;
- function openView(mode,key,filter){view={mode,key:key||''};memoFilter=filter||null;tab(mode==='form'?'form:'+key:mode==='term'?'term:'+key:mode)}
+ function openView(mode,key,filter){view={mode,key:key||''};memoFilter=filter||null;tab(mode==='form'?'form:'+key:mode)}
 
  // ---- 核准後才能填的欄位：財務回填（fin 欄位，財務／管理員）與申請人回簽（app 欄位，申請人本人／管理員）----
  const FILL_GROUPS=[{flag:'fin',title:'財務回填',action:'財務回填',strip:'財務回填：',btn:'儲存財務回填',can:m=>!!authUser&&(authUser.role==='finance'||authUser.role==='admin')},{flag:'app',title:'申請人回簽',action:'申請人回簽',strip:'申請人回簽：',btn:'儲存回簽',can:m=>!!authUser&&(isMine(m)||authUser.role==='admin')}];
@@ -4069,17 +4057,11 @@ el('csvDraft').onclick=()=>saveCSV('draft');el('csvSubmit').onclick=()=>saveCSV(
  function memoRenderPage(){
   const root=$('memoPage');if(!root||root.classList.contains('hide')||!authUser)return;
   const def=view.mode==='form'?defOf(view.key):null;
-  $('memoPageTitle').textContent=view.mode==='inbox'?'📥 待我簽核':view.mode==='mine'?'📤 我的申請':view.mode==='term'?'🖥 '+termName(view.key)+'終端':def?def.icon+' '+def.name:'載入中…';
+  $('memoPageTitle').textContent=view.mode==='inbox'?'📥 待我簽核':view.mode==='mine'?'📤 我的申請':def?def.icon+' '+def.name:'載入中…';
   $('memoNew').classList.toggle('hide',!def);if(def)$('memoNew').textContent='＋ 新增'+def.name;
-  $('memoPageDesc').textContent=view.mode==='inbox'?'輪到你處理的所有表單：待簽核（核准或退回），以及核准之後輪到你的待辦（購買、逐項確認、到貨、財務回填、回簽）；每一筆會標示是哪一種。':view.mode==='term'?'「'+termName(view.key)+'」職位的專屬終端，和各表單頁面分開：待處理＝輪到「'+termName(view.key)+'」、你可以直接核准或退回；已處理＝這個職位已經簽過（或在這一關退回）的；全部相關單＝簽核流程裡有「'+termName(view.key)+'」這一關的所有表單。':view.mode==='mine'?'你提出過的所有表單，各種表單都在這裡；點「查看」看簽核進度。':def?def.desc+'　'+flowText(def):'';
+  $('memoPageDesc').textContent=view.mode==='inbox'?'輪到你處理的所有表單：待簽核（核准或退回），以及核准之後輪到你的待辦（購買、逐項確認、到貨、財務回填、回簽）；每一筆會標示是哪一種。':view.mode==='mine'?'你提出過的所有表單，各種表單都在這裡；點「查看」看簽核進度。':def?def.desc+'　'+flowText(def):'';
   let items,chips='';
   if(view.mode==='inbox')items=memos.filter(inboxTodo);
-  else if(view.mode==='term'){
-   const key=view.key,hasArr=forms.some(f=>f.arrive&&f.stage&&f.stage.pos===key),dispLabels=[...new Set(forms.filter(f=>f.dispatch&&f.stage&&f.stage.pos===key).map(f=>f.dispatch.label))],hasDisp=dispLabels.length>0,lists={todo:()=>memos.filter(m=>termTodo(m,key)),...(hasDisp?{dispatch:()=>memos.filter(m=>termDispatch(m,key))}:{}),...(hasArr?{arrive:()=>memos.filter(m=>termArrive(m,key))}:{}),done:()=>memos.filter(m=>termDone(m,key)),all:()=>memos.filter(m=>termAll(m,key))},names={todo:'待處理',...(hasDisp?{dispatch:'待'+dispLabels.join('／')}:{}),...(hasArr?{arrive:'待到貨'}:{}),done:'已處理',all:'全部相關單'};
-   if(memoFilter===null&&memoLoaded)memoFilter=lists.todo().length?'todo':(hasDisp&&lists.dispatch().length)?'dispatch':(hasArr&&lists.arrive().length)?'arrive':'all';
-   const f=names[memoFilter]?memoFilter:'todo';
-   chips=Object.keys(names).map(k=>`<button type="button" data-mfilter="${k}" class="${f===k?'on':''}">${names[k]}（${lists[k]().length}）</button>`).join('');
-   items=lists[f]()}
   else if(view.mode==='mine'){
    const mine=memos.filter(isMine),f=memoFilter||'all',opts=[['all','全部',()=>mine],['draft','草稿',()=>mine.filter(m=>m.status==='draft')],['in_review','簽核中',()=>mine.filter(m=>m.status==='in_review')],['approved','已核准',()=>mine.filter(m=>m.status==='approved')],['rejected','已退回',()=>mine.filter(m=>m.status==='rejected')],['closed','已結案',()=>mine.filter(m=>m.status==='closed')]];
    chips=opts.map(o=>`<button type="button" data-mfilter="${o[0]}" class="${f===o[0]?'on':''}">${o[1]}（${o[2]().length}）</button>`).join('');
