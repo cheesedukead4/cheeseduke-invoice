@@ -3937,7 +3937,7 @@ el('csvDraft').onclick=()=>saveCSV('draft');el('csvSubmit').onclick=()=>saveCSV(
   return curPage===t}
  function renderNav(){
   const nav=$('tabs');if(!nav||!authUser)return;
-  const inboxN=memos.filter(canSignStrict).length,cur=curPage,curCat=cur.startsWith('form:')?(defOf(cur.slice(5))||{}).cat:(pageGroup(cur)==='invoice'?'fin':'');
+  const inboxN=memos.filter(inboxTodo).length,cur=curPage,curCat=cur.startsWith('form:')?(defOf(cur.slice(5))||{}).cat:(pageGroup(cur)==='invoice'?'fin':'');
   const btn=(t,label,cls)=>'<button type="button" class="tab'+(cls||'')+(navActive(t)?' active':'')+'" data-tab="'+esc(t)+'">'+label+'</button>';
   let h=btn('home','🏠 主畫面')+btn('inbox','📥 待我簽核'+(inboxN?' <span class="nav-n">'+inboxN+'</span>':''))+btn('mine','📤 我的申請');
   for(const k of termKeys()){const n=memos.filter(m=>termTodo(m,k)||termDispatch(m,k)||termArrive(m,k)).length;h+=btn('term:'+k,'🖥 '+esc(termName(k))+'終端'+(n?' <span class="nav-n">'+n+'</span>':''))}
@@ -3976,6 +3976,18 @@ el('csvDraft').onclick=()=>saveCSV('draft');el('csvSubmit').onclick=()=>saveCSV(
  const groupNeeds=(m,g)=>{const fs=grpFields(defOf(m.docType),g);return m.status==='approved'&&fs.length>0&&!fs.some(fd=>m.data&&m.data[fd.k])};
  const needFill=m=>groupNeeds(m,FILL_GROUPS[0]);
  const needAppFill=m=>isMine(m)&&groupNeeds(m,FILL_GROUPS[1]);
+ // ---- 待我簽核：輪到我簽的，加上核准之後輪到我處理的待辦（採購的購買／逐項確認、到貨、財務回填、申請人回簽）。管理員只算自己真的該處理的（代簽、代按不算）----
+ const isStageHolder=m=>{const d=defOf(m.docType);return !!d&&!!d.stage&&!!authUser&&(authUser.positions||[]).includes(d.stage.pos)};
+ const todoKind=m=>{
+  if(!authUser)return '';
+  if(canSignStrict(m))return 'sign';
+  if(canDispatch(m)&&isStageHolder(m))return 'dispatch';
+  if(canArrive(m)&&(isStageHolder(m)||isMine(m)))return 'arrive';
+  if(authUser.role==='finance'&&needFill(m))return 'finfill';
+  if(needAppFill(m))return 'appfill';
+  return ''};
+ const inboxTodo=m=>!!todoKind(m);
+ const todoLabel=m=>{const k=todoKind(m),d=defOf(m.docType)||{};return k==='dispatch'?'待我'+(hasItemConfirm(m)?'逐項確認':(d.dispatch||{}).label||'處理'):k==='arrive'?'待到貨':k==='finfill'?'待財務回填':k==='appfill'?'待我'+(d.postTitle?d.postTitle.replace(/填寫$/,''):'回簽'):k==='sign'?'待我簽核':''};
  // 核准後申請人回來填的一整段（例如出差申請單的「出差後填寫」：支出明細、支出金額、剩餘金額、成效）；回簽欄位只有日期（用印確認）時維持原本簡單的輸入
  const isPostForm=d=>!!d&&grpFields(d,FILL_GROUPS[1]).some(fd=>fd.type!=='date');
  const postLocked=m=>!!m.docNo&&memos.some(x=>x.id!==m.id&&x.status!=='draft'&&x.status!=='rejected'&&x.data&&Object.values(x.data).some(v=>v===m.docNo)); // 已經有別張單（例如差旅費報銷）連動：不能再改（後端也會擋）
@@ -4049,7 +4061,7 @@ el('csvDraft').onclick=()=>saveCSV('draft');el('csvSubmit').onclick=()=>saveCSV(
   if(!items.length)return '<p class="muted">目前沒有符合條件的申請。</p>';
   return '<table><thead><tr><th>單號</th><th>表單／主旨</th><th>部門／申請人</th><th class="right">金額</th><th>狀態</th><th>更新</th><th>操作</th></tr></thead><tbody>'+items.map(m=>{
    const id=esc(m.id),d=defOf(m.docType),acts=withActions?(canSign(m)?`<button type="button" class="primary" data-msign="approve" data-id="${id}">核准</button><button type="button" data-msign="reject" data-id="${id}">退回</button>`:'')+(canEditMemo(m)?`<button type="button" data-medit="${id}">${m.status==='rejected'?'修改重送':'編輯'}</button>`:'')+(canDeleteMemo(m)?`<button type="button" class="danger" data-mdel="${id}">刪除草稿</button>`:'')+(canDispatch(m)?`<button type="button" class="primary" data-mdispatch="${id}">${hasItemConfirm(m)?'逐項確認':esc(d.dispatch.label)}</button>`:'')+(canArrive(m)?`<button type="button" class="primary" data-marrive="${id}">到貨</button>`:''):'';
-   return `<tr><td>${esc(m.docNo||'（草稿）')}</td><td>${showForm&&d?`<span class="chip">${esc(d.icon)} ${esc(d.name)}</span> `:''}<b>${esc(m.title)}</b>${m.public?' <span class="chip">公告</span>':''}${(m.attachments||[]).length?`<div class="muted small">附件 ${m.attachments.length} 個</div>`:''}</td><td>${esc(m.dept||'—')}<div class="muted small">${esc(m.applicant)}</div></td><td class="right">${money(m.amount)}</td><td>${badge(m)}</td><td class="small">${esc(when(m.updatedAt))}</td><td><div class="flex"><button type="button" data-mview="${id}">查看</button>${acts}</div></td></tr>`}).join('')+'</tbody></table>'}
+   return `<tr><td>${esc(m.docNo||'（草稿）')}</td><td>${showForm&&d?`<span class="chip">${esc(d.icon)} ${esc(d.name)}</span> `:''}<b>${esc(m.title)}</b>${m.public?' <span class="chip">公告</span>':''}${(m.attachments||[]).length?`<div class="muted small">附件 ${m.attachments.length} 個</div>`:''}</td><td>${esc(m.dept||'—')}<div class="muted small">${esc(m.applicant)}</div></td><td class="right">${money(m.amount)}</td><td>${badge(m)}${view.mode==='inbox'&&todoKind(m)&&todoKind(m)!=='sign'?`<div class="small"><b>${esc(todoLabel(m))}</b></div>`:''}</td><td class="small">${esc(when(m.updatedAt))}</td><td><div class="flex"><button type="button" data-mview="${id}">查看</button>${acts}</div></td></tr>`}).join('')+'</tbody></table>'}
  function flowText(d){
   const t=d.flow||(d.key==='memo'&&Array.isArray(orgMemoTiers)&&orgMemoTiers.length?orgMemoTiers:null)||DEFAULT_TIERS;
   if(t.length===1)return '簽核流程：'+stepNames(t[0].steps)+'（申請人本人就是該關簽核人時自動略過）';
@@ -4059,9 +4071,9 @@ el('csvDraft').onclick=()=>saveCSV('draft');el('csvSubmit').onclick=()=>saveCSV(
   const def=view.mode==='form'?defOf(view.key):null;
   $('memoPageTitle').textContent=view.mode==='inbox'?'📥 待我簽核':view.mode==='mine'?'📤 我的申請':view.mode==='term'?'🖥 '+termName(view.key)+'終端':def?def.icon+' '+def.name:'載入中…';
   $('memoNew').classList.toggle('hide',!def);if(def)$('memoNew').textContent='＋ 新增'+def.name;
-  $('memoPageDesc').textContent=view.mode==='inbox'?'輪到你簽核的所有表單（核准或退回）。':view.mode==='term'?'「'+termName(view.key)+'」職位的專屬終端，和各表單頁面分開：待處理＝輪到「'+termName(view.key)+'」、你可以直接核准或退回；已處理＝這個職位已經簽過（或在這一關退回）的；全部相關單＝簽核流程裡有「'+termName(view.key)+'」這一關的所有表單。':view.mode==='mine'?'你提出過的所有表單，各種表單都在這裡；點「查看」看簽核進度。':def?def.desc+'　'+flowText(def):'';
+  $('memoPageDesc').textContent=view.mode==='inbox'?'輪到你處理的所有表單：待簽核（核准或退回），以及核准之後輪到你的待辦（購買、逐項確認、到貨、財務回填、回簽）；每一筆會標示是哪一種。':view.mode==='term'?'「'+termName(view.key)+'」職位的專屬終端，和各表單頁面分開：待處理＝輪到「'+termName(view.key)+'」、你可以直接核准或退回；已處理＝這個職位已經簽過（或在這一關退回）的；全部相關單＝簽核流程裡有「'+termName(view.key)+'」這一關的所有表單。':view.mode==='mine'?'你提出過的所有表單，各種表單都在這裡；點「查看」看簽核進度。':def?def.desc+'　'+flowText(def):'';
   let items,chips='';
-  if(view.mode==='inbox')items=memos.filter(canSignStrict);
+  if(view.mode==='inbox')items=memos.filter(inboxTodo);
   else if(view.mode==='term'){
    const key=view.key,hasArr=forms.some(f=>f.arrive&&f.stage&&f.stage.pos===key),dispLabels=[...new Set(forms.filter(f=>f.dispatch&&f.stage&&f.stage.pos===key).map(f=>f.dispatch.label))],hasDisp=dispLabels.length>0,lists={todo:()=>memos.filter(m=>termTodo(m,key)),...(hasDisp?{dispatch:()=>memos.filter(m=>termDispatch(m,key))}:{}),...(hasArr?{arrive:()=>memos.filter(m=>termArrive(m,key))}:{}),done:()=>memos.filter(m=>termDone(m,key)),all:()=>memos.filter(m=>termAll(m,key))},names={todo:'待處理',...(hasDisp?{dispatch:'待'+dispLabels.join('／')}:{}),...(hasArr?{arrive:'待到貨'}:{}),done:'已處理',all:'全部相關單'};
    if(memoFilter===null&&memoLoaded)memoFilter=lists.todo().length?'todo':(hasDisp&&lists.dispatch().length)?'dispatch':(hasArr&&lists.arrive().length)?'arrive':'all';
