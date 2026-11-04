@@ -2523,7 +2523,7 @@ function renderFlowEditor(){
  root.innerHTML=`<h3 style="margin:0">${esc(f.icon||'')} ${esc(f.name)} ${f.custom?'<span class="flow-badge">已調整</span>':'<span class="flow-badge flow-def">預設流程</span>'}</h3>
  <p class="muted small" style="margin:4px 0 8px">${esc(f.desc||'')}${f.custom?`<br>最後調整：${esc(f.at||'')}　${esc(f.by||'')}`:''}</p>
  <div class="note">${f.hasAmount?`依「${esc(f.amountLabel)}」的金額決定走哪一級：金額小於等於某一級的上限，就用那一級的流程。每一級的關卡由上而下依序簽核；申請人本人就是某一關時會自動略過，同一個人連續兩關只簽一次。`:'這張表單沒有金額欄位，只能設一級流程（不分金額）。'}</div>
- ${f.stage?(f.stage.gate?`<div class="note"><b>這張表單由「${esc(f.stage.name)}」那一關決定要不要送簽給後面的關卡</b>（例如「是否送簽給執行長」，可以寫備註、附報價單）。申請人送出時流程先走到「${esc(f.stage.name)}」；他選「送簽」，才會繼續走後面的關卡，選「不送簽」就在這一關核准後完成。所以<b>每一級都要有「${esc(f.stage.name)}」</b>，而且它前面的關卡每一級要一樣。</div>`:`<div class="note"><b>這張表單的金額由「${esc(f.stage.name)}」那一關決定</b>（他可以填各品項的單價，系統加總成合計；不用再填供應商與含稅總額）。申請人送出時還沒有金額，流程先走到「${esc(f.stage.name)}」；有了金額之後，才依金額決定後面的關卡（沒有填單價＝沒有金額，到這一關就完成）。所以<b>每一級都要有「${esc(f.stage.name)}」</b>，而且它前面的關卡每一級要一樣。</div>`):''}
+ ${f.stage?(f.stage.gate?`<div class="note"><b>這張表單由「${esc(f.stage.name)}」那一關決定要不要送簽給後面的關卡</b>（例如「是否送簽給執行長」，可以寫備註、附報價單）。申請人送出時流程先走到「${esc(f.stage.name)}」；他選「送簽」，才會繼續走後面的關卡，選「不送簽」就在這一關核准後完成。所以<b>每一級都要有「${esc(f.stage.name)}」</b>，而且它前面的關卡每一級要一樣。</div>`:`<div class="note"><b>這張表單的金額由「${esc(f.stage.name)}」那一關決定</b>（他可以填各品項的單價，系統加總成合計；不用再填供應商與含稅總額）。申請人送出時還沒有金額，流程先走到「${esc(f.stage.name)}」；有了金額之後，才依金額決定後面的關卡（沒有填單價＝沒有金額，到這一關就完成）。${f.stage.force?'另外「'+esc(f.stage.name)+'」那一關有一顆「核准並送執行長簽核」按鈕，按了不管金額多少都會補上執行長。':''}所以<b>每一級都要有「${esc(f.stage.name)}」</b>，而且它前面的關卡每一級要一樣。</div>`):''}
  ${tiers}
  ${f.hasAmount&&n<5?'<div style="margin:8px 0"><button type="button" id="flowTierAdd">＋ 新增金額級距</button></div>':''}
  ${errs.length?`<div class="flow-msg bad">${errs.map(esc).join('<br>')}</div>`:''}${warns.length?`<div class="flow-msg warn">⚠ ${warns.map(esc).join('<br>⚠ ')}</div>`:''}
@@ -4151,7 +4151,7 @@ el('csvDraft').onclick=()=>saveCSV('draft');el('csvSubmit').onclick=()=>saveCSV(
    out.push({key,who})}
   const steps=[];for(const s of out){const p=steps[steps.length-1];if(p&&p.who&&p.who===s.who)steps[steps.length-1]=s;else steps.push(s)}
   if(!steps.length&&tsteps.length&&orgCEO&&authUser.name!==orgCEO)steps.push({key:'executive',who:orgCEO});
-  const sk=d.stage?'pos:'+d.stage.pos:'';return{steps,pending:!!d.stage&&(d.stage.gate?!(data&&data[d.stage.gate.field]===d.stage.gate.yes):!(amount>0))&&use.some(t=>{const k=t.steps.indexOf(sk);return k>=0&&k<t.steps.length-1})}}
+  const fc0=d.stage&&d.stage.force;if(fc0&&data&&data[fc0.field]===fc0.yes&&!steps.some(x=>x.key===fc0.add)){const i0=steps.findIndex(x=>x.key==='pos:'+d.stage.pos),w0=fc0.add==='executive'?orgCEO:'';if(i0>=0&&w0&&w0!==authUser.name)steps.splice(i0+1,0,{key:fc0.add,who:w0})}const sk=d.stage?'pos:'+d.stage.pos:'';return{steps,pending:!!d.stage&&(d.stage.gate?!(data&&data[d.stage.gate.field]===d.stage.gate.yes):!(amount>0))&&use.some(t=>{const k=t.steps.indexOf(sk);return k>=0&&k<t.steps.length-1})}}
  // 金額：一般表單讀金額欄位；有「數量×單價」自動加總（請購單的合計）的表單，用品項明細算（和後端 applyDerive_ 的 sumProduct 同一套規則）
  function dataAmount(d,data){const sp=(d.derive||[]).find(x=>x.into===d.amount&&x.sumProduct);
   if(sp){let t=0,any=false;for(const r of (data[sp.sumProduct[0]]||[])){const q=r[sp.sumProduct[1]],p=r[sp.sumProduct[2]];if(q>0&&p>=0){t+=q*p;any=true}}if(any)return Math.round(t*100)/100}
@@ -4204,7 +4204,7 @@ el('csvDraft').onclick=()=>saveCSV('draft');el('csvSubmit').onclick=()=>saveCSV(
  // ---- 簽核、刪除 ----
  // ---- 階段填寫：流程走到指定職位（例如採購）那一關時，他在明細裡填單價（請購單）或決定是否送簽給執行長＋備註＋報價單（設備維修），按「核准」一併送出；之後的關卡由他填的內容決定 ----
  const stageActive=m=>{const d=defOf(m.docType),s=curStep(m);return !!(d&&d.stage&&s&&s.key==='pos:'+d.stage.pos&&canSign(m))};
- const stageFields=d=>d.fields.filter(fd=>fd.stg&&!fd.off&&!fd.auto); // 階段填寫的欄位：不含已停用（off）、自動記錄或自動算的（購買日、合計）
+ const stageFields=d=>d.fields.filter(fd=>fd.stg&&!fd.off&&!fd.auto&&!(d.stage&&d.stage.force&&d.stage.force.field===fd.k)); // 階段填寫的欄位：不含已停用（off）、自動記錄或自動算的（購買日、合計）
  const stageSumProduct=d=>(d.derive||[]).find(x=>x.into===d.amount&&x.sumProduct);
  let stageQuote={id:'',files:[]}; // 採購在這一關要附的報價單（還沒上傳的檔案，按「核准」時才一起送出）
  const quoteLeft=m=>5-(m.attachments||[]).filter(a=>a.tag==='quote').length-stageQuote.files.length;
@@ -4222,7 +4222,7 @@ el('csvDraft').onclick=()=>saveCSV('draft');el('csvSubmit').onclick=()=>saveCSV(
   if(it){const rows=Array.isArray(data[it.k])?data[it.k]:[],sc=it.cols.filter(c=>c.stg),oc=it.cols.filter(c=>!c.stg&&!c.dsp);
    itemsHtml=rows.length?`<div class="items-wrap" style="margin-top:8px"><table class="items-table"><thead><tr>${oc.map(c=>`<th>${esc(c.label)}</th>`).join('')}${sc.map(c=>`<th>${esc(c.label)}</th>`).join('')}</tr></thead><tbody>${rows.map((r,i)=>`<tr>${oc.map(c=>`<td>${r[c.k]===undefined?'':esc(r[c.k])}</td>`).join('')}${sc.map(c=>`<td><input data-stg-row="${i}" data-stg-col="${esc(c.k)}" type="number" min="0" step="any" inputmode="decimal" value="${esc(r[c.k]??'')}" style="min-width:90px"></td>`).join('')}</tr>`).join('')}</tbody></table></div>${sp?`<p class="small" style="margin:6px 0 0">合計：<b id="stageTotalVal">${esc(stageTotal(m,d))}</b> <span class="muted">（每項 數量 × 單價 加總，系統自動計算，不用填供應商與含稅總額；沒填單價就沒有金額，核准後就完成）</span></p>`:''}`:'<p class="muted small" style="margin:8px 0 0">申請人沒有填品項明細，這一關不用填寫，直接核准即可。</p>'}
   const quote=d.stage.quote?`<div class="field wide"><label>報價單附件（選填，最多 5 個，每個 10 MB 內；JPG、PNG、WEBP、PDF）</label><input id="stageQuoteFiles" type="file" multiple accept="image/jpeg,image/png,image/webp,application/pdf"><div id="stageQuoteList" class="memo-files" style="margin-top:6px">${stageQuoteHtml()}</div></div>`:'';
-  const help=d.stage.gate?'請決定是否送簽給後面的關卡（執行長），可以寫備註、附上報價單，再按最下面的「核准」。選「送簽」才會再由後面的關卡簽核，選「不送簽」就在你核准後完成。':d.amount?'要決定金額的話，請填各品項的單價（選填），再按最下面的「核准」。填的單價會決定後面還要經過哪些關卡；沒有填單價就沒有金額，你核准後就完成。':'請填寫下面的欄位，再按最下面的「核准」。';
+  const help=d.stage.force?'要決定金額的話，請填各品項的單價（選填）。按「核准」＝照金額決定後面還要經過哪些關卡（沒有填單價就沒有金額，你核准後就完成）；按「'+d.stage.force.label+'」＝不管金額多少，後面都會再補上執行長簽核。':d.stage.gate?'請決定是否送簽給後面的關卡（執行長），可以寫備註、附上報價單，再按最下面的「核准」。選「送簽」才會再由後面的關卡簽核，選「不送簽」就在你核准後完成。':d.amount?'要決定金額的話，請填各品項的單價（選填），再按最下面的「核准」。填的單價會決定後面還要經過哪些關卡；沒有填單價就沒有金額，你核准後就完成。':'請填寫下面的欄位，再按最下面的「核准」。';
   return `<div class="stage-box"><h3 style="margin:2px 0 6px">${esc(pname)}填寫</h3><p class="muted small" style="margin:0 0 6px">${esc(help)}</p><div class="dyn-fields">${scalar}${quote}</div>${itemsHtml}</div>`}
  function collectStage(m,d){
   const root=$('memoDetailBody'),data=JSON.parse(JSON.stringify(m.data||{})),miss=[];
@@ -4232,9 +4232,9 @@ el('csvDraft').onclick=()=>saveCSV('draft');el('csvSubmit').onclick=()=>saveCSV(
   for(const k of d.stage.req||[]){const fd=d.fields.find(f=>f.k===k);if(fd&&(data[k]===undefined||(fd.type==='money'&&!(data[k]>0))))miss.push(fd.label.replace(/（.*?）/g,''))}
   return{data,miss}}
  async function signMemo(id,kind){const m=memos.find(x=>x.id===id);if(!m||!canSign(m))return toast('目前不是你的簽核關卡');
-  const sd=defOf(m.docType),stage=kind==='approve'&&stageActive(m);
+  const sd=defOf(m.docType),stage=(kind==='approve'||kind==='approveceo')&&stageActive(m);if(kind==='approveceo'&&!(stage&&sd.stage.force))return toast('目前不能按這個按鈕');
   if(stage&&!(detailId===id&&$('memoDetail').open)){openDetail(id);return toast('請先在明細裡填寫「'+(STEP_NAMES['pos:'+sd.stage.pos]||'')+'」的欄位，再按「核准」')}
-  let stg=null;if(stage){stg=collectStage(m,sd);if(stg.miss.length)return toast('請先填寫：'+stg.miss.join('、'))}
+  let stg=null;if(stage){stg=collectStage(m,sd);if(stg.miss.length)return toast('請先填寫：'+stg.miss.join('、'));if(kind==='approveceo'){if(!confirm('要核准並送執行長簽核嗎？\n不管金額多少，這張單都會再由執行長簽核。'))return;stg.data[sd.stage.force.field]=sd.stage.force.yes}}
   let reason='';
   if(kind==='reject'){const t=prompt('請填寫退回原因（申請人會看到）：');if(t===null)return;if(!t.trim())return toast('退回原因不可空白');reason=t.trim()}
   const last=curIdx(m)>=m.flow.steps.length-1,to=kind==='reject'?'rejected':(stage?'in_review':(last?'approved':'in_review')),proxy=!canSignStrict(m);
@@ -4242,7 +4242,7 @@ el('csvDraft').onclick=()=>saveCSV('draft');el('csvSubmit').onclick=()=>saveCSV(
   if(stage&&sd.stage.quote&&stageQuote.id===id&&stageQuote.files.length){
    toast('報價單上傳中…');
    try{quoteRefs=await Promise.all(stageQuote.files.map(f=>uploadMemoFile({...f,tag:'quote'})))}catch(e){return toast('報價單上傳失敗：'+(e.message||e))}}
-  const item={...m,status:to,...(stg?{data:stg.data}:{}),...(quoteRefs.length?{attachments:[...(m.attachments||[]),...quoteRefs]}:{}),history:[...(m.history||[]),{action:(proxy?'管理員代簽':'')+(kind==='reject'?'退回':'核准'),reason}]};
+  const item={...m,status:to,...(stg?{data:stg.data}:{}),...(quoteRefs.length?{attachments:[...(m.attachments||[]),...quoteRefs]}:{}),history:[...(m.history||[]),{action:(proxy?'管理員代簽':'')+(kind==='reject'?'退回':kind==='approveceo'?sd.stage.force.label:'核准'),reason}]};
   try{const r=await InvCloud.call('put',{store:'memos',item,base:Number(m._rev)||0});if(stageQuote.id===id)stageQuote={id:'',files:[]};upsert(r.item);noteVer(r.v);renderNav();moduleRender();if(detailId===id)renderDetail(r.item);
    toast(kind==='reject'?'已退回給申請人':r.item.status==='approved'?'已核准，簽核完成'+(dispatchDef(r.item)?(hasItemConfirm(r.item)?'。接著請在明細逐項確認品項是否已完成。':'。接著請按「'+dispatchDef(r.item).dispatch.label+'」。'):arriveDef(r.item)?'。貨到了請按「到貨」結案。':''):'已核准，已送交下一關：'+stepLabel(r.item.flow.steps[curIdx(r.item)]))}
   catch(e){toast('簽核失敗：'+(e.message||e));if(e.code==='conflict')memoRefresh(true)}}
@@ -4312,7 +4312,7 @@ el('csvDraft').onclick=()=>saveCSV('draft');el('csvSubmit').onclick=()=>saveCSV(
    return `<span class="fp ${c}">${c==='done'?'✔ ':c==='now'?'⏳ ':c==='bad'?'✖ ':''}${esc(stepLabel(s))}</span>`}).join(' → ')+(m.status==='approved'||m.status==='closed'?' → <span class="fp done">已核准</span>':'')+(m.status==='closed'?' → <span class="fp done">已結案</span>':''):(m.flow&&m.status==='approved'?'<span class="muted">免簽核（申請人本人就是最高簽核人）</span>':'<span class="muted">尚未送出，送出時才會依金額決定簽核流程</span>');
   const rej=m.status==='rejected'?[...(m.history||[])].reverse().find(h=>h.action.indexOf('退回')>=0):null;
   const acts=[];
-  if(canSign(m)){const p=!canSignStrict(m);acts.push(`<button type="button" class="primary" data-msign="approve" data-id="${esc(m.id)}">${p?'管理員代簽：核准':'核准'}</button><button type="button" data-msign="reject" data-id="${esc(m.id)}">${p?'管理員代簽：退回':'退回'}</button>`)}
+  if(canSign(m)){const p=!canSignStrict(m);acts.push(`<button type="button" class="primary" data-msign="approve" data-id="${esc(m.id)}">${p?'管理員代簽：核准':'核准'}</button>${stageActive(m)&&d&&d.stage.force?`<button type="button" class="primary" data-msign="approveceo" data-id="${esc(m.id)}">${p?'管理員代簽：':''}${esc(d.stage.force.label)}</button>`:''}<button type="button" data-msign="reject" data-id="${esc(m.id)}">${p?'管理員代簽：退回':'退回'}</button>`)}
   if(canDispatch(m)&&!hasItemConfirm(m))acts.push(`<button type="button" class="primary" data-mdispatch="${esc(m.id)}">${esc(d.dispatch.label)}</button>`);
   if(canArrive(m))acts.push(`<button type="button" class="primary" data-marrive="${esc(m.id)}">到貨（結案）</button>`);
   if(m.docType==='seal'&&m.docNo)acts.push(`<button type="button" data-mprintseal="${esc(m.id)}">🖨 列印用印申請書</button>`);
