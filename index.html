@@ -4252,28 +4252,40 @@ el('csvDraft').onclick=()=>saveCSV('draft');el('csvSubmit').onclick=()=>saveCSV(
   const item={...m,history:[...(m.history||[]),{action:lab,reason:''}]};
   try{const r=await InvCloud.call('put',{store:'memos',item,base:Number(m._rev)||0});upsert(r.item);noteVer(r.v);renderNav();moduleRender();if(detailId===id&&$('memoDetail').open)renderDetail(r.item);toast('已記錄：'+lab)}
   catch(e){toast('操作失敗：'+(e.message||e));if(e.code==='conflict')memoRefresh(true)}}
- // ---- 逐項確認（def.dispatch.items）：核准後採購逐項勾選品項是否已完成（已購買／已到貨），每項各自記完成日；全部完成就算購買完成（購買日由系統記）。沒有填品項的單維持一個「購買」按鈕 ----
+ // ---- 逐項確認（def.dispatch.items）：核准後採購逐項勾選每個品項「已執行」（已下單／已處理）與「完成」（已購買／已到貨），每項各自記日期；勾完成就視同已執行；全部完成就算購買完成（購買日由系統記）。沒有填品項的單維持一個「購買」按鈕 ----
  const itemsCfg=d=>d&&d.dispatch&&d.dispatch.items?d.dispatch.items:null;
  const confirmRows=(m,d)=>{const c=itemsCfg(d);return c&&m.data&&Array.isArray(m.data[c.field])?m.data[c.field]:[]};
  const hasItemConfirm=m=>{const d=defOf(m.docType);return !!itemsCfg(d)&&confirmRows(m,d).length>0};
  const rowDoneDate=(m,d,r)=>r[itemsCfg(d).col]||(m.data&&m.data[d.dispatch.field])||''; // 舊單據（整張已按過「購買」的）每個品項視為已完成
- const itemProgress=m=>{const d=defOf(m.docType),rs=confirmRows(m,d);return{n:rs.filter(r=>rowDoneDate(m,d,r)).length,total:rs.length}};
+ const rowExecDate=(m,d,r)=>{const c=itemsCfg(d);return (c.exec&&r[c.exec])||rowDoneDate(m,d,r)}; // 已完成的一定也已執行（舊資料沒有已執行日時用完成日）
+ const itemProgress=m=>{const d=defOf(m.docType),rs=confirmRows(m,d);return{n:rs.filter(r=>rowDoneDate(m,d,r)).length,e:rs.filter(r=>rowExecDate(m,d,r)).length,total:rs.length}};
+ const progressText=p=>'已執行 '+p.e+'／'+p.total+'、完成 '+p.n+'／'+p.total+' 項';
  function itemsDoneSection(m,d){
   if(!hasItemConfirm(m)||(m.status!=='approved'&&m.status!=='closed'))return '';
   const c=itemsCfg(d),rows=confirmRows(m,d),p=itemProgress(m),can=canDispatch(m),fd=d.fields.find(f=>f.k===c.field),cols=fd.cols.filter(x=>!x.stg&&!x.dsp),all=p.n===p.total;
-  const body=rows.map((r,i)=>{const dd=rowDoneDate(m,d,r);
-   return `<tr>${cols.map(x=>`<td>${r[x.k]===undefined?'':esc(x.type==='money'?fmt(r[x.k]):r[x.k])}</td>`).join('')}<td>${can?`<label style="white-space:nowrap"><input type="checkbox" data-idone="${i}"${dd?' checked':''}> 已完成</label>${dd?` <span class="muted small">${esc(dd)}</span>`:''}`:(dd?`✔ 已完成 <span class="muted small">${esc(dd)}</span>`:'<span class="muted">尚未完成</span>')}</td></tr>`}).join('');
-  return `<div class="stage-box" style="margin-top:12px"><h3 style="margin:2px 0 6px">逐項確認（${esc(d.dispatch.label)}進度：已完成 ${p.n}／${p.total} 項）</h3>${all?`<p class="small" style="margin:0 0 6px;color:#1f6f3d">✔ 全部品項都已完成${m.data&&m.data[d.dispatch.field]?'，'+esc(d.dispatch.label)+'日 '+esc(m.data[d.dispatch.field]):''}。</p>`:can?'<p class="muted small" style="margin:0 0 6px">採購：買好（或到貨）的品項請勾選「已完成」，再按「儲存確認」；系統會記下完成日。全部品項都完成，這張請購單就算完成。還沒全部完成之前，勾錯的可以取消再儲存。</p>':'<p class="muted small" style="margin:0 0 6px">由採購逐項確認每個品項是否已完成。</p>'}<div class="items-wrap"><table class="items-table"><thead><tr>${cols.map(x=>`<th>${esc(x.label)}</th>`).join('')}<th>完成狀態</th></tr></thead><tbody>${body}</tbody></table></div>${can?`<div class="actions" style="margin-top:8px"><button type="button" class="primary" data-mitemsave="${esc(m.id)}">儲存確認</button><button type="button" data-mitemall="${esc(m.id)}">全部勾選</button></div>`:''}</div>`}
+  const dateTxt=v=>v?` <span class="muted small">${esc(v)}</span>`:'';
+  const body=rows.map((r,i)=>{const dd=rowDoneDate(m,d,r),ed=rowExecDate(m,d,r);
+   const cell=(attr,on,date)=>can?`<td><label style="white-space:nowrap"><input type="checkbox" ${attr}="${i}"${on?' checked':''}> ${attr==='data-iexec'?'已執行':'完成'}</label>${dateTxt(date)}</td>`:`<td>${on?'✔ '+dateTxt(date):'<span class="muted">—</span>'}</td>`;
+   return `<tr>${cols.map(x=>`<td>${r[x.k]===undefined?'':esc(x.type==='money'?fmt(r[x.k]):r[x.k])}</td>`).join('')}${cell('data-iexec',!!ed,ed)}${cell('data-idone',!!dd,dd)}</tr>`}).join('');
+  return `<div class="stage-box" style="margin-top:12px"><h3 style="margin:2px 0 6px">逐項確認（${esc(progressText(p))}）</h3>${all?`<p class="small" style="margin:0 0 6px;color:#1f6f3d">✔ 全部品項都已完成${m.data&&m.data[d.dispatch.field]?'，'+esc(d.dispatch.label)+'日 '+esc(m.data[d.dispatch.field]):''}。</p>`:can?'<p class="muted small" style="margin:0 0 6px">採購：下單（或處理）了的品項勾「已執行」，買好、到貨的品項勾「完成」（勾完成會一起勾已執行），再按「儲存確認」；系統會記下日期。全部品項都完成，這張請購單就算完成。還沒全部完成之前，勾錯的可以取消再儲存。</p>':'<p class="muted small" style="margin:0 0 6px">由採購逐項確認每個品項是否已執行、已完成。</p>'}<div class="items-wrap"><table class="items-table"><thead><tr>${cols.map(x=>`<th>${esc(x.label)}</th>`).join('')}<th>已執行</th><th>完成</th></tr></thead><tbody>${body}</tbody></table></div>${can?`<div class="actions" style="margin-top:8px"><button type="button" class="primary" data-mitemsave="${esc(m.id)}">儲存確認</button><button type="button" data-mitemexec="${esc(m.id)}">全部已執行</button><button type="button" data-mitemall="${esc(m.id)}">全部完成</button></div>`:''}</div>`}
  async function saveItemsDone(id){
   const m=memos.find(x=>x.id===id),d=m&&defOf(m.docType);if(!m||!d||!canDispatch(m)||!hasItemConfirm(m))return toast('目前不能確認品項');
   const c=itemsCfg(d),root=$('memoDetailBody'),today=localYmd(new Date()),old=confirmRows(m,d);
-  const items=old.map((r,i)=>{const el=root.querySelector('[data-idone="'+i+'"]'),o={...r};if(el&&el.checked)o[c.col]=r[c.col]||today;else delete o[c.col];return o});
-  if(!items.some((r,i)=>!!r[c.col]!==!!old[i][c.col]))return toast('沒有變更：請先勾選已完成的品項');
+  const items=old.map((r,i)=>{const ee=root.querySelector('[data-iexec="'+i+'"]'),de=root.querySelector('[data-idone="'+i+'"]'),dn=!!(de&&de.checked),ex=!!(ee&&ee.checked)||dn,o={...r};
+   if(dn)o[c.col]=r[c.col]||today;else delete o[c.col];
+   if(c.exec){if(ex)o[c.exec]=r[c.exec]||r[c.col]||today;else delete o[c.exec]}
+   return o});
+  const changed=items.some((r,i)=>!!r[c.col]!==!!old[i][c.col]||(!!c.exec&&!!r[c.exec]!==!!rowExecDate(m,d,old[i])));
+  if(!changed)return toast('沒有變更：請先勾選已執行或已完成的品項');
   const all=items.every(r=>r[c.col]);
   if(all&&!confirm('所有品項都已完成，這張「'+m.title+'」就算'+d.dispatch.label+'完成了，之後不能再修改。確定嗎？'))return;
   const item={...m,data:{...m.data,[c.field]:items},history:[...(m.history||[]),{action:'確認品項',reason:''}]};
   try{const r=await InvCloud.call('put',{store:'memos',item,base:Number(m._rev)||0});upsert(r.item);noteVer(r.v);renderNav();moduleRender();if(detailId===id&&$('memoDetail').open)renderDetail(r.item);toast(all?'全部品項都已完成':'已儲存品項確認')}
   catch(e){toast('儲存失敗：'+(e.message||e));if(e.code==='conflict')memoRefresh(true)}}
+ // 勾「完成」會一起勾「已執行」；取消「已執行」會一起取消「完成」
+ $('memoDetailBody').addEventListener('change',e=>{const el=e.target;if(!el.dataset)return;
+  if(el.dataset.idone!==undefined&&el.checked){const x=$('memoDetailBody').querySelector('[data-iexec="'+el.dataset.idone+'"]');if(x)x.checked=true}
+  if(el.dataset.iexec!==undefined&&!el.checked){const x=$('memoDetailBody').querySelector('[data-idone="'+el.dataset.iexec+'"]');if(x)x.checked=false}});
  async function arriveMemo(id){const m=memos.find(x=>x.id===id);if(!m||!canArrive(m))return toast('目前不能按到貨');
   if(!confirm('確定「'+m.title+'」已經到貨，要結案了嗎？\n結案後就不能再修改。'))return;
   const item={...m,status:'closed',history:[...(m.history||[]),{action:'到貨（結案）',reason:''}]};
@@ -4308,7 +4320,7 @@ el('csvDraft').onclick=()=>saveCSV('draft');el('csvSubmit').onclick=()=>saveCSV(
   if(canDeleteMemo(m))acts.push(`<button type="button" class="danger" data-mdel="${esc(m.id)}">刪除草稿</button>`);
   $('memoDetailBody').innerHTML=`<div class="flex" style="margin-bottom:10px">${badge(m)}</div>
   ${rej?`<div class="warn" style="margin-bottom:10px"><b>退回原因：</b>${esc(rej.reason)}（${esc(rej.actor)}）</div>`:''}
-  <div class="memo-meta"><div><span>表單</span>${d?esc(d.icon+' '+d.name):esc(m.docType)}</div><div><span>申請人</span>${esc(m.applicant)}</div><div><span>部門</span>${esc(m.dept||'—')}</div>${d&&d.amount?`<div><span>金額</span>${money(m.amount)}</div>`:''}<div><span>建立時間</span>${esc(when(m.createdAt))}</div><div><span>最後更新</span>${esc(when(m.updatedAt))}</div>${d&&d.dispatch&&m.status==='approved'&&!isDispatched(m)?`<div><span>${esc(d.dispatch.label)}</span><b style="color:#8d5600">${hasItemConfirm(m)?'已核准，已完成 '+itemProgress(m).n+'／'+itemProgress(m).total+' 項':'已核准，尚未'+esc(d.dispatch.label)}</b></div>`:''}${m.status==='closed'?`<div><span>到貨日</span>${esc(arrivedOn(m))}</div>`:''}${d&&d.pub?`<div><span>公告</span>${m.public?'核准後公告全公司':'不公告'}</div>`:''}</div>
+  <div class="memo-meta"><div><span>表單</span>${d?esc(d.icon+' '+d.name):esc(m.docType)}</div><div><span>申請人</span>${esc(m.applicant)}</div><div><span>部門</span>${esc(m.dept||'—')}</div>${d&&d.amount?`<div><span>金額</span>${money(m.amount)}</div>`:''}<div><span>建立時間</span>${esc(when(m.createdAt))}</div><div><span>最後更新</span>${esc(when(m.updatedAt))}</div>${d&&d.dispatch&&m.status==='approved'&&!isDispatched(m)?`<div><span>${esc(d.dispatch.label)}</span><b style="color:#8d5600">${hasItemConfirm(m)?'已核准，'+esc(progressText(itemProgress(m))):'已核准，尚未'+esc(d.dispatch.label)}</b></div>`:''}${m.status==='closed'?`<div><span>到貨日</span>${esc(arrivedOn(m))}</div>`:''}${d&&d.pub?`<div><span>公告</span>${m.public?'核准後公告全公司':'不公告'}</div>`:''}</div>
   <h3 style="margin:8px 0 6px">申請內容</h3>${dataHtml(m,d)}${stageSection(m,d)}${itemsDoneSection(m,d)}${fillSections(m,d)}
   ${(m.attachments||[]).length?`<h3 style="margin:14px 0 6px">附件</h3><div class="memo-files">${m.attachments.map((f,i)=>`<button type="button" class="memo-fileitem" data-matt="${i}" data-id="${esc(m.id)}">📎 ${f.tag==='quote'?'<b>報價單</b>｜':''}${esc(f.name)} <span class="muted small">${fmtSize(f.size)}</span></button>`).join('')}</div>`:''}
   <h3 style="margin:14px 0 6px">簽核流程</h3><div class="flowpills">${pills}</div>
@@ -4358,7 +4370,7 @@ el('csvDraft').onclick=()=>saveCSV('draft');el('csvSubmit').onclick=()=>saveCSV(
   catch(e){toast('無法開啟附件：'+(e.message||e))}}
 
  // ---- 事件 ----
- document.addEventListener('click',e=>{const t=e.target.closest('[data-mview],[data-medit],[data-mdel],[data-msign],[data-mfilter],[data-matt],[data-mfrm],[data-todo],[data-itemadd],[data-itemdel],[data-finsave],[data-marrive],[data-mdispatch],[data-padd],[data-pdel],[data-psave],[data-mprintseal],[data-mitemsave],[data-mitemall]');if(!t||!authUser)return;
+ document.addEventListener('click',e=>{const t=e.target.closest('[data-mview],[data-medit],[data-mdel],[data-msign],[data-mfilter],[data-matt],[data-mfrm],[data-todo],[data-itemadd],[data-itemdel],[data-finsave],[data-marrive],[data-mdispatch],[data-padd],[data-pdel],[data-psave],[data-mprintseal],[data-mitemsave],[data-mitemall],[data-mitemexec]');if(!t||!authUser)return;
   const d=t.dataset;
   if(d.mview){openDetail(d.mview)}
   else if(d.medit){const m=memos.find(x=>x.id===d.medit);if(m&&canEditMemo(m)){const df=defOf(m.docType);if(!df)return toast('這張單的表單已經停用，不能再編輯');if($('memoDetail').open)$('memoDetail').close();openForm(df,m)}}
@@ -4373,7 +4385,8 @@ el('csvDraft').onclick=()=>saveCSV('draft');el('csvSubmit').onclick=()=>saveCSV(
   else if(d.mdispatch){dispatchMemo(d.mdispatch)}
   else if(d.mprintseal){printSeal(d.mprintseal)}
   else if(d.mitemsave){saveItemsDone(d.mitemsave)}
-  else if(d.mitemall){document.querySelectorAll('#memoDetailBody [data-idone]').forEach(i=>{i.checked=true})}
+  else if(d.mitemall){document.querySelectorAll('#memoDetailBody [data-idone],#memoDetailBody [data-iexec]').forEach(i=>{i.checked=true})}
+  else if(d.mitemexec){document.querySelectorAll('#memoDetailBody [data-iexec]').forEach(i=>{i.checked=true})}
   else if(d.padd!==undefined){const m=memos.find(x=>x.id===detailId),df=m&&defOf(m.docType),fd=df&&df.fields.find(f=>f.k===d.padd),tb=document.querySelector('#memoDetailBody [data-post-items="'+d.padd+'"] tbody');if(fd&&tb)tb.insertAdjacentHTML('beforeend',postRowHtml(fd,{}))}
   else if(d.pdel!==undefined){const tr=t.closest('tr'),tb=tr.parentNode;if(tb.children.length>1)tr.remove();else tr.querySelectorAll('input').forEach(i=>{if(!i.readOnly)i.value=''});postRecalc({target:tb})}
   else if(d.psave){savePost(d.psave)}
