@@ -268,7 +268,7 @@ input.ro{background:#eef2f8;color:#334155}
 #entry .ocr-box.compact{margin:4px 0 6px;padding:5px 8px}#entry .ocr-box.compact .ocr-preview-wrap{margin-top:4px}
 #entry .cgrid{gap:5px 10px;margin:0 0 5px}#entry .voucher-toggle{margin:0 0 5px;padding:4px 10px}
 #entry #invoiceForm .claim-block{margin:0}#entry .sticky-actions{margin-top:6px;padding:6px 0 calc(6px + env(safe-area-inset-bottom))}
-.claim-scroll{overflow:auto;-webkit-overflow-scrolling:touch}#invoiceForm .claim-scroll thead th{position:sticky;top:0;z-index:1}
+.claim-scroll{overflow:auto;-webkit-overflow-scrolling:touch}#invoiceForm .claim-scroll{max-height:none!important;overflow:visible}
 /* 執行長發票頁：上方狀態列（即時狀態）＋「上傳發票」「我的發票明細」兩個畫面；只在執行長模式出現 */
 #entry:not(.ceo-mode) .ceo-only{display:none!important}#entry.ceo-mode:not(.ceo-view-mine) #ceoMine{display:none}#entry.ceo-mode.ceo-view-mine>*:not(#ceoBar):not(#ceoMine){display:none!important}
 .ceo-bar{padding:8px 12px}.ceo-bar-top{display:flex;flex-wrap:wrap;gap:8px 12px;align-items:center;justify-content:space-between}.ceo-views{display:flex;gap:6px;flex-wrap:wrap}.ceo-views button{white-space:nowrap;background:#fff;border:1px solid #b6c5da;border-radius:999px;padding:7px 16px;cursor:pointer}.ceo-views button.on{background:var(--blue);color:#fff;border-color:var(--blue)}.ceo-live{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
@@ -1378,16 +1378,8 @@ function aggregateAllocations(items){
  ratios[0]=Math.round((ratios[0]+100-ratios.reduce((n,x)=>n+x,0))*100)/100;
  return depts.map((d,i)=>({dept:d,ratio:ratios[i],amount:cents.get(d)/100}));
 }
-// 請款項目很多時，只讓「項目清單」在自己的框裡捲動（框高＝畫面剩下的高度），整頁不用上下捲；合計、新增項目、送出按鈕永遠看得到
-function fitClaimBox(){
- const box=document.querySelector('#invoiceForm .claim-scroll');if(!box||!box.offsetParent)return;
- box.style.maxHeight='';
- const below=(document.querySelector('#invoiceForm .claim-bar')?.offsetHeight||0)+(document.getElementById('claimAmountWarning')?.offsetHeight||0)+(document.querySelector('#invoiceForm .sticky-actions')?.offsetHeight||0)+14;
- const h=Math.max(150,Math.floor(window.innerHeight-box.getBoundingClientRect().top-below));box.style.maxHeight=h+'px';
- // 框下面到頁尾還有留白（面板邊距、頁面底部邊距）：項目多到要捲動時，把多出來的整頁高度也扣掉，整頁才不會多出捲軸
- const over=document.documentElement.scrollHeight-window.innerHeight;
- if(over>0&&box.scrollHeight>box.clientHeight)box.style.maxHeight=Math.max(150,h-over)+'px';
-}
+// 請款項目（項目說明）清單不捲動：全部項目直接展開，項目多就整頁往下長（送出按鈕固定在畫面底部）；這裡只清掉舊的框高
+function fitClaimBox(){const box=document.querySelector('#invoiceForm .claim-scroll');if(box)box.style.maxHeight=''}
 window.addEventListener('resize',fitClaimBox);
 function displaySingleClaimItems(){
  ensureItemAllocations(singleClaimItems,$('dept').value);
