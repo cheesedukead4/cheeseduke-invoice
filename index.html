@@ -495,7 +495,7 @@ main{padding-bottom:12px}
 <div class="note">系統管理員的 Gmail 設定在雲端後端程式（Code.gs 的 ADMIN_EMAILS_），無法在這裡新增或移除，避免誤把自己鎖在外面。</div>
 <div class="account-search" id="accountSearchBar"><input id="accountSearch" type="search" placeholder="🔍 搜尋姓名、Gmail、工號、部門（輸入就會跳到那個人；Enter 跳下一位）" autocomplete="off" aria-label="搜尋人員"><button type="button" id="accountSearchPrev" title="上一位（Shift+Enter）">↑</button><button type="button" id="accountSearchNext" title="下一位（Enter）">↓</button><span id="accountSearchInfo" class="muted small"></span></div>
 <h3>名冊中還沒有登入帳號的人</h3><div class="tablewrap" id="rosterPending"></div>
-<h3>新增人員</h3><p class="muted small" style="margin:0 0 8px">要<b>修改現有人員</b>：到下面「目前人員清單」找到他（上面的搜尋框輸入姓名就會直接跳過去），在他那一列按「編輯」，<b>直接在那一列修改</b>，不用回到這裡。</p><form id="accountForm"><div class="account-form-grid">
+<details class="fold" id="accountAddBox"><summary>➕ 新增人員（按一下展開／收合）</summary><p class="muted small" style="margin:10px 0 8px">要<b>修改現有人員</b>：到下面「目前人員清單」找到他（上面的搜尋框輸入姓名就會直接跳過去），在他那一列按「編輯」，<b>直接在那一列修改</b>，不用回到這裡。</p><form id="accountForm"><div class="account-form-grid">
 <div class="field"><label>Gmail 地址 *</label><input id="accountId" type="email" required maxlength="120" placeholder="例如 name@gmail.com"></div>
 <div class="field"><label>工號</label><input id="accountEmpNo" maxlength="20" placeholder="例如 P0040"></div>
 <div class="field"><label>姓名 *</label><input id="accountName" maxlength="40" required placeholder="需與人員名冊相符"></div>
@@ -503,7 +503,7 @@ main{padding-bottom:12px}
 <div class="field"><label>所屬部門／門市</label><select id="accountDept"><option value="">跨部門／未指定</option></select></div>
 <div class="field"><label>狀態</label><select id="accountEnabled"><option value="yes">啟用</option><option value="no">停用</option></select></div>
 </div><h3>職位（可複選）</h3><p class="muted small" style="margin:0 0 6px">加在上面「角色」之外的簽核身分，用在表單的簽核關卡（例如印刷品送印申請有一關由「行銷」簽）。一個人可以同時是部門主管又擔任某個職位；沒有勾就是沒有職位。</p><div id="accountPositions" class="accounts-legend"></div><h3>這個人可以看到哪些頁面？</h3><div id="accountPermissions" class="accounts-legend"></div>
-<div class="actions"><button type="submit" class="primary">儲存人員與權限</button><button id="accountResetForm" type="button">清除／新增下一位</button><span id="accountHint" class="muted small">請先選角色，再依需要調整頁面勾選。</span></div></form>
+<div class="actions"><button type="submit" class="primary">儲存人員與權限</button><button id="accountResetForm" type="button">清除／新增下一位</button><span id="accountHint" class="muted small">請先選角色，再依需要調整頁面勾選。</span></div></form></details>
 <h3>目前人員清單</h3><div class="tablewrap" id="accountsTable"></div>
 <p class="footer">登入由 Google 驗證；人員名單、角色與部門存在雲端後端，資料可見範圍與簽核順序由後端檢查。員工離職或調動時，請立刻到這裡停用或修改。</p>
 </div></section>
@@ -674,8 +674,9 @@ const positionList=()=>typeof window.memoPositions==='function'?window.memoPosit
 const positionNames=keys=>(keys||[]).map(k=>(positionList().find(p=>p.key===k)||{}).name||k).join('、');
 function renderAccountPositions(sel){const box=$('accountPositions');if(!box)return;const keep=sel||[...box.querySelectorAll('input:checked')].map(n=>n.value),list=positionList();box.innerHTML=list.length?list.map(p=>`<label><input type="checkbox" value="${esc(p.key)}" ${keep.includes(p.key)?'checked':''}> ${esc(p.name)}</label>`).join(''):'<span class="muted small">（職位清單載入中…）</span>'}
 function renderAccountPermissions(pages){$('accountPermissions').innerHTML=ALL_PAGES.filter(p=>p!=='accounts'&&p!=='settings'&&p!=='flows').map(p=>`<label><input type="checkbox" value="${p}" ${pages.includes(p)?'checked':''}> ${PAGE_LABELS[p]}</label>`).join('')}
-function resetAccountForm(){$('accountForm').reset();$('accountId').readOnly=false;$('accountId').value='';$('accountRole').value='staff';$('accountEnabled').value='yes';accountEditId='';renderAccountPositions([]);renderAccountPermissions(DEFAULT_PAGES.staff);$('accountHint').textContent='新增人員請輸入他的 Gmail。要修改現有人員，請到下面的人員清單，在他那一列按「編輯」（Gmail 不能改；要換 Gmail，請新增一筆再刪掉舊的）。'}
+function resetAccountForm(){$('accountForm').reset();$('accountId').readOnly=false;$('accountId').value='';$('accountRole').value='staff';$('accountEnabled').value='yes';accountEditId='';renderAccountPositions([]);renderAccountPermissions(DEFAULT_PAGES.staff);$('accountHint').textContent='新增人員請輸入他的 Gmail。要修改現有人員（包含換 Gmail），請到下面的人員清單，在他那一列按「編輯」。'}
 $('accountResetForm').onclick=resetAccountForm;resetAccountForm();
+{const box=$('accountAddBox');try{box.open=localStorage.getItem('inv_acct_add_open')==='1'}catch(_){}box.addEventListener('toggle',()=>{try{localStorage.setItem('inv_acct_add_open',box.open?'1':'0')}catch(_){}})}
 $('accountRole').onchange=()=>renderAccountPermissions(DEFAULT_PAGES[$('accountRole').value]||[]);
 function syncAccountDepartments(){const e=$('accountDept'),old=e.value;e.innerHTML='<option value="">跨部門／未指定</option>'+orgDepartments.map(d=>`<option value="${esc(d.name)}">${esc(departmentLabel(d.name))}</option>`).join('');e.value=orgDepartments.some(d=>d.name===old)?old:''}
 let accountList=[],rosterTodo=[],accountAdmins=[],accountInlineId='',accountDraft=null;
@@ -697,24 +698,39 @@ function accountEditRowHtml(u){const d=accountDraft;if(!d)return '';
  const posHtml=positionList().length?positionList().map(p=>'<label><input type="checkbox" data-afpos value="'+esc(p.key)+'"'+(d.positions.includes(p.key)?' checked':'')+'> '+esc(p.name)+'</label>').join(''):'<span class="muted small">（職位清單載入中…）</span>';
  const pageHtml=ALL_PAGES.filter(p=>p!=='accounts'&&p!=='settings'&&p!=='flows').map(p=>'<label><input type="checkbox" data-afpage value="'+p+'"'+(d.pages.includes(p)?' checked':'')+'> '+esc(PAGE_LABELS[p])+'</label>').join('');
  return '<tr class="account-edit-row"><td colspan="8"><div class="account-form-grid">'+
-  '<div class="field"><label>Gmail</label><div><b>'+esc(u.id)+'</b> <span class="muted small">（不能改）</span></div></div>'+
+  '<div class="field"><label>Gmail *</label><input data-af="email" type="email" maxlength="120" value="'+esc(d.email)+'" placeholder="例如 name@gmail.com"></div>'+
   '<div class="field"><label>工號</label><input data-af="empNo" maxlength="20" value="'+esc(d.empNo)+'" placeholder="例如 P0040"></div>'+
   '<div class="field"><label>姓名 *</label><input data-af="name" maxlength="40" value="'+esc(d.name)+'" placeholder="需與人員名冊相符"></div>'+
   '<div class="field"><label>角色 *</label><select data-af="role">'+roleOpts+'</select></div>'+
   '<div class="field"><label>所屬部門／門市</label><select data-af="dept">'+deptOpts+'</select></div>'+
   '<div class="field"><label>狀態</label><select data-af="enabled"><option value="yes"'+(d.enabled?' selected':'')+'>啟用</option><option value="no"'+(d.enabled?'':' selected')+'>停用</option></select></div></div>'+
   '<h4>職位（可複選）</h4><div class="accounts-legend">'+posHtml+'</div><h4>這個人可以看到哪些頁面？</h4><div class="accounts-legend">'+pageHtml+'</div>'+
-  '<div class="actions"><button type="button" class="primary" data-asave="1">儲存</button><button type="button" data-acancel="1">取消</button><span class="muted small">改完按「儲存」才會生效；改了角色，頁面會先換成那個角色的預設頁面，可以再調整。</span></div></td></tr>'}
+  '<div class="actions"><button type="button" class="primary" data-asave="1">儲存</button><button type="button" data-acancel="1">取消</button><span class="muted small">改完按「儲存」才會生效；改了角色，頁面會先換成那個角色的預設頁面，可以再調整；<b>改了 Gmail，原本的 Gmail 會被登出，以後要用新的登入</b>。</span></div></td></tr>'}
 async function accountInlineSave(){
  const u=accountList.find(x=>x.id===accountInlineId),d=accountDraft;if(!u||!d)return;
  const name=String(d.name||'').trim(),empNo=String(d.empNo||'').trim();
+ const newId=normalizeAccount(d.email||'');
+ if(!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(newId))throw Error('請輸入正確的 Gmail 地址');
  if(!name)throw Error('請填姓名（需與人員名冊相符）');
  if(empNo&&!/^[A-Za-z0-9_-]{1,20}$/.test(empNo))throw Error('工號只能用英文字母、數字、- 或 _，最多 20 個字');
  if(d.role==='manager'&&!d.dept)throw Error('主管帳號須設定所屬部門');if(d.role==='staff'&&!d.dept)throw Error('員工帳號須設定所屬部門');
  if(!d.pages.length)throw Error('請至少開放一個頁面');
+ {const dupNo=empNo&&accountList.find(x=>x.id!==u.id&&String(x.empNo||'').toLowerCase()===empNo.toLowerCase());if(dupNo)throw Error('工號 '+empNo+' 已經是 '+dupNo.name+' 的工號')} // 先擋下，不要換到一半才發現（換 Gmail 要分幾步做）
+ const gmailChanged=newId!==u.id;
+ if(gmailChanged){
+  const dup=accountList.find(x=>x.id===newId);if(dup)throw Error('這個 Gmail 已在名單中（'+dup.name+'）');
+  if(accountAdmins.some(a=>String(a).toLowerCase()===newId))throw Error('這個 Gmail 是系統管理員，不需要加進名單');
+  if(!confirm('要把 '+name+' 的 Gmail 從\n'+u.id+'\n改成\n'+newId+' 嗎？\n\n原本的 Gmail 會立刻被登出、不能再登入，以後請他用新的 Gmail 登入。姓名、角色、部門、頁面權限都會保留。'))return;
+ }
  if(!rosterPeople().some(p=>p.name===name)&&!confirm('名冊裡找不到「'+name+'」。系統用姓名比對申請人與簽核主管，姓名不一致就無法申請或簽核。\n\n仍要儲存嗎？'))return;
- await putUser({id:u.id,email:u.id,empNo,name,role:d.role,dept:d.dept,pages:d.pages,positions:d.positions,enabled:d.enabled});
- const id=u.id;accountInlineId='';accountDraft=null;await renderAccounts();toast('已儲存：'+name);
+ const base={email:newId,name,role:d.role,dept:d.dept,pages:d.pages,positions:d.positions,enabled:d.enabled};
+ if(!gmailChanged)await putUser({id:u.id,...base,empNo});
+ else{
+  await putUser({id:newId,...base}); // 先不帶工號：後端不允許兩個帳號同一個工號，舊的還在
+  try{await deleteUser(u.id)}catch(err){try{await deleteUser(newId)}catch(_){}throw Error('換 Gmail 沒有完成（原本的帳號刪不掉），已還原：'+(err.message||err))}
+  if(empNo){try{await putUser({id:newId,...base,empNo})}catch(err){accountInlineId='';accountDraft=null;await renderAccounts();throw Error('Gmail 已換成 '+newId+'，但工號沒有存成功：'+(err.message||err)+'。請再按一次「編輯」補上工號。')}}
+ }
+ const id=newId;accountInlineId='';accountDraft=null;await renderAccounts();toast(gmailChanged?'已儲存：'+name+'，Gmail 改成 '+newId:'已儲存：'+name);
  const row=[...document.querySelectorAll('#accountsTable tr[data-arow]')].find(r=>r.dataset.arow===id);if(row){row.classList.add('account-flash');row.scrollIntoView({block:'nearest',behavior:'smooth'})}}
 if(!$('accountsTable').dataset.bound){$('accountsTable').dataset.bound='1';
  $('accountsTable').addEventListener('click',async e=>{const btn=e.target.closest('button');if(!btn||!can('admin'))return;
@@ -722,12 +738,12 @@ if(!$('accountsTable').dataset.bound){$('accountsTable').dataset.bound='1';
    if(btn.dataset.asave){await accountInlineSave();return}
    if(btn.dataset.acancel){accountInlineId='';accountDraft=null;paintAccounts();return}
    const id=btn.dataset.aedit||btn.dataset.atoggle||btn.dataset.adelete,user=accountList.find(u=>u.id===id);if(!user)return;
-   if(btn.dataset.aedit){accountInlineId=user.id;accountDraft={empNo:user.empNo||'',name:user.name||'',role:user.role,dept:user.dept||'',enabled:!!user.enabled,positions:[...(user.positions||[])],pages:[...(user.pages||[])]};paintAccounts();const r=document.querySelector('#accountsTable tr.account-edit-row');if(r)r.scrollIntoView({block:'center',behavior:'smooth'})}
+   if(btn.dataset.aedit){accountInlineId=user.id;accountDraft={email:user.id,empNo:user.empNo||'',name:user.name||'',role:user.role,dept:user.dept||'',enabled:!!user.enabled,positions:[...(user.positions||[])],pages:[...(user.pages||[])]};paintAccounts();const r=document.querySelector('#accountsTable tr.account-edit-row');if(r)r.scrollIntoView({block:'center',behavior:'smooth'})}
    else if(btn.dataset.atoggle){await putUser({...user,enabled:!user.enabled});await renderAccounts()}
    else if(btn.dataset.adelete){if(!confirm('確定從名單刪除 '+user.name+'（'+user.id+'）？\n他會立刻被登出，也無法再進入系統；已建立的發票不受影響。'))return;await deleteUser(user.id);await renderAccounts()}
   }catch(err){toast(err.message)}
  });
- $('accountsTable').addEventListener('input',e=>{const x=e.target;if(!accountDraft||!x.dataset)return;if(x.dataset.af==='empNo'||x.dataset.af==='name')accountDraft[x.dataset.af]=x.value});
+ $('accountsTable').addEventListener('input',e=>{const x=e.target;if(!accountDraft||!x.dataset)return;if(x.dataset.af==='empNo'||x.dataset.af==='name'||x.dataset.af==='email')accountDraft[x.dataset.af]=x.value});
  $('accountsTable').addEventListener('change',e=>{const x=e.target;if(!accountDraft||!x.dataset)return;const root=$('accountsTable');
   if(x.dataset.af==='role'){accountDraft.role=x.value;accountDraft.pages=[...(DEFAULT_PAGES[x.value]||[])];paintAccounts()}
   else if(x.dataset.af==='dept')accountDraft.dept=x.value;
