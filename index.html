@@ -313,6 +313,22 @@ main{padding-bottom:12px}
  #invoiceForm[data-step="1"] .fstep[data-step="1"],#invoiceForm[data-step="2"] .fstep[data-step="2"],#invoiceForm[data-step="3"] .fstep[data-step="3"]{display:block}
 }
 @media(max-width:600px){#entry .cgrid.cg5{grid-template-columns:repeat(2,minmax(0,1fr))}}
+/* 手機版面修正：提示小字不要吃到全域 .warn 的方塊樣式（行內元素的上下 padding 會蓋到相鄰兩行）；費用類別提示改成一塊完整的提示框 */
+@media(max-width:1139px){
+ .lookup-note.warn,.lookup-note.fail,.lookup-note.ok{background:none;border-left:0;padding:0;margin-bottom:0}
+ #ceoDeptHint{display:block}
+ #ceoDeptHint.warn{background:#fff6e6;border-left:4px solid #d6a444;padding:6px 10px;margin:6px 0 4px;border-radius:0 6px 6px 0}
+}
+@media(max-width:700px){
+ /* 標題列（發票登錄／上傳、申請人、CSV 匯入）可以換行，不要把頁面撐寬出現橫向捲動 */
+ #entry .entry-top{flex:1 1 100%;min-width:0}
+ #invoiceForm .vendor-field{grid-column:1/-1} /* 廠商名稱常常很長，手機上獨佔一整行才看得到全名 */
+ /* iPhone 的日期欄位有固有寬度，會頂到隔壁欄位：取消原生外觀、可以縮小、文字靠左跟其他欄位一樣 */
+ .fgrid .field,.formgrid .field,.cgrid .field,.dyn-fields .field{min-width:0}
+ input[type=date],input[type=datetime-local]{-webkit-appearance:none;appearance:none;min-width:0;max-width:100%;min-height:39px;text-align:left}
+ input[type=date]::-webkit-date-and-time-value,input[type=datetime-local]::-webkit-date-and-time-value{text-align:left;min-width:0}
+ input[type=date]::-webkit-datetime-edit,input[type=datetime-local]::-webkit-datetime-edit{padding:0}
+}
 @media(max-width:700px){
  /* 手機：標題列收成兩行、欄位與按鈕縮小，請款項目每一列變成「說明＋金額＋刪除」一行 */
  header{padding:7px 12px;gap:2px 8px}header h1{font-size:15px;line-height:1.25}header h1+.sub{display:none}.role{gap:6px}.role button{min-height:30px;padding:3px 10px;font-size:12px}#loggedSummary{font-size:12px}
@@ -398,7 +414,7 @@ main{padding-bottom:12px}
 <div class="field"><label for="invoiceNo">發票號碼 *</label><input id="invoiceNo" maxlength="60" required placeholder="AB12345678"></div>
 <div class="field"><label for="amount">含稅金額 *</label><input type="number" id="amount" min="0.01" step="0.01" required placeholder="0"></div>
 <div class="field"><label for="taxId">賣方統編</label><div class="inline-btn"><input id="taxId" maxlength="8" inputmode="numeric" pattern="[0-9]{8}" placeholder="8 碼"><button id="verifySellerTax" class="lookup-action" type="button" title="向財政部營業登記核對廠商名稱">核對</button></div></div>
-<div class="field"><label for="vendor">廠商名稱 *</label><input id="vendor" maxlength="100" required><span id="vendorLookupStatus" class="lookup-note" aria-live="polite">依賣方統編查詢廠商名稱</span></div>
+<div class="field vendor-field"><label for="vendor">廠商名稱 *</label><input id="vendor" maxlength="100" required><span id="vendorLookupStatus" class="lookup-note" aria-live="polite">依賣方統編查詢廠商名稱</span></div>
 </div></div>
 <div class="fgrid"><div class="fcol"><div class="fstep" data-step="1">
 <div class="cgrid">
