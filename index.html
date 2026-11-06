@@ -248,7 +248,7 @@ nav#tabs .tab.navform{font-size:13px;padding:7px 10px 7px 18px}
 .nav-n{display:inline-block;background:#d93636;color:#fff;border-radius:999px;font-size:11px;font-weight:700;padding:0 7px;margin-left:4px}
 .nav-note{color:var(--muted);font-size:12px;padding:8px}
 .dyn-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px 14px}.dyn-fields .wide{grid-column:1/-1}
-.items-wrap{overflow:auto}.items-table{width:100%;border-collapse:collapse}.items-table th,.items-table td{padding:4px;border:1px solid var(--line);font-size:13px}.items-table th{background:#e9f0fa;text-align:left}.items-table input{min-width:80px}.items-del{border:0;background:transparent;color:#922729;padding:2px 8px}
+.items-wrap{overflow:auto}.items-table{width:100%;border-collapse:collapse}.items-table th,.items-table td{padding:4px;border:1px solid var(--line);font-size:13px}.items-table th{background:#e9f0fa;text-align:left}.items-table input{min-width:80px}.items-del{border:0;background:transparent;color:#922729;padding:2px 8px}.pull-panel{border:1px solid var(--line);border-radius:8px;background:#f8fbf5;padding:10px;margin-top:4px}.pull-panel .items-table td{vertical-align:middle}
 .data-table{width:100%;border-collapse:collapse}.data-table>tbody>tr>th{width:150px;text-align:left;vertical-align:top;background:#f1f5fb;padding:7px 10px;border:1px solid var(--line);font-weight:600}.data-table>tbody>tr>td{padding:7px 10px;border:1px solid var(--line);vertical-align:top}
 @media(max-width:700px){nav#tabs .navcat-h,nav#tabs .navforms,nav#tabs .nav-note{grid-column:1/-1}nav#tabs .navforms{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}nav#tabs .navforms.hide{display:none}nav#tabs[data-many="1"]:not(.open) .navcat-h,nav#tabs[data-many="1"]:not(.open) .navforms,nav#tabs[data-many="1"]:not(.open) .nav-note{display:none}}
 @media(max-width:640px){.dyn-fields{grid-template-columns:1fr}.data-table>tbody>tr>th{width:100px}}
@@ -4184,13 +4184,14 @@ el('csvDraft').onclick=()=>saveCSV('draft');el('csvSubmit').onclick=()=>saveCSV(
  const inputType={date:'date',datetime:'datetime-local',number:'number',money:'number'};
  const stageHolder=d=>!!(d&&d.stage&&authUser&&(authUser.positions||[]).includes(d.stage.pos)); // 階段填寫：擔任該職位（例如採購）的人
  const visCols=fd=>fd.cols.filter(c=>(!c.stg||stageHolder(editDef))&&!c.dsp); // dsp＝「已執行日」：核准後採購逐項確認，申請表單裡不顯示
- function itemRow(fd,r){return '<tr>'+visCols(fd).map(c=>{const ty=c.type==='text'?'text':c.type==='date'?'date':'number';return `<td><input data-ik="${c.k}" type="${ty}"${c.type==='money'?' min="0"':''}${ty==='number'?' step="any" inputmode="decimal"':''}${c.calc?' readonly tabindex="-1" class="ro"':''} value="${esc(r[c.k]??'')}" placeholder="${esc(c.label)}"></td>`}).join('')+'<td><button type="button" class="items-del" data-itemdel title="刪除這列">✕</button></td></tr>'}
+ function itemRow(fd,r){const pl=editDef&&editDef.pull&&editDef.pull.field===fd.k?editDef.pull:null,locked=!!(pl&&r[pl.src]); // 「抓取」帶進來的列（有來源單號）：說明、金額、單號都唯讀，後端送出時會依來源單重算
+  return '<tr'+(locked?' data-src="'+esc(r[pl.src])+'" style="background:#f3f8ee"':'')+'>'+visCols(fd).map(c=>{const ty=c.type==='text'?'text':c.type==='date'?'date':'number',ro=c.calc||(pl&&(c.k===pl.src||(locked&&(c.k===pl.text||c.k===pl.amt))));return `<td><input data-ik="${c.k}" type="${ty}"${c.type==='money'&&!c.neg?' min="0"':''}${ty==='number'?' step="any" inputmode="decimal"':''}${ro?' readonly tabindex="-1" class="ro"':''} value="${esc(r[c.k]??'')}" placeholder="${esc(c.label)}"></td>`}).join('')+'<td><button type="button" class="items-del" data-itemdel title="'+(locked?'移除這張請款單（連同預付款餘額那一列）':'刪除這列')+'">✕</button></td></tr>'}
  // 連動欄位的選項：自己提出、已核准、且還沒被另一張進行中／已核准的單連動過的（編輯中的這張自己選的那個也列出）
  function refOptions(fd,val){return memos.filter(m=>m.docType===fd.refType&&isMine(m)&&m.status==='approved'&&(!fd.needs||(m.data&&m.data[fd.needs]!==undefined))&&(m.docNo===val||fd.multi||!memos.some(x=>editDef&&x.docType===editDef.key&&(!editing||x.id!==editing.id)&&x.data&&x.data[fd.k]===m.docNo&&(x.status==='in_review'||x.status==='approved'))))}
  function fieldHtml(fd,val){
   const id='ff_'+fd.k,label=esc(fd.label)+(fd.req?' *':'');
-  if(fd.type==='items'){const rows=Array.isArray(val)&&val.length?val:[{}];
-   return `<div class="field wide" data-items="${fd.k}"><label>${label}</label><div class="tablewrap"><table class="items-table"><thead><tr>${visCols(fd).map(c=>`<th>${esc(c.label)}</th>`).join('')}<th></th></tr></thead><tbody>${rows.map(r=>itemRow(fd,r)).join('')}</tbody></table></div><div><button type="button" data-itemadd="${fd.k}">＋ 新增一列</button></div></div>`}
+  if(fd.type==='items'){const rows=Array.isArray(val)&&val.length?val:[{}],pl=editDef&&editDef.pull&&editDef.pull.field===fd.k?editDef.pull:null,pfn=pl?((defOf(pl.from)||{}).name||'請款單'):'';
+   return `<div class="field wide" data-items="${fd.k}"><label>${label}</label><div class="tablewrap"><table class="items-table"><thead><tr>${visCols(fd).map(c=>`<th>${esc(c.label)}</th>`).join('')}<th></th></tr></thead><tbody>${rows.map(r=>itemRow(fd,r)).join('')}</tbody></table></div><div><button type="button" data-itemadd="${fd.k}">＋ 新增一列</button>${pl?`<button type="button" data-pullopen="${fd.k}" style="margin-left:8px">📥 抓取${esc(pfn)}</button>`:''}</div></div>${pl?`<div class="field wide hide" data-pullbox="${fd.k}"></div>`:''}`}
   if(fd.type==='ref'){const rd=defOf(fd.refType),rn=esc(rd?rd.name:fd.refType),opts=refOptions(fd,val);
    return `<div class="field wide"><label for="${id}">${label}</label><select id="${id}" data-fk="${fd.k}" data-ref="${fd.refType}"><option value="">${opts.length?'請選擇已核准的'+rn:'（目前沒有可連動的'+rn+'）'}</option>${opts.map(m=>`<option value="${esc(m.docNo)}"${m.docNo===val?' selected':''}>${esc(m.docNo)}｜${esc(m.title)}</option>`).join('')}</select>${opts.length?'<span class="muted small">選好後會自動帶入相關欄位，可再修改。</span>':`<span class="small" style="color:#922729">要先提出「${rn}」並經核准${fd.needs?'、回來把「出差後」的部分填好':''}，才能連動。</span>`}</div>`}
   let inp;
@@ -4233,6 +4234,7 @@ el('csvDraft').onclick=()=>saveCSV('draft');el('csvSubmit').onclick=()=>saveCSV(
  function flowPreview(){if(!editDef)return;const fdata=collectData(editDef),pv=previewSteps(editDef,editDef.amount?dataAmount(editDef,fdata):0,fdata),box=$('memoFlowPreview');
   if(pv.error){box.innerHTML='<b style="color:#922729">無法送出：</b>'+esc(pv.error);$('memoSubmit').disabled=true;return}
   if(editDef.maxAmount&&formAmount(editDef)>editDef.maxAmount){box.innerHTML='<b style="color:#922729">無法送出：</b>合計金額不得大於 '+fmt(editDef.maxAmount)+' 元';$('memoSubmit').disabled=true;return}
+  if(editDef.pull&&formAmount(editDef)<0){box.innerHTML='<b style="color:#922729">無法送出：</b>支出合計（正負相抵後）不能是負數，請檢查負數的明細列';$('memoSubmit').disabled=true;return}
   $('memoSubmit').disabled=busy;
   box.innerHTML='<b>簽核流程'+(editDef.flow&&editDef.flow.length>1?'（依金額）':'')+'：</b> '+(pv.steps.length?pv.steps.map(s=>`<span class="fp">${esc(stepLabel(s))}</span>`).join(' → ')+(pv.pending?' → <span class="fp" style="opacity:.75">（'+esc(editDef.stage.gate?STEP_NAMES['pos:'+editDef.stage.pos]+'決定是否'+editDef.stage.gate.yes:STEP_NAMES['pos:'+editDef.stage.pos]+'填單價後，再依金額決定後續關卡')+'）</span>':'')+' → <span class="fp">核准</span>':'你就是最高簽核人，送出後直接核准，不需要別人簽核。')}
  function fileList(){$('memoFileList').innerHTML=formFiles.length?'<div class="memo-files" style="margin-top:6px">'+formFiles.map((f,i)=>`<span class="memo-fileitem">📎 ${f.tag==='quote'?quoteName(editDef)+'｜':''}${esc(f.name)} <span class="muted small">${fmtSize(f.size)}</span><button type="button" data-mfrm="${i}" title="移除">✕</button></span>`).join('')+'</div>':''}
@@ -4259,7 +4261,7 @@ el('csvDraft').onclick=()=>saveCSV('draft');el('csvSubmit').onclick=()=>saveCSV(
  async function saveMemo(submit){
   if(busy||!editDef)return;
   const def=editDef,data=collectData(def);
-  if(submit){const miss=missingLabels(def,data);if(miss.length)return toast('還有必填欄位沒填：'+miss.join('、'));const pv=previewSteps(def,def.amount?dataAmount(def,data):0,data);if(pv.error)return toast(pv.error);if(def.maxAmount&&formAmount(def)>def.maxAmount)return toast('「'+def.name+'」合計金額不得大於 '+fmt(def.maxAmount)+' 元')}
+  if(submit){const miss=missingLabels(def,data);if(miss.length)return toast('還有必填欄位沒填：'+miss.join('、'));const pv=previewSteps(def,def.amount?dataAmount(def,data):0,data);if(pv.error)return toast(pv.error);if(def.maxAmount&&formAmount(def)>def.maxAmount)return toast('「'+def.name+'」合計金額不得大於 '+fmt(def.maxAmount)+' 元');if(def.pull&&formAmount(def)<0)return toast('支出合計（正負相抵後）不能是負數，請檢查負數的明細列')}
   setFormBusy(true,submit);
   try{
    const atts=await Promise.all(formFiles.map(uploadMemoFile)),base=editing||{};
@@ -4453,7 +4455,7 @@ el('csvDraft').onclick=()=>saveCSV('draft');el('csvSubmit').onclick=()=>saveCSV(
   catch(e){toast('無法開啟附件：'+(e.message||e))}}
 
  // ---- 事件 ----
- document.addEventListener('click',e=>{const t=e.target.closest('[data-mview],[data-medit],[data-mdel],[data-msign],[data-mfilter],[data-matt],[data-mfrm],[data-todo],[data-itemadd],[data-itemdel],[data-finsave],[data-marrive],[data-mdispatch],[data-padd],[data-pdel],[data-psave],[data-mprintseal],[data-mitemsave],[data-mitemall],[data-mquoteadd]');if(!t||!authUser)return;
+ document.addEventListener('click',e=>{const t=e.target.closest('[data-mview],[data-medit],[data-mdel],[data-msign],[data-mfilter],[data-matt],[data-mfrm],[data-todo],[data-itemadd],[data-itemdel],[data-pullopen],[data-pullgo],[data-pullclose],[data-finsave],[data-marrive],[data-mdispatch],[data-padd],[data-pdel],[data-psave],[data-mprintseal],[data-mitemsave],[data-mitemall],[data-mquoteadd]');if(!t||!authUser)return;
   const d=t.dataset;
   if(d.mview){openDetail(d.mview)}
   else if(d.medit){const m=memos.find(x=>x.id===d.medit);if(m&&canEditMemo(m)){const df=defOf(m.docType);if(!df)return toast('這張單的表單已經停用，不能再編輯');if($('memoDetail').open)$('memoDetail').close();openForm(df,m)}}
@@ -4474,7 +4476,10 @@ el('csvDraft').onclick=()=>saveCSV('draft');el('csvSubmit').onclick=()=>saveCSV(
   else if(d.pdel!==undefined){const tr=t.closest('tr'),tb=tr.parentNode;if(tb.children.length>1)tr.remove();else tr.querySelectorAll('input').forEach(i=>{if(!i.readOnly)i.value=''});postRecalc({target:tb})}
   else if(d.psave){savePost(d.psave)}
   else if(d.itemadd!==undefined){const fd=editDef&&editDef.fields.find(f=>f.k===d.itemadd);if(fd){const tb=document.querySelector('#memoFields [data-items="'+fd.k+'"] tbody');if(fd.max&&tb.children.length>=fd.max)toast('這張表單的「'+fd.label+'」最多 '+fd.max+' 列');else tb.insertAdjacentHTML('beforeend',itemRow(fd,{}))}}
-  else if(d.itemdel!==undefined){const tr=t.closest('tr'),tb=tr.parentNode;if(tb.children.length>1)tr.remove();else tr.querySelectorAll('input').forEach(i=>{i.value=''});autoSum();applyDerive();flowPreview()}});
+  else if(d.pullopen!==undefined){pullOpen(d.pullopen)}
+  else if(d.pullgo!==undefined){pullGo(d.pullgo)}
+  else if(d.pullclose!==undefined){pullClose(d.pullclose)}
+  else if(d.itemdel!==undefined){const tr=t.closest('tr'),tb=tr.parentNode,src=tr.dataset.src;if(src)[...tb.querySelectorAll('tr[data-src]')].filter(x=>x.dataset.src===src).forEach(x=>x.remove());else if(tb.children.length>1)tr.remove();else tr.querySelectorAll('input').forEach(i=>{i.value=''});if(!tb.children.length){const fd=editDef&&editDef.fields.find(f=>f.k===tb.closest('[data-items]').dataset.items);if(fd)tb.insertAdjacentHTML('beforeend',itemRow(fd,{}))}autoSum();applyDerive();flowPreview()}});
  // 自動計算：明細每列的小計、表單的 derive（明細加總、幾個欄位相加、兩欄相減）。和後端 applyDerive_ 同一套規則，後端會再算一次並覆蓋
  function applyDerive(){
   if(!editDef)return;
@@ -4509,6 +4514,34 @@ el('csvDraft').onclick=()=>saveCSV('draft');el('csvSubmit').onclick=()=>saveCSV(
   flowPreview()});
  $('memoNew').onclick=()=>openForm(view.mode==='form'?defOf(view.key):null);
  $('memoSearch').addEventListener('input',memoRenderPage);
+ // ---- 「抓取」：撥補單從已核准的零用金請款單帶入明細（預付款餘額多一列負數沖掉）；後端送出時會依來源單重算，這裡只是挑選與預覽 ----
+ let pullItems=[];
+ function pullClose(k){const b=$('memoFields').querySelector('[data-pullbox="'+k+'"]');if(b){b.classList.add('hide');b.innerHTML=''}}
+ async function pullOpen(k){
+  const fd=editDef&&editDef.fields.find(f=>f.k===k),pl=editDef&&editDef.pull,box=$('memoFields').querySelector('[data-pullbox="'+k+'"]');
+  if(!fd||!pl||!box)return;
+  if(!box.classList.contains('hide')){pullClose(k);return}
+  box.classList.remove('hide');box.innerHTML='<span class="muted small">讀取可以抓取的請款單…</span>';
+  let r;try{r=await InvCloud.get({action:'pullpool',form:editDef.key})}catch(err){box.innerHTML='<span class="small" style="color:#922729">讀取失敗：'+esc((err&&err.message)||err)+'（需要新版後端）</span>';return}
+  pullItems=r.items||[];
+  const have=new Set([...$('memoFields').querySelectorAll('[data-items="'+k+'"] tr[data-src]')].map(x=>x.dataset.src)),rn=esc((defOf(pl.from)||{}).name||'請款單'),tip='已核准、還沒被別張撥補單抓過；一般同仁只看得到自己部門的';
+  const rows=pullItems.map(p=>{const h=have.has(p.docNo);return '<tr><td><input type="checkbox" data-pullchk="'+esc(p.docNo)+'"'+(h?' checked disabled':'')+'></td><td>'+esc(p.docNo)+'</td><td>'+esc(p.date)+'</td><td>'+esc(p.applicant)+'</td><td>'+esc(p.purpose)+(h?' <span class="muted small">（已帶入）</span>':'')+'</td><td style="text-align:right">'+fmt(p.amount)+'</td><td style="text-align:right">'+(p.balance>0?'−'+fmt(p.balance):'')+'</td></tr>'}).join('');
+  box.innerHTML=pullItems.length?'<div class="pull-panel"><b>可以抓取的'+rn+'</b> <span class="muted small">（'+tip+'）勾選後按「帶入」；有預付款餘額的，會多一列負數把餘額沖掉。</span><div class="items-wrap"><table class="items-table"><thead><tr><th></th><th>單號</th><th>申請日</th><th>申請人</th><th>用途</th><th>合計</th><th>預付款餘額</th></tr></thead><tbody>'+rows+'</tbody></table></div><div style="margin-top:6px"><button type="button" data-pullgo="'+k+'">帶入勾選的</button> <button type="button" data-pullclose="'+k+'">收起</button></div></div>':'<div class="pull-panel"><span class="muted">目前沒有可以抓取的'+rn+'（'+tip+'）。</span> <button type="button" data-pullclose="'+k+'">收起</button></div>'}
+ function pullGo(k){
+  const fd=editDef&&editDef.fields.find(f=>f.k===k),pl=editDef&&editDef.pull,tb=$('memoFields').querySelector('[data-items="'+k+'"] tbody'),box=$('memoFields').querySelector('[data-pullbox="'+k+'"]');
+  if(!fd||!pl||!tb||!box)return;
+  const picks=[...box.querySelectorAll('[data-pullchk]:checked:not(:disabled)')].map(c=>pullItems.find(p=>p.docNo===c.dataset.pullchk)).filter(Boolean);
+  if(!picks.length)return toast('請先勾選要帶入的請款單');
+  [...tb.querySelectorAll('tr:not([data-src])')].filter(tr=>[...tr.querySelectorAll('input')].every(i=>i.value==='')).forEach(tr=>tr.remove()); // 先清掉空白列
+  let n=0;
+  for(const p of picks){
+   const need=p.balance>0?2:1,why=p.purpose||'零用金請款';
+   if(fd.max&&tb.children.length+need>fd.max){toast('明細最多 '+fd.max+' 列，後面的請款單沒有帶入');break}
+   tb.insertAdjacentHTML('beforeend',itemRow(fd,{[pl.text]:why,[pl.amt]:p.amount,[pl.src]:p.docNo}));
+   if(p.balance>0)tb.insertAdjacentHTML('beforeend',itemRow(fd,{[pl.text]:'預付款餘額退回：'+why,[pl.amt]:-p.balance,[pl.src]:p.docNo}));
+   n++}
+  if(!tb.children.length)tb.insertAdjacentHTML('beforeend',itemRow(fd,{}));
+  pullClose(k);autoSum();applyDerive();flowPreview();if(n)toast('已帶入 '+n+' 張請款單，合計已自動計算')}
  $('memoSubmit').onclick=()=>saveMemo(true);$('memoSaveDraft').onclick=()=>saveMemo(false);
  $('memoFormClose').onclick=$('memoFormCancel').onclick=()=>{if(!busy)$('memoDialog').close()};
  // 採購填單價時，合計即時更新（只是顯示；真正的合計由後端依單價算）
