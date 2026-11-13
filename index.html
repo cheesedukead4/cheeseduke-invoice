@@ -639,13 +639,13 @@ function applyAuthUser(){applyNav();
  $('role').value=authUser.role;$('actorName').value=authUser.name;$('loggedSummary').textContent=authUser.name+'｜'+(roleNames[authUser.role]||authUser.role)+'｜'+(authUser.dept||'跨部門')}
 let appStarted=false,pollTimer=null,pollBusy=false;
 // 登入後：先把雲端資料載到本機快取，再畫畫面
-async function bootData(boot){await syncAll(false,boot);await loadOrg();await loadLedgerHistory();await loadAccountChart();if(can('admin'))await migrateCEOManagedPending();resetForm();await refresh()}
+async function bootData(boot){await syncAll(false,boot);await loadOrg();await loadAccountChart();if(can('admin'))await migrateCEOManagedPending();resetForm();await refresh()}
 // 本機快取完整、且是同一個人（身分與權限沒變）時，可以不等雲端、直接用快取開畫面
-const cacheReady=()=>{const st=syncRead();return st.fp===meFingerprint()&&Object.keys(CLOUD_STORES).every(n=>st.v&&st.v[n]!=null)};
-async function bootFromCache(){await loadOrg();await loadLedgerHistory();await loadAccountChart();resetForm();await refresh()}
+const cacheReady=()=>{const st=syncRead();return st.fp===meFingerprint()&&CORE_NAMES.every(n=>st.v&&st.v[n]!=null)};
+async function bootFromCache(){await loadOrg();await loadAccountChart();resetForm();await refresh()}
 // 畫面已經出來之後，到背景跟雲端對一次，有變動的部分再重畫
 async function backgroundSync(){setSyncState('busy');
- try{const ch=await syncAll();if(ch.organization)await loadOrg();if(ch.ledger)await loadLedgerHistory();if(ch.accounts)await loadAccountChart();
+ try{const ch=await syncAll();if(ch.organization)await loadOrg();if(ch.accounts)await loadAccountChart();
   if(can('admin')){const n=await migrateCEOManagedPending();if(n)ch.invoices=true}
   if(ch.invoices)await refresh();syncOrgControls();render();setSyncState('ok')}
  catch(e){setSyncState('err',e.message)}}
@@ -657,7 +657,7 @@ async function authEnter(me){authUser=meToUser(me);applyAuthUser();let warm=fals
  authLock(false);syncOrgControls();render();try{performance.mark('inv-ui-ready')}catch(_){}
  tab('home');if(location.hash==='#ceo'&&canPage('ceoentry'))tab('ceoentry'); // 網址後面加 #ceo＝登入後直接進執行長發票頁
  if(window.memoRefresh)memoRefresh(true);
- if(warm)backgroundSync().then(()=>{try{performance.mark('inv-synced')}catch(_){}});else setSyncState('ok');
+ if(warm)backgroundSync().then(()=>{try{performance.mark('inv-synced')}catch(_){}startLedger()});else{setSyncState('ok');startLedger()}
  if(authUser.role==='admin')await renderAccounts()}
 // 雲端通知「你的角色／部門／頁面變了」：立刻套用，必要時重抓可見的發票
 function onMeChanged(){if(!appStarted||!InvCloud.user())return;const was=authUser;authUser=meToUser(InvCloud.user());applyAuthUser();
@@ -667,20 +667,20 @@ function onMeChanged(){if(!appStarted||!InvCloud.user())return;const was=authUse
 function onDenied(info){authUser=null;stopPolling();if(info&&info.removed)wipeLocal()}
 async function wipeLocal(){try{database&&database.close()}catch(e){}
  await new Promise(res=>{try{const r=indexedDB.deleteDatabase(DB);r.onsuccess=r.onerror=r.onblocked=()=>res()}catch(e){res()}});
- try{localStorage.removeItem('inv_sync')}catch(e){}try{sessionStorage.clear()}catch(e){}blobCache.clear()}
+ try{localStorage.removeItem('inv_sync');localStorage.removeItem(LEDGER_VKEY)}catch(e){}try{sessionStorage.clear()}catch(e){}blobCache.clear()}
 $('logoutBtn').onclick=async()=>{if(!confirm('登出後，這台裝置上的發票資料快取會清除（資料都在雲端，下次登入會重新下載）。\n確定要登出嗎？'))return;
  await wipeLocal();InvCloud.signOut();location.reload()};
 function setSyncState(kind,msg){const e=$('syncState');if(!e)return;const t=new Date().toTimeString().slice(0,5);
- e.textContent=kind==='ok'?'雲端：已同步 '+t:kind==='busy'?'雲端：同步中…':'雲端：'+(msg||'同步失敗');e.style.color=kind==='err'?'#ffb4b4':''}
+ e.textContent=kind==='ok'?'雲端：已同步 '+t:kind==='busy'?'雲端：'+(msg||'同步中…'):'雲端：'+(msg||'同步失敗');e.style.color=kind==='err'?'#ffb4b4':''}
 // 每分鐘檢查一次有沒有同事改了資料（只比版本號，沒變就不下載）；切回這個分頁時也立刻檢查
 async function pollOnce(){if(pollBusy||!authUser)return;pollBusy=true;setSyncState('busy');
  try{const j=await InvCloud.get({action:'meta'}),st=syncRead();st.v=st.v||{};
-  const stale=Object.keys(CLOUD_STORES).filter(n=>(j.meta?.[n]?.v||0)!==(st.v[n]??-1));
+  const stale=CORE_NAMES.filter(n=>(j.meta?.[n]?.v||0)!==(st.v[n]??-1));
   if(stale.length){await syncStores(stale);
    if(stale.includes('organization'))await loadOrg();
-   if(stale.includes('ledger'))await loadLedgerHistory();
    if(stale.includes('accounts'))await loadAccountChart();
    if(stale.includes('invoices'))await refresh()}
+  if(wantLedger()&&ledgerReady&&(j.meta?.ledger?.v||0)!==(ledgerVer()??-1))await refreshLedger(); // 歷史科目有人更新：財務與管理員才跟著更新
   if(window.memoOnMeta)memoOnMeta(j.meta);
   setSyncState('ok')}catch(e){setSyncState('err',e.message)}finally{pollBusy=false}}
 function startPolling(){if(pollTimer)return;pollTimer=setInterval(()=>{if(!document.hidden)pollOnce()},60000);
@@ -825,13 +825,34 @@ function idbReplace(name,items){return new Promise((resolve,reject)=>{const t=da
 
 // --- 同步：把雲端資料下載到本機快取 ---
 const CLOUD_STORES={invoices:STORE,organization:OSTORE,ledger:LSTORE,accounts:ASTORE};
+// 登入時只下載這三類（和 cloud.js 的 coreStores 一致）。歷史科目約 3 萬筆（佔登入資料量的 99%），員工、主管、執行長的畫面完全用不到，
+// 只有財務與管理員需要：他們在畫面出來之後才在背景載入（本機有同版本的快取就只比版本號，不重抓）
+const CORE_NAMES=['invoices','organization','accounts'];
+const wantLedger=()=>!!authUser&&['finance','admin'].includes(authUser.role);
+const LEDGER_VKEY='inv_ledger_v'; // 本機歷史科目快取的雲端版本號（和其他資料集的 inv_sync 分開存，背景載入時不會和別的同步互相覆蓋）
+const ledgerVer=()=>{try{const x=localStorage.getItem(LEDGER_VKEY);return x===null||x===''?null:Number(x)}catch(e){return null}};
+const setLedgerVer=v=>{try{localStorage.setItem(LEDGER_VKEY,String(v))}catch(e){}};
+let ledgerLoad=null,ledgerReady=false;
+async function syncLedger(){
+ if(!wantLedger()){ledgerHistory=[];ledgerReady=false;return false}
+ const cur=ledgerVer();let r=await InvCloud.get({action:'list',store:'ledger',since:cur===null?'':cur}),changed=!r.unchanged;
+ if(changed){await idbReplace(LSTORE,r.items);setLedgerVer(r.v)}
+ await loadLedgerHistory();
+ if(!changed&&!ledgerHistory.length&&cur>0){r=await InvCloud.get({action:'list',store:'ledger',since:''});await idbReplace(LSTORE,r.items);setLedgerVer(r.v);await loadLedgerHistory();changed=true} // 版本號還在、本機資料卻是空的（被瀏覽器清掉）：整批重抓
+ ledgerReady=true;return changed}
+const ensureLedger=()=>{if(!wantLedger())return Promise.resolve(false);if(!ledgerLoad)ledgerLoad=syncLedger().catch(e=>{ledgerLoad=null;throw e});return ledgerLoad};
+const refreshLedger=()=>{ledgerLoad=null;return ensureLedger()}; // 雲端的歷史科目有變（自己匯入、別人更新）：重新比對版本、需要時重抓
+const needLedger=async()=>{if(wantLedger()&&!ledgerReady)await ensureLedger()}; // 要讀整份歷史科目的操作（財務覆核、匯入、整理、備份）：還沒載好就等它
+function startLedger(){ // 畫面出來之後，財務與管理員在背景載入歷史科目
+ if(!wantLedger())return;setSyncState('busy','歷史科目載入中…');
+ ensureLedger().then(()=>setSyncState('ok')).catch(e=>setSyncState('err','歷史科目載入失敗：'+(e.message||e)))}
 const syncRead=()=>{try{return JSON.parse(localStorage.getItem('inv_sync')||'{}')}catch(e){return{}}};
 const syncWrite=s=>{try{localStorage.setItem('inv_sync',JSON.stringify(s))}catch(e){}};
 const meFingerprint=()=>{const u=InvCloud.user()||{};return [u.email,u.role,u.dept,u.name].join('|')};
 // 登入後第一次下載全部；換了人或角色／部門變了（可見的發票範圍不同）就整批重抓
 async function syncAll(force,boot){const st=syncRead(),fp=meFingerprint();if(st.fp!==fp)force=true;st.v=st.v||{};
- const names=Object.keys(CLOUD_STORES);let stores=boot&&boot.stores;
- if(!stores){const since={};if(!force)for(const n of names)since[n]=st.v[n]??'';stores=(await InvCloud.get({action:'boot',since:JSON.stringify(since)})).stores}
+ const names=CORE_NAMES;let stores=boot&&boot.stores;
+ if(!stores){const since={};if(!force)for(const n of names)since[n]=st.v[n]??'';stores=(await InvCloud.get({action:'boot',since:JSON.stringify(since),stores:names.join(',')})).stores}
  if(!stores){stores={};await Promise.all(names.map(async n=>{stores[n]=await InvCloud.get({action:'list',store:n,since:force?'':(st.v[n]??'')})}))} // 舊版後端沒有 boot：逐類下載
  const changed={};
  for(const n of names){const r=stores[n];if(!r||r.unchanged){changed[n]=false;continue}await idbReplace(CLOUD_STORES[n],r.items);st.v[n]=r.v;changed[n]=true}
@@ -892,7 +913,7 @@ async function orgPut(v){const res=await InvCloud.call('put',{store:'organizatio
 async function orgDelete(id){const r=await InvCloud.call('del',{store:'organization',key:id});await idbDel(OSTORE,id);noteWrite('organization',r.meta.organization.v)}
 // 歷史會計科目對照庫（財務／管理員維護）
 const allLedgerHistory=()=>idbAll(LSTORE);
-async function putLedgerBatch(items){if(!items.length)return;for(let k=0;k<items.length;k+=8000)await InvCloud.call('putMany',{store:'ledger',items:items.slice(k,k+8000)});await syncStores(['ledger'])}
+async function putLedgerBatch(items){if(!items.length)return;for(let k=0;k<items.length;k+=8000)await InvCloud.call('putMany',{store:'ledger',items:items.slice(k,k+8000)});await refreshLedger()}
 
 // 雲端的錯誤（沒有權限、資料衝突、連不上…）如果沒有被畫面自己接住，就跳出訊息，不要默默失敗
 window.addEventListener('unhandledrejection',e=>{const r=e.reason;if(r&&r.code&&r.message){e.preventDefault();toast(r.message)}});
@@ -1318,12 +1339,12 @@ $('chartImport').onclick=async()=>{
 $('chartExport').onclick=()=>{if(!accountChart.length)return toast('目前沒有科目表');const csv='\ufeff科目代號,科目名稱,類別\r\n'+accountChart.map(a=>[a.code,a.name,CHART_GROUP_LABEL[a.group]||''].map(v=>'"'+String(v).replace(/"/g,'""')+'"').join(',')).join('\r\n');download('會計科目表_'+datestr()+'.csv',csv,'text/csv;charset=utf-8')};
 // 先前若把科目表當成歷史科目匯入（說明＝科目名稱、只出現 1 次、沒有廠商／部門），用這個一次清掉
 $('ledgerCleanSeeds').onclick=async()=>{
- if(!can('finance','admin')||!canPage('finance'))return toast('僅財務及管理員可以清理歷史科目');
+ if(!can('finance','admin')||!canPage('finance'))return toast('僅財務及管理員可以清理歷史科目');try{await needLedger()}catch(e){return toast('歷史科目載入失敗：'+(e.message||e))}
  if(!accountChart.length)return toast('請先匯入會計科目表，才能判斷哪些歷史項目是科目表匯入的');
  const seeds=ledgerHistory.filter(r=>(Number(r.count)||1)===1&&!r.vendor&&!r.taxId&&!r.dept&&r.description&&ledgerNorm(r.description)===ledgerNorm(r.accountName)&&accountByCode.has(String(r.accountCode||'').trim()));
  if(!seeds.length){$('ledgerImportStatus').textContent='沒有找到「說明＝科目名稱」的歷史項目，不需要清理。';return}
  if(!confirm('找到 '+seeds.length+' 筆歷史項目的「費用項目說明」剛好等於科目名稱（只出現過 1 次、沒有廠商／部門），應該是先前把科目表當成歷史匯入的。\n\n要移除這 '+seeds.length+' 筆嗎？（科目表本身與其他歷史資料不受影響）'))return;
- try{for(let k=0;k<seeds.length;k+=2000)await InvCloud.call('del',{store:'ledger',keys:seeds.slice(k,k+2000).map(r=>r.id)});await syncStores(['ledger']);await loadLedgerHistory();$('ledgerImportStatus').textContent='已移除 '+seeds.length+' 筆由科目表匯入的歷史項目。'}
+ try{for(let k=0;k<seeds.length;k+=2000)await InvCloud.call('del',{store:'ledger',keys:seeds.slice(k,k+2000).map(r=>r.id)});await refreshLedger();$('ledgerImportStatus').textContent='已移除 '+seeds.length+' 筆由科目表匯入的歷史項目。'}
  catch(e){$('ledgerImportStatus').textContent='清理失敗：'+e.message}
 };
 function renderLedgerSummary(){
@@ -1340,7 +1361,7 @@ function renderLedgerSummary(){
 $('ledgerSearch').addEventListener('input',renderLedgerSummary);
 // 歷史科目裡「科目名稱欄其實是科目代號」的項目：畫面上已自動校正，這個按鈕把校正結果永久存回雲端
 $('ledgerFixSaved').onclick=async()=>{
- if(!can('finance','admin')||!canPage('finance'))return toast('僅財務及管理員可以整理歷史科目');
+ if(!can('finance','admin')||!canPage('finance'))return toast('僅財務及管理員可以整理歷史科目');try{await needLedger()}catch(e){return toast('歷史科目載入失敗：'+(e.message||e))}
  const fixed=ledgerHistory.filter(r=>r._fixed);
  if(!fixed.length){$('ledgerImportStatus').textContent='沒有需要整理的歷史項目（科目代號與名稱都在正確的欄位）。';return}
  if(!confirm('有 '+fixed.length+' 筆歷史項目的科目代號與名稱放錯欄位（例如科目名稱欄其實是代號）。\n\n要把校正後的結果存回雲端嗎？（會刪除這 '+fixed.length+' 筆舊紀錄、改存校正後的紀錄，相同的會合併筆數）'))return;
@@ -1351,14 +1372,14 @@ $('ledgerFixSaved').onclick=async()=>{
   await InvCloud.call('putMany',{store:'ledger',items:[...merged.values()]});
   const del=fixed.map(r=>r.id).filter(id=>!merged.has(id));
   for(let k=0;k<del.length;k+=2000)await InvCloud.call('del',{store:'ledger',keys:del.slice(k,k+2000)});
-  await syncStores(['ledger']);await loadLedgerHistory();
+  await refreshLedger();
   $('ledgerImportStatus').textContent='已整理 '+fixed.length+' 筆歷史項目，校正後共 '+ledgerHistory.length+' 組對照規則。';
  }catch(e){$('ledgerImportStatus').textContent='整理失敗：'+e.message}
 };
 $('ledgerTemplate').onclick=()=>{const lines=[['費用項目說明','會計科目代號','會計科目名稱','廠商名稱','廠商統編','申請部門'],['此列為格式示範，匯入前請刪除','','','','','']];download('會計科目歷史資料匯入範本.csv','\ufeff'+lines.map(a=>a.map(x=>'"'+String(x).replace(/"/g,'""')+'"').join(',')).join('\r\n'),'text/csv;charset=utf-8')};
-$('ledgerExport').onclick=()=>{if(!can('finance','admin'))return toast('限財務／管理員匯出');const heads=['費用項目說明','會計科目代號','會計科目名稱','廠商名稱','廠商統編','申請部門','歷史筆數'];const quote=s=>'"'+String(s??'').replace(/^[=+\-@\t\r]/,'\u0027$&').replace(/"/g,'""')+'"';const rows=ledgerHistory.map(r=>[r.description,r.accountCode,r.accountName,r.vendor,r.taxId,r.dept,r.count]);download('歷史科目資料庫_'+claimToday()+'.csv','\ufeff'+[heads,...rows].map(a=>a.map(quote).join(',')).join('\r\n'),'text/csv;charset=utf-8')};
+$('ledgerExport').onclick=()=>{if(!can('finance','admin'))return toast('限財務／管理員匯出');if(!ledgerReady)return toast('歷史科目還在載入中，請稍候再匯出');const heads=['費用項目說明','會計科目代號','會計科目名稱','廠商名稱','廠商統編','申請部門','歷史筆數'];const quote=s=>'"'+String(s??'').replace(/^[=+\-@\t\r]/,'\u0027$&').replace(/"/g,'""')+'"';const rows=ledgerHistory.map(r=>[r.description,r.accountCode,r.accountName,r.vendor,r.taxId,r.dept,r.count]);download('歷史科目資料庫_'+claimToday()+'.csv','\ufeff'+[heads,...rows].map(a=>a.map(quote).join(',')).join('\r\n'),'text/csv;charset=utf-8')};
 $('ledgerImport').onclick=async()=>{
- if(!can('finance','admin')||!canPage('finance'))return toast('僅財務及管理員可以匯入科目紀錄');const f=$('ledgerHistoryFile').files[0];if(!f)return toast('請先選擇歷史科目檔案');if(f.size>25*1024*1024)return toast('檔案超過 25MB，請分批匯入');const btn=$('ledgerImport');btn.disabled=true;$('ledgerImportStatus').textContent='正在讀取歷史科目，請稍候…';
+ if(!can('finance','admin')||!canPage('finance'))return toast('僅財務及管理員可以匯入科目紀錄');try{await needLedger()}catch(e){return toast('歷史科目載入失敗：'+(e.message||e))}const f=$('ledgerHistoryFile').files[0];if(!f)return toast('請先選擇歷史科目檔案');if(f.size>25*1024*1024)return toast('檔案超過 25MB，請分批匯入');const btn=$('ledgerImport');btn.disabled=true;$('ledgerImportStatus').textContent='正在讀取歷史科目，請稍候…';
  try{let grid=[];if(/\.csv$/i.test(f.name)){grid=parseLedgerCSV(new TextDecoder($('ledgerEncoding').value).decode(await f.arrayBuffer()))}
  else{if(!window.XLSX)throw Error('Excel 解析模組無法連線，請在 Excel 另存為 CSV 後再匯入');const workbook=XLSX.read(await f.arrayBuffer(),{type:'array',raw:true});if(!workbook.SheetNames.length)throw Error('Excel 找不到工作表');grid=XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]],{header:1,defval:'',raw:false})}
  if(grid.length<2)throw Error('沒有可匯入的資料');if(grid.length>50001)throw Error('單次最多 50,000 列，請拆分歷史檔案');const map=ledgerFieldMap(grid[0]);if(map.description<0||map.accountCode<0&&map.accountName<0)throw Error('找不到「費用項目說明」及「會計科目代號／名稱」欄位');const input=new Map(),seenIds=new Set(ledgerHistory.map(x=>x.id));let skipped=0;
@@ -1829,7 +1850,8 @@ async function act(id,action){let i=await get(id);const prev=i?JSON.parse(JSON.s
  await refresh()}
 // 會計科目在財務覆核時才判斷：依項目說明、申請部門、廠商自動建議，財務可以直接修改或點候選科目，確認後才覆核通過
 let finReview=null;
-function openFinanceReview(i){
+async function openFinanceReview(i){
+ if(wantLedger()&&!ledgerReady){toast('歷史科目還在載入，載好才有科目建議，請稍候…');try{await ensureLedger()}catch(e){toast('歷史科目載入失敗，這次沒有科目建議：'+(e.message||e))}}
  const ctx=ledgerContext(i.dept,i.vendor,i.taxId),items=i.claim.items.map(x=>({...x,allocations:(Array.isArray(x.allocations)?x.allocations:[]).map(a=>({dept:a.dept,ratio:a.ratio,...(a.accountCode?{accountCode:String(a.accountCode),accountName:String(a.accountName||''),acctManual:true}:{})}))}));
  items.forEach(line=>{if(line.ledgerSource==='finance')return;line.ledgerManual=false;updateLedgerForLine(line,ctx,true)});
  ensureItemAllocations(items,i.dept,i.claim.allocations);
@@ -3004,7 +3026,7 @@ $('jvXls').onclick=()=>{
 };
 
 function download(filename,content,type){const b=new Blob([content],{type}),url=URL.createObjectURL(b),a=document.createElement('a');a.href=url;a.download=filename;a.click();setTimeout(()=>URL.revokeObjectURL(url),3000)}$('exportCSV').onclick=()=>{if(!canPage('finance')||!can('finance','admin'))return toast('僅財務及管理員可匯出');let rows=filtered('finance');let heads=['發票日期','發票號碼','廠商名稱','廠商統編','申請部門','部門／門市編號','科目代號編碼','申請人','發票總計金額','申請日期','預定付款日','支付對象','用途','請款項目','請款明細會計科目','請款合計','分攤單位與比例','分攤明細金額','付款方式','匯款類型','匯費處理','待補憑證','備註','狀態','主管姓名','執行長姓名','建立時間','附件數量','憑證狀態','分攤科目明細','請款別（Y/N）','卡別','執行長判斷附註'];let vals=i=>{let c=normalizeClaim(i.claim,i);return [i.invoiceDate,i.invoiceNo,i.vendor,i.taxId,i.dept,i.deptCode||departmentByName(i.dept)?.code||'',i.accountCode||departmentByName(i.dept)?.accountCode||'',i.applicant,i.amount,c.requestDate,c.dueDate,c.payee,c.purpose,c.items.map(x=>x.description+'：'+x.amount).join('；'),c.items.map(x=>x.description+' → '+(x.accountCode||'')+' '+(x.accountName||'')).join('；'),claimSum(c),c.allocations.map(a=>`${departmentLabel(a.dept)}：${a.ratio}%`).join('；'),calcAllocationAmounts(claimSum(c),c.allocations).map(a=>`${departmentLabel(a.dept)}：${a.amount}`).join('；'),c.paymentMethod,c.transferHistory,c.feeDeduction,c.voucherMissing,i.memo,names[i.status],i.managerName||'',i.executiveName||'',i.createdAt,(i.attachments||[]).length,voucherLabel(i),c.items.map((x,j)=>(j+1)+'. '+(x.allocations||[]).filter(a=>a.accountCode).map(a=>departmentLabel(a.dept)+' '+a.ratio+'% → '+a.accountCode+' '+(a.accountName||'')).join('、')).filter(s=>/→/.test(s)).join('；'),c.ceo?c.ceo.yn:'',c.ceo?c.ceo.card:'',c.ceo?c.ceo.note:'']};let quote=v=>'"'+String(v??'').replace(/^[=+\-@\t\r]/,'\u0027$&').replace(/"/g,'""')+'"';let csv='\ufeff'+[heads,...rows.map(vals)].map(row=>row.map(quote).join(',')).join('\r\n');download('發票財務彙整_'+datestr()+'.csv',csv,'text/csv;charset=utf-8');};
-const to64=blob=>new Promise((resolve,reject)=>{let r=new FileReader();r.onload=()=>resolve(String(r.result).split(',')[1]);r.onerror=()=>reject(r.error);r.readAsDataURL(blob)});$('backupJSON').onclick=async()=>{if(!can('admin'))return toast('僅管理員可備份');const btn=$('backupJSON'),btnText=btn.textContent;btn.disabled=true;try{let rows=[],n=0;for(const i of current){btn.textContent='備份中… '+(++n)+'／'+current.length;let copy={...i,attachments:[]};for(const f of i.attachments||[])copy.attachments.push({name:f.name,type:f.type,size:f.size,base64:await to64(await attachmentBlob(f,i.id))});if(i.claim?.passbook?.blob||i.claim?.passbook?.blobId){const p=i.claim.passbook;copy.claim={...i.claim,passbook:{name:p.name,type:p.type,size:p.size,base64:await to64(await attachmentBlob(p,i.id))}}}rows.push(copy)}download('發票系統完整備份_'+datestr()+'.json',JSON.stringify({version:5,exportedAt:now(),databaseName:DB,invoices:rows,accounts:await allAccounts(),organization:await orgAll(),users:await allUsers(),ledgerHistory:await allLedgerHistory()}), 'application/json');}catch(e){toast('備份失敗：'+e.message)}finally{btn.disabled=false;btn.textContent=btnText}};
+const to64=blob=>new Promise((resolve,reject)=>{let r=new FileReader();r.onload=()=>resolve(String(r.result).split(',')[1]);r.onerror=()=>reject(r.error);r.readAsDataURL(blob)});$('backupJSON').onclick=async()=>{if(!can('admin'))return toast('僅管理員可備份');const btn=$('backupJSON'),btnText=btn.textContent;btn.disabled=true;try{let rows=[],n=0;for(const i of current){btn.textContent='備份中… '+(++n)+'／'+current.length;let copy={...i,attachments:[]};for(const f of i.attachments||[])copy.attachments.push({name:f.name,type:f.type,size:f.size,base64:await to64(await attachmentBlob(f,i.id))});if(i.claim?.passbook?.blob||i.claim?.passbook?.blobId){const p=i.claim.passbook;copy.claim={...i.claim,passbook:{name:p.name,type:p.type,size:p.size,base64:await to64(await attachmentBlob(p,i.id))}}}rows.push(copy)}download('發票系統完整備份_'+datestr()+'.json',JSON.stringify({version:5,exportedAt:now(),databaseName:DB,invoices:rows,accounts:await allAccounts(),organization:await orgAll(),users:await allUsers(),ledgerHistory:(await ensureLedger(),await allLedgerHistory())}), 'application/json');}catch(e){toast('備份失敗：'+e.message)}finally{btn.disabled=false;btn.textContent=btnText}};
 $('restoreBtn').onclick=()=>{if(!can('admin'))return toast('僅管理員可還原');$('restoreFile').click()};$('restoreFile').onchange=async e=>{let f=e.target.files[0];if(!f)return;try{let data=JSON.parse(await f.text());if(!Array.isArray(data.invoices)||![1,2,3,4,5].includes(data.version))throw Error('不是有效的系統備份');if(!confirm(`將匯入 ${data.invoices.length} 筆發票。
 
 現有人員名單與權限、既有部門／員工資料一律不覆蓋；備份中的部門只補不存在的項目。
@@ -3019,7 +3041,7 @@ $('restoreBtn').onclick=()=>{if(!can('admin'))return toast('僅管理員可還�
   await loadOrg();
  }
  window._restoreNote=(Array.isArray(data.users)&&data.users.length)?'\n\n備份裡的舊帳號（帳號＋密碼）沒有匯入：網頁版改用 Gmail 登入，請到「帳號／權限管理」建立。':'';
- if(Array.isArray(data.ledgerHistory)){const oldIds=new Set((await allLedgerHistory()).map(x=>x.id));await putLedgerBatch(data.ledgerHistory.filter(x=>x&&x.id&&x.description&&(x.accountCode||x.accountName)&&!oldIds.has(x.id)));await loadLedgerHistory()}if(Array.isArray(data.accounts)&&data.accounts.length){const accs=data.accounts.filter(a=>a&&a.code&&a.name).map(a=>({code:String(a.code),name:String(a.name),group:a.group||''}));if(accs.length){await InvCloud.call('putMany',{store:'accounts',items:accs});await syncStores(['accounts']);await loadAccountChart()}}const migrated=await migrateCEOManagedPending();await refresh();toast('備份匯入完成'+(migrated?'；已轉送 '+migrated+' 筆執行長兼任部門的待簽單據':'')+(window._restoreNote||''))}catch(err){toast('匯入失敗：'+err.message)}finally{$('restoreFile').value=''}};// v4.1 資料歸零：只操作 STORE='invoices'，絕不觸碰 USTORE、OSTORE。
+ if(Array.isArray(data.ledgerHistory)){await needLedger();const oldIds=new Set((await allLedgerHistory()).map(x=>x.id));await putLedgerBatch(data.ledgerHistory.filter(x=>x&&x.id&&x.description&&(x.accountCode||x.accountName)&&!oldIds.has(x.id)));await loadLedgerHistory()}if(Array.isArray(data.accounts)&&data.accounts.length){const accs=data.accounts.filter(a=>a&&a.code&&a.name).map(a=>({code:String(a.code),name:String(a.name),group:a.group||''}));if(accs.length){await InvCloud.call('putMany',{store:'accounts',items:accs});await syncStores(['accounts']);await loadAccountChart()}}const migrated=await migrateCEOManagedPending();await refresh();toast('備份匯入完成'+(migrated?'；已轉送 '+migrated+' 筆執行長兼任部門的待簽單據':'')+(window._restoreNote||''))}catch(err){toast('匯入失敗：'+err.message)}finally{$('restoreFile').value=''}};// v4.1 資料歸零：只操作 STORE='invoices'，絕不觸碰 USTORE、OSTORE。
 // 使用單一 IndexedDB transaction 清除，避免部分刪除。
 async function purgeOnlyInvoices(){
  await InvCloud.call('clear',{store:'invoices'});await idbReplace(STORE,[]);

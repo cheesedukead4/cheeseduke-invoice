@@ -161,7 +161,9 @@
 
   // 登入時順便要全部資料（boot）：後端在同一次請求裡一起回傳，登入後不用再等第二趟
   var bootPayload = null;
-  function postLogin(idToken) { return request('POST', null, { action: 'login', idToken: idToken, boot: true }); }
+  // stores：登入時只要這三類資料（歷史科目約 3 萬筆不在登入時下載，只有財務與管理員之後在背景載入）；舊版後端不認得 stores，會照舊回全部，網頁自己忽略多的
+  var CORE_STORES = ['invoices', 'organization', 'accounts'];
+  function postLogin(idToken) { return request('POST', null, { action: 'login', idToken: idToken, boot: true, stores: CORE_STORES }); }
   function takeBoot() { var b = bootPayload; bootPayload = null; return b; }
   function onCredential(resp) {
     if (busy || !resp || !resp.credential) return;
