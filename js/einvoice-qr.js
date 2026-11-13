@@ -322,6 +322,7 @@
   }
   async function fileToCanvases(file) {
     if (file.type === 'application/pdf' || /\.pdf$/i.test(file.name || '')) {
+      if (!root.pdfjsLib && root.LazyLibs) { try { await root.LazyLibs.ensure('pdf'); } catch (e) { /* 下面統一回報 */ } } // PDF 套件改成用到才載入（js/lazy-libs.js）
       if (!root.pdfjsLib) throw new Error('PDF 模組載入失敗，請確認網路連線');
       root.pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
       var doc = await root.pdfjsLib.getDocument({ data: new Uint8Array(await file.arrayBuffer()) }).promise, out = [];

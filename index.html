@@ -368,7 +368,7 @@ main{padding-bottom:12px}
     <div class="auth-warn"><b>資料安全：</b>簽呈、發票、金額與存摺影本存在公司的 Google 雲端硬碟，系統會依你的角色與部門過濾可見範圍，並檢查簽核順序。請勿在公用電腦登入，離開座位請先登出。</div>
   </div>
 </div>
-<datalist id="acctCodeList"></datalist><datalist id="acctNameList"></datalist><script src="config.js"></script><script src="js/cloud.js"></script><script src="js/einvoice-qr.js"></script><script src="js/quick-judge.js"></script><script src="js/ceo-judge.js"></script>
+<datalist id="acctCodeList"></datalist><datalist id="acctNameList"></datalist><script src="config.js"></script><script src="js/cloud.js"></script><script src="js/lazy-libs.js"></script><script src="js/einvoice-qr.js"></script><script src="js/quick-judge.js"></script><script src="js/ceo-judge.js"></script>
 <header><div><h1>公司簽呈與簽核系統</h1><div class="sub">網頁版 v7.0｜主畫面統一入口・表單／請款・雲端共用資料・Google 登入</div></div><div class="role"><span id="loggedSummary">尚未登入</span><span id="syncState" class="sub">雲端：—</span><button id="syncNowBtn" type="button">🔄 同步</button><button id="logoutBtn" type="button">登出</button><select id="role" class="hide"><option value="staff">申請人</option><option value="manager">部門主管</option><option value="executive">執行長</option><option value="finance">財務人員</option><option value="admin">系統管理者</option></select><input id="actorName" class="hide" readonly aria-label="操作人員姓名"></div></header>
 <nav id="tabs"><button type="button" id="menuToggle" aria-expanded="false">☰ 選單</button></nav>
 <main>
@@ -654,7 +654,7 @@ async function authEnter(me){authUser=meToUser(me);applyAuthUser();let warm=fals
   if(warm){await bootFromCache()}
   else{authLock(true);InvCloud.showGate('載入雲端資料中…',false,{hideLogin:true});await bootData(boot)}
   appStarted=true;startPolling()}
- authLock(false);syncOrgControls();render();try{performance.mark('inv-ui-ready')}catch(_){}
+ authLock(false);syncOrgControls();render();try{performance.mark('inv-ui-ready')}catch(_){}try{LazyLibs.prefetch(authUser.role)}catch(_){}
  tab('home');if(location.hash==='#ceo'&&canPage('ceoentry'))tab('ceoentry'); // 網址後面加 #ceo＝登入後直接進執行長發票頁
  if(window.memoRefresh)memoRefresh(true);
  if(warm)backgroundSync().then(()=>{try{performance.mark('inv-synced')}catch(_){}startLedger()});else{setSyncState('ok');startLedger()}
@@ -829,6 +829,8 @@ const CLOUD_STORES={invoices:STORE,organization:OSTORE,ledger:LSTORE,accounts:AS
 // 只有財務與管理員需要：他們在畫面出來之後才在背景載入（本機有同版本的快取就只比版本號，不重抓）
 const CORE_NAMES=['invoices','organization','accounts'];
 const wantLedger=()=>!!authUser&&['finance','admin'].includes(authUser.role);
+// Excel 套件（約 316KB）改成用到才載入（js/lazy-libs.js）；載入失敗時維持原本的提示
+const needXlsx=async()=>{try{await LazyLibs.ensure('xlsx')}catch(_){throw Error('Excel 解析模組無法連線，請在 Excel 另存為 CSV 後再匯入')}};
 const LEDGER_VKEY='inv_ledger_v'; // 本機歷史科目快取的雲端版本號（和其他資料集的 inv_sync 分開存，背景載入時不會和別的同步互相覆蓋）
 const ledgerVer=()=>{try{const x=localStorage.getItem(LEDGER_VKEY);return x===null||x===''?null:Number(x)}catch(e){return null}};
 const setLedgerVer=v=>{try{localStorage.setItem(LEDGER_VKEY,String(v))}catch(e){}};
@@ -1339,7 +1341,7 @@ $('chartImport').onclick=async()=>{
  const btn=$('chartImport'),status=$('chartStatus');btn.disabled=true;status.textContent='正在讀取科目表，請稍候…';
  try{let grid=[];
   if(/\.csv$/i.test(f.name))grid=parseLedgerCSV(new TextDecoder($('chartEncoding').value).decode(await f.arrayBuffer()));
-  else{if(!window.XLSX)throw Error('Excel 解析模組無法連線，請在 Excel 另存為 CSV 後再匯入');const wb=XLSX.read(await f.arrayBuffer(),{type:'array',raw:true});if(!wb.SheetNames.length)throw Error('Excel 找不到工作表');grid=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{header:1,defval:'',raw:false})}
+  else{await needXlsx();const wb=XLSX.read(await f.arrayBuffer(),{type:'array',raw:true});if(!wb.SheetNames.length)throw Error('Excel 找不到工作表');grid=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{header:1,defval:'',raw:false})}
   const r=parseChartGrid(grid);if(!r.items.length)throw Error('找不到「科目代號」與「科目名稱」欄位，或沒有資料');
   const bs=r.items.filter(a=>a.group==='bs').length,pl=r.items.filter(a=>a.group==='pl').length,keep=new Set(r.items.map(a=>a.code)),gone=accountChart.filter(a=>!keep.has(String(a.code))).length;
   if(!confirm('共讀到 '+r.items.length+' 個科目（資產負債 '+bs+'、損益 '+pl+(r.items.length-bs-pl?'、未分類 '+(r.items.length-bs-pl):'')+'）。\n\n匯入以檔案為準：目前科目表有 '+accountChart.length+' 個，其中 '+gone+' 個不在檔案裡，會被移除。歷史科目與已送出的發票不受影響。\n\n確定匯入？')){renderAccountChart();return}
@@ -1393,7 +1395,7 @@ $('ledgerExport').onclick=()=>{if(!can('finance','admin'))return toast('限財�
 $('ledgerImport').onclick=async()=>{
  if(!can('finance','admin')||!canPage('finance'))return toast('僅財務及管理員可以匯入科目紀錄');try{await needLedger()}catch(e){return toast('歷史科目載入失敗：'+(e.message||e))}const f=$('ledgerHistoryFile').files[0];if(!f)return toast('請先選擇歷史科目檔案');if(f.size>25*1024*1024)return toast('檔案超過 25MB，請分批匯入');const btn=$('ledgerImport');btn.disabled=true;$('ledgerImportStatus').textContent='正在讀取歷史科目，請稍候…';
  try{let grid=[];if(/\.csv$/i.test(f.name)){grid=parseLedgerCSV(new TextDecoder($('ledgerEncoding').value).decode(await f.arrayBuffer()))}
- else{if(!window.XLSX)throw Error('Excel 解析模組無法連線，請在 Excel 另存為 CSV 後再匯入');const workbook=XLSX.read(await f.arrayBuffer(),{type:'array',raw:true});if(!workbook.SheetNames.length)throw Error('Excel 找不到工作表');grid=XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]],{header:1,defval:'',raw:false})}
+ else{await needXlsx();const workbook=XLSX.read(await f.arrayBuffer(),{type:'array',raw:true});if(!workbook.SheetNames.length)throw Error('Excel 找不到工作表');grid=XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]],{header:1,defval:'',raw:false})}
  if(grid.length<2)throw Error('沒有可匯入的資料');if(grid.length>50001)throw Error('單次最多 50,000 列，請拆分歷史檔案');const map=ledgerFieldMap(grid[0]);if(map.description<0||map.accountCode<0&&map.accountName<0)throw Error('找不到「費用項目說明」及「會計科目代號／名稱」欄位');const input=new Map(),seenIds=new Set(ledgerHistory.map(x=>x.id));let skipped=0;
  for(const row of grid.slice(1)){const r=ledgerRowFromGrid(row,map);if(!r.description||!r.accountCode&&!r.accountName){skipped++;continue}if(input.has(r.id))input.get(r.id).count++;else input.set(r.id,r)}
  const newly=[...input.values()].filter(r=>!seenIds.has(r.id));await putLedgerBatch(newly);await loadLedgerHistory();$('ledgerImportStatus').textContent=`本次新增 ${newly.length} 組科目對照；略過重複 ${input.size-newly.length} 組、缺欄 ${skipped} 列。現有發票、帳號與部門資料均未更動。`;
@@ -2240,7 +2242,7 @@ function parseCeoHistGrid(grid){
 }
 async function readCeoHistFile(f){
  if(/\.(xlsx|xls)$/i.test(f.name)){
-  if(!window.XLSX)throw Error('Excel 解析模組無法連線，請在 Excel 另存為 CSV 後再匯入');
+  await needXlsx();
   const wb=XLSX.read(await f.arrayBuffer(),{type:'array',raw:true});if(!wb.SheetNames.length)throw Error('Excel 找不到工作表');
   return XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{header:1,defval:'',raw:false});
  }
@@ -2790,7 +2792,7 @@ async function claimAttachmentPages(item,win,progress,budget){
   progress(`處理 ${item.invoiceNo}／${label} ...`);
   const isPdf=f.type==='application/pdf'||/\.pdf$/i.test(f.name||'');
   if(isPdf){
-   if(!window.pdfjsLib)throw Error('無法載入 PDF 頁面處理模組。請確認有網路連線後重新開啟系統，PDF 附件不能略過。');
+   try{await LazyLibs.ensure('pdf')}catch(_){throw Error('無法載入 PDF 頁面處理模組。請確認有網路連線後再試，PDF 附件不能略過。')}
    pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
    let pdf=null;
    try{
@@ -3015,9 +3017,9 @@ function journalFangyuan(rows,opt){
  else if(elig.length)add(journalLines(elig,opt),opt.no);
  return {rows:out,vouchers,noCode,claims:elig.length};
 }
-$('jvXls').onclick=()=>{
+$('jvXls').onclick=async()=>{
  if(!authUser||!canPage('finance')||!can('finance','admin'))return toast('只有具有財務整合權限的財務或管理員可匯出轉帳傳票');
- if(!window.XLSX||!XLSX.write)return toast('Excel 匯出模組還沒載入，請確認網路連線後重新整理頁面再試');
+ try{await LazyLibs.ensure('xlsx')}catch(_){return toast('Excel 匯出模組無法載入，請確認網路連線後再試')}
  const opt=jvOptions();
  if(!/^\d{4}-\d{2}-\d{2}$/.test(opt.date))return toast('請選傳票日期');
  if(!opt.no)return toast('請填傳票編號');
@@ -3093,7 +3095,7 @@ function promptInvoiceResetAfterAdminLogin(user){
  await InvCloud.ready;
  try{await authEnter(InvCloud.user())}catch(e){if(e&&(e.code==='unauthorized'||e.code==='forbidden'))return;InvCloud.showGate('載入雲端資料失敗：'+(e.message||e),true,{hideLogin:true,reload:true})}
 })();
-</script><script src="https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js"></script><script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script><script>
+</script><script>
 /* 發票 OCR 實驗功能：Tesseract.js 在使用者裝置本機執行，需網路下載模型。簽核與登錄仍使用原有 IndexedDB。 */
 (()=>{'use strict';
 const el=id=>document.getElementById(id);
@@ -3228,7 +3230,7 @@ return out;
 }
 function attachCameraImage(file){const input=el('files');if(input.files.length>=5){show('附件已達 5 個，請先移除其他附件後再拍照。',true);return false}try{let dt=new DataTransfer();for(const f of input.files)dt.items.add(f);dt.items.add(file);input.files=dt.files;return true}catch(e){show('照片已辨識，但瀏覽器無法自動加入附件。請另外透過下方附件欄位上傳照片。',true);return false}}
 function setPreview(file){if(previewURL)URL.revokeObjectURL(previewURL);previewURL=null;el('ocrPreview').classList.add('hide');if(file.type.startsWith('image/')){previewURL=URL.createObjectURL(file);el('ocrPreview').src=previewURL;el('ocrPreview').classList.remove('hide')}}
-async function loadImage(file){if(file.type==='application/pdf'||/\.pdf$/i.test(file.name)){if(!window.pdfjsLib)throw Error('PDF 辨識模組載入失敗，請確認網路連線');pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';const bytes=new Uint8Array(await file.arrayBuffer());const doc=await pdfjsLib.getDocument({data:bytes}).promise;const page=await doc.getPage(1);const viewport=page.getViewport({scale:2});const canvas=document.createElement('canvas');canvas.width=viewport.width;canvas.height=viewport.height;await page.render({canvasContext:canvas.getContext('2d'),viewport}).promise;return canvas}return file}
+async function loadImage(file){if(file.type==='application/pdf'||/\.pdf$/i.test(file.name)){try{await LazyLibs.ensure('pdf')}catch(_){throw Error('PDF 辨識模組載入失敗，請確認網路連線')}pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';const bytes=new Uint8Array(await file.arrayBuffer());const doc=await pdfjsLib.getDocument({data:bytes}).promise;const page=await doc.getPage(1);const viewport=page.getViewport({scale:2});const canvas=document.createElement('canvas');canvas.width=viewport.width;canvas.height=viewport.height;await page.render({canvasContext:canvas.getContext('2d'),viewport}).promise;return canvas}return file}
 async function improveImage(source){
  const bitmap=source instanceof HTMLCanvasElement?source:await createImageBitmap(source);
  const w=bitmap.width,h=bitmap.height,scale=Math.min(3,Math.max(1.5,1800/Math.max(w,h))),canvas=document.createElement('canvas');
@@ -3236,7 +3238,7 @@ async function improveImage(source){
  const ctx=canvas.getContext('2d',{willReadFrequently:true});ctx.fillStyle='#fff';ctx.fillRect(0,0,canvas.width,canvas.height);ctx.filter='contrast(1.65) grayscale(1)';ctx.drawImage(bitmap,0,0,canvas.width,canvas.height);ctx.filter='none';
  if(bitmap!==source&&bitmap.close)bitmap.close();return canvas;
 }
-async function getWorker(){if(!window.Tesseract)throw Error('OCR 模組載入失敗，請連接網路後重新開啟頁面');if(!worker){show('第一次啟用：正在下載繁體中文及英文辨識資料，可能需要約 10–60 秒…');worker=await Tesseract.createWorker('chi_tra+eng',1,{logger:m=>{if(m.status==='recognizing text')show(`正在辨識發票文字：${Math.round((m.progress||0)*100)}%`);else if(/loading|initializing/i.test(m.status))show('正在載入 OCR 引擎與辨識資料…')}})}return worker}
+async function getWorker(){try{await LazyLibs.ensure('ocr')}catch(_){throw Error('OCR 模組載入失敗，請連接網路後再試')}if(!worker){show('第一次啟用：正在下載繁體中文及英文辨識資料，可能需要約 10–60 秒…');worker=await Tesseract.createWorker('chi_tra+eng',1,{logger:m=>{if(m.status==='recognizing text')show(`正在辨識發票文字：${Math.round((m.progress||0)*100)}%`);else if(/loading|initializing/i.test(m.status))show('正在載入 OCR 引擎與辨識資料…')}})}return worker}
 // QR code 只存品名、數量、單價；證明聯下方「交易明細」才印出套餐底下的 (附)… 與去冰／無糖等行。
 // QR 讀完、表單填好之後，在背景用文字辨識把這些行補進該品項的項目說明（單行頁面用 psm 6 對這種直式小票最準；讀不到就維持 QR 的結果）
 async function ocrReceiptText(file,variant='soft'){
@@ -4615,7 +4617,7 @@ el('csvDraft').onclick=()=>saveCSV('draft');el('csvSubmit').onclick=()=>saveCSV(
    formFiles.push({name:file.name,type:file.type,size:file.size,blob:file})}
   e.target.value='';fileList()});
 })();
-</script><script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script><script>
+</script><script>
 /* 手機版：頁籤多時收成一顆選單鈕 */
 (function(){
  const nav=document.getElementById('tabs'),btn=document.getElementById('menuToggle');if(!nav||!btn)return;
