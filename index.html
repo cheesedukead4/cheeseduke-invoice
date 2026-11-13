@@ -836,9 +836,11 @@ let ledgerLoad=null,ledgerReady=false;
 async function syncLedger(){
  if(!wantLedger()){ledgerHistory=[];ledgerReady=false;return false}
  const cur=ledgerVer();let r=await InvCloud.get({action:'list',store:'ledger',since:cur===null?'':cur}),changed=!r.unchanged;
- if(changed){await idbReplace(LSTORE,r.items);setLedgerVer(r.v)}
- await loadLedgerHistory();
- if(!changed&&!ledgerHistory.length&&cur>0){r=await InvCloud.get({action:'list',store:'ledger',since:''});await idbReplace(LSTORE,r.items);setLedgerVer(r.v);await loadLedgerHistory();changed=true} // 版本號還在、本機資料卻是空的（被瀏覽器清掉）：整批重抓
+ // 剛從雲端抓到的：存成一整包再直接拿來用（不用再從本機讀回來）；本機存不下（空間不足）也照樣用，只是下次要重抓
+ const fresh=async rr=>{let saved=true;try{await saveLedgerLocal(rr.items)}catch(e){saved=false}if(saved)setLedgerVer(rr.v);await applyLedgerRows(rr.items)};
+ if(changed)await fresh(r);
+ else{await loadLedgerHistory();
+  if(!ledgerHistory.length&&cur>0){r=await InvCloud.get({action:'list',store:'ledger',since:''});await fresh(r);changed=true}} // 版本號還在、本機資料卻是空的（被瀏覽器清掉）：整批重抓
  ledgerReady=true;return changed}
 const ensureLedger=()=>{if(!wantLedger())return Promise.resolve(false);if(!ledgerLoad)ledgerLoad=syncLedger().catch(e=>{ledgerLoad=null;throw e});return ledgerLoad};
 const refreshLedger=()=>{ledgerLoad=null;return ensureLedger()}; // 雲端的歷史科目有變（自己匯入、別人更新）：重新比對版本、需要時重抓
@@ -912,7 +914,13 @@ const orgAll=()=>idbAll(OSTORE);
 async function orgPut(v){const res=await InvCloud.call('put',{store:'organization',item:v});await idbPut(OSTORE,res.item);noteWrite('organization',res.v);return res.item}
 async function orgDelete(id){const r=await InvCloud.call('del',{store:'organization',key:id});await idbDel(OSTORE,id);noteWrite('organization',r.meta.organization.v)}
 // 歷史會計科目對照庫（財務／管理員維護）
-const allLedgerHistory=()=>idbAll(LSTORE);
+// 歷史科目在本機快取裡存成「一整包」（3 萬筆逐筆寫入要 2 秒多，一整包不到半秒）；舊版逐筆存的快取讀到時，在背景轉成一整包
+const LEDGER_BLOB_ID='__blob__';
+const saveLedgerLocal=rows=>idbReplace(LSTORE,[{id:LEDGER_BLOB_ID,rows}]);
+async function allLedgerHistory(){const recs=await idbAll(LSTORE);
+ if(recs.length===1&&recs[0].id===LEDGER_BLOB_ID&&Array.isArray(recs[0].rows))return recs[0].rows;
+ if(recs.length)saveLedgerLocal(recs).catch(()=>{}); // 舊格式：put 當下就複製了資料，之後建索引改動這些物件也不受影響
+ return recs}
 async function putLedgerBatch(items){if(!items.length)return;for(let k=0;k<items.length;k+=8000)await InvCloud.call('putMany',{store:'ledger',items:items.slice(k,k+8000)});await refreshLedger()}
 
 // 雲端的錯誤（沒有權限、資料衝突、連不上…）如果沒有被畫面自己接住，就跳出訊息，不要默默失敗
@@ -1154,10 +1162,13 @@ function ledgerTokens(text){const x=ledgerNorm(text),set=new Set();for(let k=0;k
 // 部門的科目代號前綴（51／61／62／64）：優先用組織資料裡設定的；沒設定就從歷史對照庫推測（該部門的歷史紀錄最常用的代號前兩碼）
 let ledgerDeptPrefixInferred=new Map();
 function ledgerDeptPrefix(dept){const set=String(departmentByName(dept)?.accountCode||'').trim();return set||ledgerDeptPrefixInferred.get(String(dept||''))||''}
-function rebuildLedgerIndex(){ledgerInverted=new Map();for(let i=0;i<ledgerHistory.length;i++){const row=ledgerHistory[i];{const fx=ledgerFixed(row);if(fx){row.accountCode=fx.accountCode;row.accountName=fx.accountName;row._fixed=true}}row._norm=ledgerNorm(row.description);row._tokens=ledgerTokens(row.description);for(const t of row._tokens){let list=ledgerInverted.get(t);if(!list){list=[];ledgerInverted.set(t,list)}list.push(i)}}
+// 建索引：3 萬筆一口氣做會讓畫面卡住好幾秒，所以每 1000 筆讓出一次；做的期間舊索引照常可用，全部做完才換上去（中途又有新的一輪就放棄這一輪）
+let ledgerBuildSeq=0;
+async function rebuildLedgerIndex(){const seq=++ledgerBuildSeq,inv=new Map();for(let i=0;i<ledgerHistory.length;i++){const row=ledgerHistory[i];{const fx=ledgerFixed(row);if(fx){row.accountCode=fx.accountCode;row.accountName=fx.accountName;row._fixed=true}}row._norm=ledgerNorm(row.description);row._tokens=ledgerTokens(row.description);for(const t of row._tokens){let list=inv.get(t);if(!list){list=[];inv.set(t,list)}list.push(i)}
+  if(i%1000===999){await new Promise(r=>setTimeout(r,0));if(seq!==ledgerBuildSeq)return}}
  {const cnt=new Map();for(const r of ledgerHistory){const d=String(r.dept||'').trim(),c=String(r.accountCode||'').trim();if(!d||!/^[56]\d{3,}$/.test(c))continue;const k=c.slice(0,2),m=cnt.get(d)||new Map();m.set(k,(m.get(k)||0)+(Number(r.count)||1));cnt.set(d,m)}
   ledgerDeptPrefixInferred=new Map([...cnt].map(([d,m])=>[d,[...m.entries()].sort((a,b)=>b[1]-a[1])[0][0]]))}
- ledgerLabels=[...new Set(ledgerHistory.map(r=>(r.accountCode||'')+'｜'+(r.accountName||'')))].sort()}
+ ledgerLabels=[...new Set(ledgerHistory.map(r=>(r.accountCode||'')+'｜'+(r.accountName||'')))].sort();ledgerInverted=inv}
 function ledgerEvidence(input,ctx={}){
  if(!ledgerHistory.length&&!accountChart.length)return {status:'empty',label:'尚未匯入歷史科目資料，請由財務建立對照庫'};
  const text=ledgerNorm(input);
@@ -1256,11 +1267,12 @@ function ledgerFixed(r){
  return code!==c0||name!==n0?{accountCode:code,accountName:name}:null;
 }
 function ledgerRowFromGrid(row,map){const get=k=>map[k]<0?'':String(row[map[k]]??'').trim();const result={description:get('description').slice(0,250),accountCode:get('accountCode').slice(0,60),accountName:get('accountName').slice(0,120),vendor:get('vendor').slice(0,120),taxId:get('taxId').replace(/\D/g,'').slice(0,8),dept:normalizedDepartment(get('dept')).slice(0,120)};const fx=ledgerFixed(result);if(fx){result.accountCode=fx.accountCode;result.accountName=fx.accountName}result.id=ledgerStableId(result);result.count=1;return result}
-async function loadLedgerHistory(){ledgerHistory=await allLedgerHistory();rebuildLedgerIndex();renderLedgerSummary()}
+async function applyLedgerRows(rows){ledgerHistory=rows;await rebuildLedgerIndex();renderLedgerSummary()}
+async function loadLedgerHistory(){await applyLedgerRows(await allLedgerHistory())}
 // ===== 會計科目表：正確的科目代號與名稱，和歷史科目（建議用）分開存放 =====
 let accountChart=[],accountByCode=new Map();
 const allAccounts=()=>idbAll(ASTORE);
-async function loadAccountChart(){accountChart=(await allAccounts()).sort((a,b)=>String(a.code).localeCompare(String(b.code),'zh-Hant',{numeric:true}));accountByCode=new Map(accountChart.map(a=>[String(a.code),a]));renderAccountChart();if(ledgerHistory.length){rebuildLedgerIndex();renderLedgerSummary()}}
+async function loadAccountChart(){accountChart=(await allAccounts()).sort((a,b)=>String(a.code).localeCompare(String(b.code),'zh-Hant',{numeric:true}));accountByCode=new Map(accountChart.map(a=>[String(a.code),a]));renderAccountChart();if(ledgerHistory.length){await rebuildLedgerIndex();renderLedgerSummary()}}
 const chartName=code=>accountByCode.get(String(code||'').trim())?.name||'';
 // 依名稱找科目（同名科目很多，例如運費 5156／6116／6216／6416）；有部門的科目代號前綴時，優先取該類別的
 function chartFindByName(name,deptPrefix=''){const n=ledgerNorm(name);if(!n)return [];let hits=accountChart.filter(a=>ledgerNorm(a.name)===n);if(hits.length>1&&deptPrefix){const p=hits.filter(a=>String(a.code).startsWith(deptPrefix));if(p.length)hits=p}return hits}
