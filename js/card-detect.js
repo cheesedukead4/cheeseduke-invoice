@@ -1,6 +1,7 @@
 /* 發票上印的「卡號」判讀（執行長發票用）
  * 使用者的規則（2026-11-18）：發票上偵測到卡號末 4 碼 7170（玉山卡，公司卡）→ 請款別 N（不請款、公司卡已付）；其餘一律請款（Y）；
  * 有卡號就把卡號填進「卡別」，沒有卡號就填「現金」。
+ * 前提（使用者 2026-11-18 補充）：發票上要有寫「信用卡」才判斷卡號；沒寫「信用卡」就不判斷（視同沒有信用卡：請款別 Y、卡別現金）。
  * 這支程式只負責「看文字辨識（OCR）出來的文字，判斷是哪張卡」，不碰畫面、不跑 OCR（OCR 在 index.html 裡用辨識引擎跑，再把文字交給這裡）。純函式，Node 也能測（開發工具/test-card-detect.cjs）。
  *
  * 為什麼要「模糊比對」：實測使用者的 7 張真實發票（1108×1477 像素），卡號那一行（例如「卡號:539231******8651」）OCR 常常讀錯數字（8651 → 8091、7170 → 5170），
@@ -41,6 +42,9 @@
     return out;
   }
   function hasCardWord(text) { return /卡[號号]/.test(String(text == null ? '' : text).normalize('NFKC').replace(/\s+/g, '')); }
+  // 發票上有沒有寫「信用卡」（使用者的規則：沒寫信用卡就不判斷卡號）。文字辨識常把「信用卡」讀掉一個字（實測：信用卡→「放用卡」「信用 卜」），
+  // 所以只要讀到「信用」或「用卡」就算有寫；英文 credit card 與別的卡（簽帳卡、悠遊卡）不算
+  function hasCreditWord(text) { return /信用|用卡/.test(String(text == null ? '' : text).normalize('NFKC').replace(/\s+/g, '')); }
 
   // 這個候選像不像某張公司卡。回傳 {card, level:'exact'|'close'|'maybe'} 或 null
   //   exact：前 6 碼與末 4 碼都完全相同；close：末 4 碼相同（前 6 碼不同或沒讀到），或前 6 碼相同且末 4 碼至少 3 碼相同；
@@ -63,6 +67,12 @@
   function judgeCard(texts) {
     var list = Array.isArray(texts) ? texts : [texts], all = list.join('\n');
     var cands = []; list.forEach(function (t) { candidates(t).forEach(function (c) { cands.push(c); }); });
+    // 使用者的規則（2026-11-18）：發票上沒有寫「信用卡」就不判斷卡號（印了卡號也不判，例如只寫「卡號」、「玉山銀行」的）→ 當作沒有信用卡，請款別 Y、卡別現金
+    if (!hasCreditWord(all)) {
+      var seen = cands.filter(function (c) { return c.clean; })[0] || cands[0];
+      return { kind: 'none', yn: 'Y', card: CASH, last4: '', sure: false, credit: false,
+        note: '發票上沒有寫「信用卡」→ 不判斷卡號' + (seen ? '（有看到疑似卡號末 4 碼 ' + seen.last4 + '，也不採用）' : '') + '，請款別 Y、請款，卡別填「' + CASH + '」；若這張其實是刷卡付款，請自己改（公司卡末 4 碼 ' + COMPANY_CARDS[0].last4 + '＝請款別 N）' };
+    }
     // 先看有沒有認得是公司卡的（任何一次辨識像就算：公司卡判錯成 Y 的代價比較大，會去請款）
     var best = null;
     cands.forEach(function (c) {
@@ -72,7 +82,7 @@
     });
     if (best) {
       var sure = best.m.level === 'exact';
-      return { kind: 'company', yn: 'N', card: best.m.card.name, last4: best.m.card.last4, sure: sure,
+      return { kind: 'company', yn: 'N', card: best.m.card.name, last4: best.m.card.last4, sure: sure, credit: true,
         note: sure ? '發票上的卡號末 4 碼 ' + best.m.card.last4 + '＝' + best.m.card.name + '（公司卡）→ 請款別 N、不請款'
           : '發票上的卡號讀到「' + (best.c.bin || '') + '…' + best.c.last4 + '」，很像' + best.m.card.name + '（公司卡末 4 碼 ' + best.m.card.last4 + '）→ 先填請款別 N、不請款；卡號沒讀得很清楚，請對照發票確認' };
     }
@@ -80,13 +90,14 @@
     var clean = cands.filter(function (c) { return c.clean; }), pool = clean.length ? clean : cands;
     if (pool.length) {
       var c0 = pool[pool.length - 1], isClean = !!c0.clean;
-      return { kind: 'other', yn: 'Y', card: '卡號末4碼 ' + c0.last4, last4: c0.last4, sure: isClean,
+      return { kind: 'other', yn: 'Y', card: '卡號末4碼 ' + c0.last4, last4: c0.last4, sure: isClean, credit: true,
         note: '發票上有卡號，末 4 碼 ' + c0.last4 + '（不是公司卡 ' + COMPANY_CARDS[0].last4 + '）→ 請款別 Y、請款，卡別填卡號；' + (isClean ? '文字辨識讀數字可能有誤，請對照發票確認末 4 碼' : '卡號沒讀得很清楚，請對照發票確認末 4 碼') };
     }
-    if (hasCardWord(all)) return { kind: 'unknown', yn: '', card: '', last4: '', sure: false, note: '發票上有「卡號」，但數字沒讀清楚，沒有自動判斷——請對照發票自己選請款別（公司卡末 4 碼 ' + COMPANY_CARDS[0].last4 + '＝N，其他＝Y）並填卡別' };
-    return { kind: 'none', yn: 'Y', card: CASH, last4: '', sure: false, note: '沒有偵測到卡號 → 請款別 Y、請款，卡別填「' + CASH + '」；若這張其實是刷公司卡（末 4 碼 ' + COMPANY_CARDS[0].last4 + '）付款，請改請款別 N' };
+    // 走到這裡＝發票上有寫「信用卡」、但沒讀到卡號數字：是刷卡付款，所以不能填現金；不亂猜，請款別與卡別留給人選
+    return { kind: 'unknown', yn: '', card: '', last4: '', sure: false, credit: true,
+      note: '發票上有寫「信用卡」，但' + (hasCardWord(all) ? '卡號的數字沒讀清楚' : '沒讀到卡號') + '，沒有自動判斷——請對照發票自己選請款別（公司卡末 4 碼 ' + COMPANY_CARDS[0].last4 + '＝N，其他＝Y）並填卡別' };
   }
 
-  var api = { judgeCard: judgeCard, candidates: candidates, companyMatch: companyMatch, hasCardWord: hasCardWord, COMPANY_CARDS: COMPANY_CARDS, CASH: CASH };
+  var api = { judgeCard: judgeCard, candidates: candidates, companyMatch: companyMatch, hasCardWord: hasCardWord, hasCreditWord: hasCreditWord, COMPANY_CARDS: COMPANY_CARDS, CASH: CASH };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.CardDetect = api;
 })(typeof window !== 'undefined' ? window : this);

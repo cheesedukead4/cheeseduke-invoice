@@ -369,7 +369,7 @@ main{padding-bottom:12px}
   </div>
 </div>
 <datalist id="acctCodeList"></datalist><datalist id="acctNameList"></datalist><script src="config.js?v=ce0fe7cf"></script><script src="js/cloud.js?v=0ee0c57c"></script><script src="js/lazy-libs.js?v=8f101f03"></script><script src="js/image-zoom.js?v=c70fc93c"></script><script src="js/einvoice-qr.js?v=9324e215"></script><script src="js/quick-judge.js?v=61bbe864"></script><script src="js/ceo-judge.js?v=765c0cf6"></script>
-<script src="js/card-detect.js?v=f0658803"></script>
+<script src="js/card-detect.js?v=a68d2478"></script>
 <header><div><h1>公司簽呈與簽核系統</h1><div class="sub">網頁版 v7.0｜主畫面統一入口・表單／請款・雲端共用資料・Google 登入</div></div><div class="role"><span id="loggedSummary">尚未登入</span><span id="syncState" class="sub">雲端：—</span><button id="syncNowBtn" type="button">🔄 同步</button><button id="logoutBtn" type="button">登出</button><select id="role" class="hide"><option value="staff">申請人</option><option value="manager">部門主管</option><option value="executive">執行長</option><option value="finance">財務人員</option><option value="admin">系統管理者</option></select><input id="actorName" class="hide" readonly aria-label="操作人員姓名"></div></header>
 <nav id="tabs"><button type="button" id="menuToggle" aria-expanded="false">☰ 選單</button></nav>
 <main>
@@ -3867,12 +3867,13 @@ document.addEventListener('visibilitychange',()=>{if(!document.hidden)cloudInbox
 setInterval(()=>{if(!document.hidden)cloudInboxRefresh()},120000);
 // ===== 💳 卡號辨識（執行長發票）=====
 // 使用者的規則：發票上偵測到卡號末 4 碼 7170（玉山卡）→ 請款別 N（不請款）；其餘一律請款（Y）；有卡號填卡號，沒有填現金。判讀規則在 js/card-detect.js。
-// 卡號印在發票下半部的「交易明細」（例如「卡號:524255******7170」），QR code 裡沒有，所以要另外用文字辨識：①下半部整塊（讀得到「卡號」二字與遮罩）；
+// 補充規則：發票上沒有寫「信用卡」就不判斷卡號（視同沒有信用卡：Y、現金）。
+// 卡號印在發票下半部的「交易明細」（例如「信用卡卡號:524255******7170」），QR code 裡沒有，所以要另外用文字辨識：先確認有寫「信用卡」，再①下半部整塊（讀得到「卡號」二字與遮罩）；
 // ②不夠確定就把下半部切成一條一條、只認數字與星號再讀一遍（短短一行，整塊辨識常讀錯數字甚至漏掉）。實測照片裡這一行的數字常讀錯，所以結果都會標示「請對照發票確認」。
 const cardDetectOn=()=>entryMode==='ceo'&&canCeoHistPanel()&&window.CardDetect;
 async function cardDrawable(file){const src=await loadImage(file);return src instanceof HTMLCanvasElement?src:await createImageBitmap(src)}
 function cardCrop(bmp,fx,fy,fw,fh,up,maxW){
- const sw=Math.max(1,Math.round(bmp.width*fw)),sh=Math.max(1,Math.round(bmp.height*fh));let k=up;while(k>1&&sw*k>maxW)k--;
+ const sw=Math.max(1,Math.round(bmp.width*fw)),sh=Math.max(1,Math.round(bmp.height*fh));let k=up;while(k>1&&(sw*k>maxW||sw*k*sh*k>9e6))k--;   // 放大倍數受寬度與總像素限制（手機的畫布有上限）
  const c=document.createElement('canvas');c.width=sw*k;c.height=sh*k;const g=c.getContext('2d');
  g.imageSmoothingQuality='high';g.fillStyle='#fff';g.fillRect(0,0,c.width,c.height);g.drawImage(bmp,Math.round(bmp.width*fx),Math.round(bmp.height*fy),sw,sh,0,0,c.width,c.height);return c;
 }
@@ -3880,10 +3881,26 @@ async function cardDetectFile(file){
  const bmp=await cardDrawable(file),texts=[];let ent=null,w=null;
  try{
   ent=await acquireOcrWorker();w=ent.w;
-  await w.setParameters({tessedit_pageseg_mode:'6'});
-  let c=cardCrop(bmp,0,0.45,1,0.55,3,3600);
+  // ①先看發票上有沒有寫「信用卡」（使用者的規則：沒寫信用卡就不判斷卡號）。實測「信用卡」三個字在下半部「中間那一塊、用逐段（psm4）模式」最讀得到；
+  //   整塊寬的下半部（psm6）常整行漏掉。所以先讀中間那塊；沒讀到再讀整個下半部（收據不在照片中間時用）；兩次都沒讀到「信用卡」→ 不判斷，也不再往下花時間
+  await w.setParameters({tessedit_pageseg_mode:'4'});
+  let c=cardCrop(bmp,0.2,0.4,0.6,0.6,3,3600);
   texts.push((await w.recognize(c)).data.text||'');c.width=c.height=0;
-  let j=CardDetect.judgeCard(texts);
+  let j=CardDetect.judgeCard(texts),wide=false;
+  if(!j.credit){
+   await w.setParameters({tessedit_pageseg_mode:'6'});
+   c=cardCrop(bmp,0,0.45,1,0.55,3,3600);
+   texts.push((await w.recognize(c)).data.text||'');c.width=c.height=0;wide=true;
+   j=CardDetect.judgeCard(texts);
+  }
+  if(!j.credit)return {det:j,texts};   // 沒寫「信用卡」：不判斷卡號
+  // ②有寫「信用卡」：讀卡號。下半部整塊（讀得到「卡號」二字與遮罩）→ 不夠確定再切成一條一條、只認數字與星號
+  if(!(j.sure&&(j.kind==='company'||j.kind==='other'))&&!wide){
+   await w.setParameters({tessedit_pageseg_mode:'6'});
+   c=cardCrop(bmp,0,0.45,1,0.55,3,3600);
+   texts.push((await w.recognize(c)).data.text||'');c.width=c.height=0;
+   j=CardDetect.judgeCard(texts);
+  }
   if(!(j.sure&&(j.kind==='company'||j.kind==='other'))){
    await w.setParameters({tessedit_pageseg_mode:'7',tessedit_char_whitelist:'0123456789*#-'});
    for(let y=0.40;y+0.045<=1.0001;y+=0.03){
