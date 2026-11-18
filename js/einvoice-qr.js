@@ -37,15 +37,35 @@
     }
     return out;
   }
+  // 品名的實際編碼：規格有「編碼規範」欄位（0 Big5／1 UTF-8／2 Base64），但不少收銀機（POS）寫的和實際送出的不一致。
+  // 實測（使用者的 7 張真實發票）：路易莎宣告 UTF-8、實際是 Shift_JIS（讀成「RI�����E��-���u」，正確是「RI國寶青檸茶-中冰」）；茶湯會宣告 Big5、實際是 UTF-8（讀成「閫�單��」）；蓮因宣告 Big5、實際也是 Big5。
+  // 所以不完全相信宣告，改成看位元組本身：①合法的 UTF-8 就是 UTF-8（Big5／Shift_JIS 的中文幾乎不可能剛好是合法的 UTF-8；純 ASCII 也在這裡）；
+  // ②合法的 Big5，而且雙位元組字的第一個位元組多半落在 Big5 常用字區（0xA1～0xC6）→ Big5；③合法的 Shift_JIS，而且第一個位元組多半落在 0x81～0x9F／0xE0～0xEA → Shift_JIS；
+  // ④合法的 GBK（第一個位元組多半在 0xA1～0xA9／0xB0～0xF7）、⑤其餘合法的 Big5；都不是，才照宣告的編碼讀（會有亂碼字元，至少不出錯）
+  function strictDecode(label, bytes) { try { return new TextDecoder(label, { fatal: true }).decode(bytes); } catch (e) { return null; } }
+  function dbcsLeads(bytes) { var leads = [], i = 0; while (i < bytes.length) { if (bytes[i] < 0x80) i++; else { leads.push(bytes[i]); i += 2; } } return leads; }
+  function leadShare(leads, ranges) {
+    if (!leads.length) return 0;
+    var n = 0; leads.forEach(function (c) { if (ranges.some(function (r) { return c >= r[0] && c <= r[1]; })) n++; });
+    return n / leads.length;
+  }
   function decodeName(bytes, enc) {
-    try {
-      if (enc === 0) return new TextDecoder('big5').decode(bytes);
-      if (enc === 2) {
+    if (enc === 2) { // Base64：先還原成位元組（不是合法的 Base64 就當一般文字）
+      try {
         var bin = atob(new TextDecoder().decode(bytes).replace(/\s/g, ''));
         var arr = new Uint8Array(bin.length); for (var i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
-        return new TextDecoder('utf-8').decode(arr);
-      }
-    } catch (e) { /* 退回下面的 UTF-8 */ }
+        bytes = arr;
+      } catch (e) { /* 照原本的位元組 */ }
+    }
+    var u = strictDecode('utf-8', bytes); if (u !== null) return u;
+    var leads = dbcsLeads(bytes), b5 = strictDecode('big5', bytes);
+    if (b5 !== null && leadShare(leads, [[0xA1, 0xC6]]) >= 0.7) return b5;
+    var sj = strictDecode('shift_jis', bytes);
+    if (sj !== null && leadShare(leads, [[0x81, 0x9F], [0xE0, 0xEA]]) >= 0.7) return sj;
+    var gb = strictDecode('gbk', bytes);
+    if (gb !== null && leadShare(leads, [[0xA1, 0xA9], [0xB0, 0xF7]]) >= 0.7) return gb;
+    if (b5 !== null) return b5;
+    try { if (enc === 0) return new TextDecoder('big5').decode(bytes); } catch (e) { /* 退回下面的 UTF-8 */ }
     return new TextDecoder('utf-8').decode(bytes);
   }
   function num(bytes) { var t = ascii(bytes, 0, bytes.length).trim(); var v = t === '' ? NaN : Number(t); return isFinite(v) ? v : NaN; }
