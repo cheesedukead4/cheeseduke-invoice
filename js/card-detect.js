@@ -29,10 +29,10 @@
       var m, re = /(\d{4,6})[*＊#xX×•·\-_.]{2,10}(\d{4})(?!\d)/g;
       while ((m = re.exec(l))) out.push({ bin: m[1].length === 6 ? m[1] : '', last4: m[2], clean: true, src: m[0] });
       if (!out.some(function (c) { return c.src && l.indexOf(c.src) >= 0; })) { var m2 = /[*＊#xX×•·]{3,}(\d{4})(?!\d)/.exec(l); if (m2) out.push({ bin: '', last4: m2[1], clean: true, src: m2[0] }); }   // 只讀到「****7170」（前面被遮罩吃掉）
-      var k = /卡[號号][:;：]?(.*)$/.exec(l);
+      var k = /卡.?[號号][:;：]?(.*)$/.exec(l);
       if (k) {
-        var d = digitsOnly(k[1]);
-        if (d.length >= 9 && d.length <= 20 && !out.some(function (c) { return c.last4 === d.slice(-4); })) out.push({ bin: d.slice(0, 6), last4: d.slice(-4), clean: false, src: k[1] });
+        var d = digitsOnly(k[1]), maskIn = /[*＊#xX×•·]/.test(k[1]);   // 還留著遮罩符號、數字又少（遮罩那段被吃掉一半）：末 4 碼不可信，不當候選（例如把 524255*####71 7 讀成 …5717）
+        if (d.length >= 9 && d.length <= 20 && !(maskIn && d.length < 12) && !out.some(function (c) { return c.last4 === d.slice(-4); })) out.push({ bin: d.slice(0, 6), last4: d.slice(-4), clean: false, src: k[1] });
       }
       if (!k && /^[0-9*#＊\-]{9,24}$/.test(l)) {
         var d2 = digitsOnly(l);
@@ -41,7 +41,9 @@
     });
     return out;
   }
-  function hasCardWord(text) { return /卡[號号]/.test(String(text == null ? '' : text).normalize('NFKC').replace(/\s+/g, '')); }
+  // 發票上有沒有「卡號」兩個字（使用者 2026-11-18：抓到「卡號」兩個字才可填卡號末 4 碼）。文字辨識會在「卡」和「號」中間多讀一個字（實測蓮因：「卡號」→「卡卜號」），
+  // 所以中間多一個字也算；只有「卡」或只有「號」不算
+  function hasCardWord(text) { return /卡.?[號号]/.test(String(text == null ? '' : text).normalize('NFKC').replace(/\s+/g, '')); }
   // 發票上有沒有寫「信用卡」（使用者的規則：沒寫信用卡就不判斷卡號）。文字辨識常把「信用卡」讀掉一個字（實測：信用卡→「放用卡」「信用 卜」），
   // 所以只要讀到「信用」或「用卡」就算有寫；英文 credit card 與別的卡（簽帳卡、悠遊卡）不算
   function hasCreditWord(text) { return /信用|用卡/.test(String(text == null ? '' : text).normalize('NFKC').replace(/\s+/g, '')); }
@@ -73,6 +75,12 @@
       return { kind: 'none', yn: 'Y', card: CASH, last4: '', sure: false, credit: false,
         note: '發票上沒有寫「信用卡」→ 不判斷卡號' + (seen ? '（有看到疑似卡號末 4 碼 ' + seen.last4 + '，也不採用）' : '') + '，請款別 Y、請款，卡別填「' + CASH + '」；若這張其實是刷卡付款，請自己改（公司卡末 4 碼 ' + COMPANY_CARDS[0].last4 + '＝請款別 N）' };
     }
+    // 使用者的規則（2026-11-18）：要抓到「卡號」兩個字才可以填卡號末 4 碼。有「信用卡」但沒抓到「卡號」→ 不填卡號末 4 碼（連公司卡 7170 也不判），也不填現金（是刷卡），留給人選
+    if (!hasCardWord(all)) {
+      var seen2 = cands.filter(function (c) { return c.clean; })[0] || cands[0];
+      return { kind: 'unknown', yn: '', card: '', last4: '', sure: false, credit: true, cardWord: false,
+        note: '發票上有寫「信用卡」，但沒抓到「卡號」兩個字，所以不填卡號末 4 碼' + (seen2 ? '（有看到疑似數字末 4 碼 ' + seen2.last4 + '，不採用）' : '') + '、也沒有自動判斷——請對照發票自己選請款別（公司卡末 4 碼 ' + COMPANY_CARDS[0].last4 + '＝N，其他＝Y）並填卡別' };
+    }
     // 先看有沒有認得是公司卡的（任何一次辨識像就算：公司卡判錯成 Y 的代價比較大，會去請款）
     var best = null;
     cands.forEach(function (c) {
@@ -82,7 +90,7 @@
     });
     if (best) {
       var sure = best.m.level === 'exact';
-      return { kind: 'company', yn: 'N', card: best.m.card.name, last4: best.m.card.last4, sure: sure, credit: true,
+      return { kind: 'company', yn: 'N', card: best.m.card.name, last4: best.m.card.last4, sure: sure, credit: true, cardWord: true,
         note: sure ? '發票上的卡號末 4 碼 ' + best.m.card.last4 + '＝' + best.m.card.name + '（公司卡）→ 請款別 N、不請款'
           : '發票上的卡號讀到「' + (best.c.bin || '') + '…' + best.c.last4 + '」，很像' + best.m.card.name + '（公司卡末 4 碼 ' + best.m.card.last4 + '）→ 先填請款別 N、不請款；卡號沒讀得很清楚，請對照發票確認' };
     }
@@ -90,12 +98,12 @@
     var clean = cands.filter(function (c) { return c.clean; }), pool = clean.length ? clean : cands;
     if (pool.length) {
       var c0 = pool[pool.length - 1], isClean = !!c0.clean;
-      return { kind: 'other', yn: 'Y', card: '卡號末4碼 ' + c0.last4, last4: c0.last4, sure: isClean, credit: true,
+      return { kind: 'other', yn: 'Y', card: '卡號末4碼 ' + c0.last4, last4: c0.last4, sure: isClean, credit: true, cardWord: true,
         note: '發票上有卡號，末 4 碼 ' + c0.last4 + '（不是公司卡 ' + COMPANY_CARDS[0].last4 + '）→ 請款別 Y、請款，卡別填卡號；' + (isClean ? '文字辨識讀數字可能有誤，請對照發票確認末 4 碼' : '卡號沒讀得很清楚，請對照發票確認末 4 碼') };
     }
     // 走到這裡＝發票上有寫「信用卡」、但沒讀到卡號數字：是刷卡付款，所以不能填現金；不亂猜，請款別與卡別留給人選
-    return { kind: 'unknown', yn: '', card: '', last4: '', sure: false, credit: true,
-      note: '發票上有寫「信用卡」，但' + (hasCardWord(all) ? '卡號的數字沒讀清楚' : '沒讀到卡號') + '，沒有自動判斷——請對照發票自己選請款別（公司卡末 4 碼 ' + COMPANY_CARDS[0].last4 + '＝N，其他＝Y）並填卡別' };
+    return { kind: 'unknown', yn: '', card: '', last4: '', sure: false, credit: true, cardWord: true,
+      note: '發票上有寫「信用卡」「卡號」，但卡號的數字沒讀清楚，沒有自動判斷——請對照發票自己選請款別（公司卡末 4 碼 ' + COMPANY_CARDS[0].last4 + '＝N，其他＝Y）並填卡別' };
   }
 
   var api = { judgeCard: judgeCard, candidates: candidates, companyMatch: companyMatch, hasCardWord: hasCardWord, hasCreditWord: hasCreditWord, COMPANY_CARDS: COMPANY_CARDS, CASH: CASH };

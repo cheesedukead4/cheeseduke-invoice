@@ -368,8 +368,9 @@ main{padding-bottom:12px}
     <div class="auth-warn"><b>資料安全：</b>簽呈、發票、金額與存摺影本存在公司的 Google 雲端硬碟，系統會依你的角色與部門過濾可見範圍，並檢查簽核順序。請勿在公用電腦登入，離開座位請先登出。</div>
   </div>
 </div>
-<datalist id="acctCodeList"></datalist><datalist id="acctNameList"></datalist><script src="config.js?v=ce0fe7cf"></script><script src="js/cloud.js?v=0ee0c57c"></script><script src="js/lazy-libs.js?v=8f101f03"></script><script src="js/image-zoom.js?v=c70fc93c"></script><script src="js/einvoice-qr.js?v=9324e215"></script><script src="js/quick-judge.js?v=61bbe864"></script><script src="js/ceo-judge.js?v=765c0cf6"></script>
-<script src="js/card-detect.js?v=a68d2478"></script>
+<datalist id="acctCodeList"></datalist><datalist id="acctNameList"></datalist><script src="config.js?v=ce0fe7cf"></script><script src="js/cloud.js?v=0ee0c57c"></script><script src="js/lazy-libs.js?v=8f101f03"></script><script src="js/image-zoom.js?v=c70fc93c"></script><script src="js/einvoice-qr.js?v=62f1615a"></script><script src="js/quick-judge.js?v=61bbe864"></script><script src="js/ceo-judge.js?v=765c0cf6"></script>
+<script src="js/card-detect.js?v=79cf21e8"></script>
+<script src="js/pdf-text.js?v=7842e591"></script>
 <header><div><h1>公司簽呈與簽核系統</h1><div class="sub">網頁版 v7.0｜主畫面統一入口・表單／請款・雲端共用資料・Google 登入</div></div><div class="role"><span id="loggedSummary">尚未登入</span><span id="syncState" class="sub">雲端：—</span><button id="syncNowBtn" type="button">🔄 同步</button><button id="logoutBtn" type="button">登出</button><select id="role" class="hide"><option value="staff">申請人</option><option value="manager">部門主管</option><option value="executive">執行長</option><option value="finance">財務人員</option><option value="admin">系統管理者</option></select><input id="actorName" class="hide" readonly aria-label="操作人員姓名"></div></header>
 <nav id="tabs"><button type="button" id="menuToggle" aria-expanded="false">☰ 選單</button></nav>
 <main>
@@ -2849,7 +2850,7 @@ async function claimAttachmentPages(item,win,progress,budget){
    pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
    let pdf=null;
    try{
-    pdf=await pdfjsLib.getDocument({data:new Uint8Array(await f.blob.arrayBuffer())}).promise;
+    const pdfBytes=new Uint8Array(await f.blob.arrayBuffer());pdf=await pdfjsLib.getDocument(window.PdfText?PdfText.docOptions(pdfBytes):{data:pdfBytes}).promise;   // 帶中文字元對照檔：沒內嵌中文字型的電子發票 PDF 才畫得出字
     if(pdf.numPages>100)throw Error(`附件「${f.name}」共有 ${pdf.numPages} 頁，請先將過長的 PDF 拆分後再列印。`);
     for(let p=1;p<=pdf.numPages;p++){
      if(++budget.count>180)throw Error('本次列印超過 180 張附件影像，請縮小篩選範圍後分批列印。');
@@ -3296,7 +3297,7 @@ return out;
 }
 function attachCameraImage(file){const input=el('files');if(input.files.length>=5){show('附件已達 5 個，請先移除其他附件後再拍照。',true);return false}try{let dt=new DataTransfer();for(const f of input.files)dt.items.add(f);dt.items.add(file);input.files=dt.files;return true}catch(e){show('照片已辨識，但瀏覽器無法自動加入附件。請另外透過下方附件欄位上傳照片。',true);return false}}
 function setPreview(file){if(previewURL)URL.revokeObjectURL(previewURL);previewURL=null;el('ocrPreview').classList.add('hide');if(file.type.startsWith('image/')){previewURL=URL.createObjectURL(file);el('ocrPreview').src=previewURL;el('ocrPreview').classList.remove('hide')}}
-async function loadImage(file){if(file.type==='application/pdf'||/\.pdf$/i.test(file.name)){try{await LazyLibs.ensure('pdf')}catch(_){throw Error('PDF 辨識模組載入失敗，請確認網路連線')}pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';const bytes=new Uint8Array(await file.arrayBuffer());const doc=await pdfjsLib.getDocument({data:bytes}).promise;const page=await doc.getPage(1);const viewport=page.getViewport({scale:2});const canvas=document.createElement('canvas');canvas.width=viewport.width;canvas.height=viewport.height;await page.render({canvasContext:canvas.getContext('2d'),viewport}).promise;return canvas}return file}
+async function loadImage(file){if(file.type==='application/pdf'||/\.pdf$/i.test(file.name)){try{await LazyLibs.ensure('pdf')}catch(_){throw Error('PDF 辨識模組載入失敗，請確認網路連線')}pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';const bytes=new Uint8Array(await file.arrayBuffer());const doc=await pdfjsLib.getDocument(window.PdfText?PdfText.docOptions(bytes):{data:bytes}).promise;const page=await doc.getPage(1);const viewport=page.getViewport({scale:2});const canvas=document.createElement('canvas');canvas.width=viewport.width;canvas.height=viewport.height;await page.render({canvasContext:canvas.getContext('2d'),viewport}).promise;return canvas}return file}
 async function improveImage(source){
  const bitmap=source instanceof HTMLCanvasElement?source:await createImageBitmap(source);
  const w=bitmap.width,h=bitmap.height,scale=Math.min(3,Math.max(1.5,1800/Math.max(w,h))),canvas=document.createElement('canvas');
@@ -3433,7 +3434,8 @@ async function applyQRToSingle(file){
  }).catch(()=>show(doneMsg));
  return true;
 }
-async function scan(file){if(!file||inProgress)return;const ok=/^image\/(jpeg|png|webp)$/.test(file.type)||file.type==='application/pdf';if(!ok){show('請使用 JPG、PNG、WEBP 或 PDF 檔案',true);return}if(file.size>10*1024*1024){show('單一檔案超過 10MB，請縮小後再試',true);return}inProgress=true;el('ocrStart').disabled=true;el('ocrReview').classList.add('hide');setPreview(file);show('準備辨識 '+file.name+'…');try{if(await applyQRToSingle(file))return;const target=await loadImage(file);const w=await getWorker();const enhanced=await improveImage(target);const result=await w.recognize(enhanced);let raw=result.data.text||'';let detected=extractInvoice(raw);if(!detected.invoiceNo||!detected.taxId||!detected.amount||!detected.vendor){show('正在進行第二輪英數字補強辨識…');await w.setParameters({tessedit_pageseg_mode:'11'});const secondary=await w.recognize(enhanced);await w.setParameters({tessedit_pageseg_mode:'3'});const alternative=extractInvoice(secondary.data.text||'');for(const key of ['invoiceDate','invoiceNo','taxId','amount','vendor'])if(detected[key]===undefined&&alternative[key]!==undefined)detected[key]=alternative[key];}window.lastSingleOCRVendor=detected.vendor||'';window.lastSingleOCRTax=detected.taxId||'';
+async function scan(file){if(!file||inProgress)return;const ok=/^image\/(jpeg|png|webp)$/.test(file.type)||file.type==='application/pdf';if(!ok){show('請使用 JPG、PNG、WEBP 或 PDF 檔案',true);return}if(file.size>10*1024*1024){show('單一檔案超過 10MB，請縮小後再試',true);return}inProgress=true;el('ocrStart').disabled=true;el('ocrReview').classList.add('hide');setPreview(file);show('準備辨識 '+file.name+'…');try{if(await applyQRToSingle(file))return;const target=await loadImage(file);const w=await getWorker();const enhanced=await improveImage(target);const result=await w.recognize(enhanced);let raw=result.data.text||'';let detected=extractInvoice(raw);if(!detected.invoiceNo||!detected.taxId||!detected.amount||!detected.vendor){show('正在進行第二輪英數字補強辨識…');await w.setParameters({tessedit_pageseg_mode:'11'});const secondary=await w.recognize(enhanced);await w.setParameters({tessedit_pageseg_mode:'3'});const alternative=extractInvoice(secondary.data.text||'');for(const key of ['invoiceDate','invoiceNo','taxId','amount','vendor'])if(detected[key]===undefined&&alternative[key]!==undefined)detected[key]=alternative[key];}{const pt=await pdfTextRead(file);if(pt){detected=pdfOverlay(detected,pt);raw=pdfRawText(pt)+'\n\n---\n\n'+raw}}   // PDF 電子發票：文字層讀到的發票號碼、日期、金額、統編蓋掉文字辨識的結果
+window.lastSingleOCRVendor=detected.vendor||'';window.lastSingleOCRTax=detected.taxId||'';
 let vendorSource=detected.vendor?'OCR 自動判讀・待核對':'尚未辨識';
 if(detected.taxId){show('已辨識賣方統編 '+detected.taxId+'，正在查詢網路登記資料…');
  const lookup=await window.lookupSeller(detected.taxId,detected.vendor||'');
@@ -3725,6 +3727,11 @@ async function recognizeOne(file,force=false){
  try{const qr=await scanQRExclusive(file);
   if(qr)return {data:{invoiceDate:qr.invoiceDate,invoiceNo:qr.invoiceNo,taxId:qr.sellerId,amount:qr.total},raw:'資料來源：發票 QR code（'+(qr.hasRight?'左＋右':'只讀到左邊')+'）\n隨機碼 '+qr.randomCode+'；銷售額 '+qr.sales+'；總計額 '+qr.total+'；品項 '+qr.items.length+'/'+(qr.declaredTotal||qr.items.length),rounds:0,uncertain:[],votes:{},conflicts:[],qr}}
  catch(e){console.warn('QR code 讀取失敗，改用文字辨識',e)}
+ const pdfT=await pdfTextRead(file);   // PDF 電子發票：先讀文字層
+ if(pdfT&&pdfT.p.sellerTaxId){   // 文字層什麼都有（含賣方統編）：不用再跑文字辨識
+  const d=pdfOverlay({},pdfT);
+  return {data:d,raw:pdfRawText(pdfT),rounds:0,uncertain:pdfT.p.amountSure?[]:['amount'],pdf:pdfT.p,taxNote:'',taxCheckFail:false,votes:{},conflicts:[]};
+ }
  const source=await loadImage(file);let ent=null,w=null;
  const variants=['soft','sharp','binary'];
  const rounds=[],raw=[],errors=[];
@@ -3746,10 +3753,16 @@ async function recognizeOne(file,force=false){
  // 合併原文用於補回分行標籤，但其擷取只補空值，不參與投票，避免把同一證據重複計票。
  const decision=selectCrossChecked(rounds),combined=extractInvoice(rounds.map(r=>r.text).join('\n'));
  mergeRecognized(decision.values,combined);
- const uncertain=decision.conflicts.map(c=>c.key);
+ let uncertain=decision.conflicts.map(c=>c.key);
+ if(pdfT){   // PDF 文字層的發票號碼、日期、金額是 PDF 裡的字，不是辨識出來的：蓋掉文字辨識的結果，也不用再列為「需核對」（金額沒核對過的除外）
+  pdfOverlay(decision.values,pdfT);
+  uncertain=uncertain.filter(k=>!(['invoiceNo','invoiceDate','amount'].includes(k)&&pdfT.p[k]));
+  if(pdfT.p.amount&&!pdfT.p.amountSure)uncertain.push('amount');
+  if(pdfT.p.sellerTaxId)uncertain=uncertain.filter(k=>k!=='taxId');
+ }
  const tv=String(decision.values.taxId||'').trim(),taxCheckFail=!!tv&&!taxOk(tv);
  if(taxCheckFail&&!uncertain.includes('taxId'))uncertain.push('taxId');   // 統編沒通過檢查碼＝一定有數字讀錯，要人核對
- return {data:decision.values,taxNote:tv?'':(combined.taxNote||''),taxCheckFail,raw:raw.join('\n\n---\n\n'),rounds:rounds.length,uncertain,votes:decision.votes,conflicts:decision.conflicts};
+ return {data:decision.values,taxNote:tv?'':(combined.taxNote||''),taxCheckFail,raw:(pdfT?pdfRawText(pdfT)+'\n\n---\n\n':'')+raw.join('\n\n---\n\n'),rounds:rounds.length,uncertain,votes:decision.votes,conflicts:decision.conflicts,pdf:pdfT?pdfT.p:null};
 }
 async function retryBatchRow(i){
  const r=batchRows[i];if(batchBusy||!r||r.saved)return;
@@ -3780,11 +3793,13 @@ el('batchScan').addEventListener('click',async()=>{
  const progress=()=>batchProgress(`已完成 ${doneN}/${files.length} 張${running.size?'；辨識中：第 '+[...running].sort((a,b)=>a-b).map(x=>x+1).join('、')+' 張':''}（最多同時辨識 ${laneN} 張，請勿關閉網頁）`);
  const scanRow=async i=>{
   const r=batchRows[i];running.add(i);progress();
-  try{const result=await recognizeOne(r.file);r.viaQR=!!result.qr;r.raw=result.raw;Object.assign(r.values,result.data);if(AUTO_FILL_CLAIM_ITEMS&&r.claimAutoAmount&&r.claim.items.length===1)r.claim.items[0].amount=moneyValue(r.values.amount);
+  try{const result=await recognizeOne(r.file);r.viaQR=!!result.qr;r.viaPDF=!!result.pdf;r.raw=result.raw;Object.assign(r.values,result.data);
+  if(result.pdf&&result.pdf.description&&r.claim.items.length===1&&r.claim.items[0].description==='發票費用'){r.claim.items[0].description=result.pdf.description;r.claim.items[0].amount=moneyValue(r.values.amount);r.claimAutoAmount=true}   // PDF 文字層的品名（沒改過預設「發票費用」才帶入）；一筆請款項目＝發票含稅總額
+  if(AUTO_FILL_CLAIM_ITEMS&&r.claimAutoAmount&&r.claim.items.length===1)r.claim.items[0].amount=moneyValue(r.values.amount);
   if(result.qr){applyQRToBatchRow(r,result.qr);if(AUTO_FILL_CLAIM_ITEMS){r.qrObj=result.qr;r.qrSnap=claimSnapshot(r.claim.items)}}r.ocrVendor=result.data.vendor||'';r.uncertain=result.uncertain;
   if(validTax(r.values.taxId)){await verifyBatchSeller(i,result.data.vendor||'');if(r.registryVerified)r.uncertain=(r.uncertain||[]).filter(k=>k!=='vendor');}
   else {r.registryVerified=false;r.vendorSource=(result.taxNote||'未讀到賣方統編')+'；'+(r.ocrVendor?'OCR 廠商名稱待核對':'請人工填入廠商名稱');}
-  let n=batchKeys.filter(k=>r.values[k]!==undefined&&r.values[k]!=='').length;r.note=result.qr?`發票 QR code 讀取 ${n}/5 欄（廠商名稱由統編查詢）；${r.qrNote}；請核對`:`⚠ 沒讀到發票 QR code，改用文字辨識 ${n}/5 欄（${result.rounds} 輪，比 QR code 容易讀錯）${r.uncertain?.length?'；⚠ 需核對（多輪結果不一致，或統編沒通過檢查碼、可能讀錯一個數字）：'+r.uncertain.map(k=>({invoiceDate:'日期',invoiceNo:'號碼',taxId:'統編',vendor:'廠商',amount:'金額'})[k]).join('、'):''}；請逐欄核對原圖`;}
+  let n=batchKeys.filter(k=>r.values[k]!==undefined&&r.values[k]!=='').length;r.note=result.pdf?`📄 PDF 電子發票讀取 ${n}/5 欄（直接讀 PDF 裡的文字，不是文字辨識：發票號碼、日期、含稅金額不會讀錯）${result.pdf.sellerTaxId?'':'；賣方統編不在 PDF 文字裡，改用文字辨識讀印章，請核對'}${result.pdf.notes.filter(x=>/對不起來/.test(x)).map(x=>'；⚠ '+x).join('')}；請核對`:result.qr?`發票 QR code 讀取 ${n}/5 欄（廠商名稱由統編查詢）；${r.qrNote}；請核對`:`⚠ 沒讀到發票 QR code，改用文字辨識 ${n}/5 欄（${result.rounds} 輪，比 QR code 容易讀錯）${r.uncertain?.length?'；⚠ 需核對（多輪結果不一致，或統編沒通過檢查碼、可能讀錯一個數字）：'+r.uncertain.map(k=>({invoiceDate:'日期',invoiceNo:'號碼',taxId:'統編',vendor:'廠商',amount:'金額'})[k]).join('、'):''}；請逐欄核對原圖`;}
   catch(err){r.error='辨識失敗：'+(err.message||String(err))+'；可手動填寫';r.selected=false}
   if(!r.error&&cardDetectOn())await cardDetectRow(r);   // 執行長發票：偵測卡號（末 4 碼 7170＝公司卡 → N；其他卡 → Y 填卡號；沒有卡號 → Y 填現金）
   running.delete(i);doneN++;renderBatch();progress();
@@ -3803,8 +3818,8 @@ el('batchScan').addEventListener('click',async()=>{
   }
  }
  batchBusy=false;el('batchScan').disabled=false;el('batchDraft').disabled=false;el('batchSubmit').disabled=false;
- {const nQR=batchRows.filter(r=>r.viaQR).length,ocrIdx=batchRows.map((r,i)=>r.viaQR||r.error?-1:i).filter(i=>i>=0);
-  batchProgress(`已處理 ${batchRows.length} 張：QR code 讀到 ${nQR} 張`+(ocrIdx.length?`；沒讀到 QR code、改用文字辨識 ${ocrIdx.length} 張（第 ${ocrIdx.map(i=>i+1).join('、')} 張，比較容易讀錯，請逐欄核對，或對準 QR code 重拍）`:'')+'；辨識不完整的發票請手動補上欄位，確認無誤再匯入。');}
+ {const nQR=batchRows.filter(r=>r.viaQR).length,nPDF=batchRows.filter(r=>r.viaPDF).length,ocrIdx=batchRows.map((r,i)=>r.viaQR||r.viaPDF||r.error?-1:i).filter(i=>i>=0);
+  batchProgress(`已處理 ${batchRows.length} 張：QR code 讀到 ${nQR} 張`+(nPDF?`；PDF 電子發票直接讀文字 ${nPDF} 張（發票號碼、日期、金額不是辨識出來的，不會讀錯）`:'')+(ocrIdx.length?`；沒讀到 QR code、改用文字辨識 ${ocrIdx.length} 張（第 ${ocrIdx.map(i=>i+1).join('、')} 張，比較容易讀錯，請逐欄核對，或對準 QR code 重拍）`:'')+'；辨識不完整的發票請手動補上欄位，確認無誤再匯入。');}
 });
 // ===== ☁ 雲端資料夾匯入（執行長發票頁）=====
 // 後端只列「發票上傳」資料夾裡「上個月」、而且還沒匯入過的照片（有沒有匯入過＝有沒有發票紀錄的 cloudFileId 對得上；草稿也算，發票刪掉照片就會再出現）。
@@ -3887,13 +3902,13 @@ async function cardDetectFile(file){
   let c=cardCrop(bmp,0.2,0.4,0.6,0.6,3,3600);
   texts.push((await w.recognize(c)).data.text||'');c.width=c.height=0;
   let j=CardDetect.judgeCard(texts),wide=false;
-  if(!j.credit){
+  if(!j.credit||!j.cardWord){   // 還沒讀到「信用卡」或「卡號」兩個字：再讀整個下半部（使用者：要抓到「卡號」兩個字才可填卡號末 4 碼）
    await w.setParameters({tessedit_pageseg_mode:'6'});
    c=cardCrop(bmp,0,0.45,1,0.55,3,3600);
    texts.push((await w.recognize(c)).data.text||'');c.width=c.height=0;wide=true;
    j=CardDetect.judgeCard(texts);
   }
-  if(!j.credit)return {det:j,texts};   // 沒寫「信用卡」：不判斷卡號
+  if(!j.credit||!j.cardWord)return {det:j,texts};   // 沒寫「信用卡」：不判斷卡號；有「信用卡」但沒抓到「卡號」：不填卡號末 4 碼（切條帶只認數字，讀不到「卡號」兩個字，所以不用再切）
   // ②有寫「信用卡」：讀卡號。下半部整塊（讀得到「卡號」二字與遮罩）→ 不夠確定再切成一條一條、只認數字與星號
   if(!(j.sure&&(j.kind==='company'||j.kind==='other'))&&!wide){
    await w.setParameters({tessedit_pageseg_mode:'6'});
@@ -3934,6 +3949,29 @@ async function cardDetectRow(r){
   try{show('正在偵測發票上的卡號…');const res=await cardDetectFile(file);ceoApplyCardDet(ceoJ,res.det);ceoRuleRender();show(res.det.note)}
   catch(e){console.warn('卡號辨識失敗',e)}
  };
+}
+// ===== 📄 PDF 電子發票：直接讀 PDF 裡的文字（js/pdf-text.js）=====
+// 電子發票 PDF（例如 ematic 開的 B2B 電子發票證明聯）的字就在檔案裡，不用文字辨識：發票號碼、日期、含稅總額直接讀、不會讀錯（還用「銷售額＋營業稅＝總計」與中文大寫核對金額）。
+// 賣方統編若不在文字裡（只蓋在印章圖上），再用文字辨識讀印章；PDF 沒有文字（掃描檔）或讀不出發票號碼與總計 → 維持原本的文字辨識。
+async function pdfTextRead(file){
+ if(!window.PdfText||!(file.type==='application/pdf'||/\.pdf$/i.test(file.name||'')))return null;
+ try{
+  await LazyLibs.ensure('pdf');
+  const t=await PdfText.read(file);if(!t)return null;
+  const p=PdfText.parse(t.lines,{ownTaxId:OWN_TAX_ID,taxOk});
+  return p.ok?{p,text:t.text}:null;
+ }catch(e){console.warn('PDF 文字層讀取失敗，改用文字辨識',e);return null}
+}
+const pdfRawText=pt=>'資料來源：PDF 文字層（直接讀 PDF 裡的文字，不是文字辨識）\n'+pt.text;
+// PDF 文字層讀到的值蓋到辨識結果上（沒讀到的欄位維持原值）
+function pdfOverlay(data,pt){
+ const p=pt.p;
+ if(p.invoiceNo)data.invoiceNo=p.invoiceNo;
+ if(p.invoiceDate)data.invoiceDate=p.invoiceDate;
+ if(p.amount)data.amount=p.amount;
+ if(p.sellerTaxId)data.taxId=p.sellerTaxId;
+ if(p.vendor)data.vendor=p.vendor;
+ return data;
 }
 function normNo(s){return String(s||'').toUpperCase().replace(/[^A-Z0-9]/g,'')}
 async function saveBatch(status, onlyIndices=null){

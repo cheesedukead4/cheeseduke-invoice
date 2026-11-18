@@ -408,7 +408,8 @@
       if (!root.pdfjsLib && root.LazyLibs) { try { await root.LazyLibs.ensure('pdf'); } catch (e) { /* 下面統一回報 */ } } // PDF 套件改成用到才載入（js/lazy-libs.js）
       if (!root.pdfjsLib) throw new Error('PDF 模組載入失敗，請確認網路連線');
       root.pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
-      var doc = await root.pdfjsLib.getDocument({ data: new Uint8Array(await file.arrayBuffer()) }).promise, out = [];
+      var pdfBytes = new Uint8Array(await file.arrayBuffer());   // 帶中文字元對照檔（js/pdf-text.js）：沒內嵌中文字型的電子發票 PDF 才畫得出字
+      var doc = await root.pdfjsLib.getDocument(root.PdfText ? root.PdfText.docOptions(pdfBytes) : { data: pdfBytes }).promise, out = [];
       for (var n = 1; n <= Math.min(2, doc.numPages); n++) {
         var page = await doc.getPage(n), vp = page.getViewport({ scale: 2.5 }), c = newCanvas(vp.width, vp.height);
         await page.render({ canvasContext: c.getContext('2d'), viewport: vp }).promise; out.push(c);
