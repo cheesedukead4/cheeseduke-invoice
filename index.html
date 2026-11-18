@@ -24,7 +24,7 @@
 .batch-card-head{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:16px;padding-bottom:12px;border-bottom:1px solid #e1e7ef}
 .batch-card-head .batch-preview{max-width:90px;max-height:92px}.batch-card-head .batch-file{flex:1;min-width:150px}
 .batch-card .formgrid .field label{font-weight:600}
-#cloudInbox .cloud-pick{margin-top:8px}#cloudInbox .cloud-pick-bar{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-bottom:6px}#cloudInbox .cloud-pick-list{max-height:300px;overflow:auto;border:1px solid #dce3ed;border-radius:6px;padding:4px 8px;background:#fff}#cloudInbox .cloud-grp{margin:8px 0 2px;color:#33475b}#cloudInbox .cloud-row{display:flex;align-items:center;gap:8px;padding:3px 2px;font-weight:normal;border-bottom:1px dashed #eef1f5;cursor:pointer}#cloudInbox .cloud-row input{width:auto;flex:0 0 auto}#cloudInbox .cloud-name{flex:1 1 auto;word-break:break-all}#cloudInbox .cloud-prev{padding:2px 8px;font-size:12px;flex:0 0 auto}.batch-card textarea{min-height:74px}
+#cloudInbox .cloud-pick{margin-top:8px}#cloudInbox .cloud-pick-bar{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-bottom:6px}#cloudInbox .cloud-pick-list{max-height:300px;overflow:auto;border:1px solid #dce3ed;border-radius:6px;padding:4px 8px;background:#fff}#cloudInbox .cloud-grp{margin:8px 0 2px;color:#33475b}#cloudInbox .cloud-row{display:flex;align-items:center;gap:8px;padding:3px 2px;font-weight:normal;border-bottom:1px dashed #eef1f5;cursor:pointer}#cloudInbox .cloud-row input{width:auto;flex:0 0 auto}#cloudInbox .cloud-name{flex:1 1 auto;word-break:break-all}#cloudInbox .cloud-prev{padding:2px 8px;font-size:12px;flex:0 0 auto}#cloudInbox .cloud-pick-bar select{width:auto;max-width:100%;min-width:200px}#cloudInbox .cloud-pick-bar label{display:inline-flex;align-items:center;gap:4px;font-weight:normal}.batch-card textarea{min-height:74px}
 .batch-card .batch-retry{margin-left:auto;white-space:nowrap}
 details.fold{border:1px solid #dce3ed;border-radius:8px;padding:8px 12px;margin-top:10px;background:#fbfdff}details.fold>summary{cursor:pointer;font-weight:600;color:var(--blue)}
 .ledger-cands{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-top:6px}.ledger-cands:empty{display:none}
@@ -3826,13 +3826,28 @@ el('batchScan').addEventListener('click',async()=>{
 // 後端列出雲端資料夾（含底下兩層子資料夾）裡「還沒匯入過」的照片（有沒有匯入過＝有沒有發票紀錄的 cloudFileId 對得上；草稿也算，發票刪掉照片就會再出現）。
 // 使用者要求「可以選擇我要匯入哪個檔案」：橫幅上按「選擇要匯入的發票」展開清單（依資料夾分組、每張可預覽），勾選後按「匯入選取的」＝下載 → 放進批次辨識（QR／OCR 仍在這台電腦跑）
 // → 你核對後再存草稿或送出；存的時候把雲端檔案 ID 記在發票上，之後就不會再列出。清單展開與勾選的狀態在每 2 分鐘自動更新時會保留。
-const cloudInbox={files:[],linked:0,err:'',busy:false,last:0,progress:'',open:false,sel:new Set()};
+// 使用者再要求：「可以選擇要匯入哪個資料夾的檔案；若超過 30 張分次匯入」→ 清單上方有「資料夾」下拉選單，一次只看／勾選一個資料夾的檔案；批次辨識一次最多 30 張，
+// 勾選超過 30 張時這次先匯入前 30 張、剩下的保持勾選，等這批核對、儲存之後再按一次匯入下一批。
+const CLOUD_BATCH_MAX=30;   // 和批次辨識的上限一致（batchScan：單次最多 30 張）
+const cloudInbox={files:[],linked:0,err:'',busy:false,last:0,progress:'',open:false,folder:null,sel:new Set()};
+const cloudRootName='（資料夾最上層）';
+const cloudFolders=()=>{   // 資料夾名稱 → 這個資料夾裡還沒匯入的照片；資料夾依名稱「自然排序」由大到小（2026年11月、2026年10月、2026年9月：數字照大小排，新的在前），最上層放最後
+ const m=new Map();cloudInbox.files.forEach(f=>{const g=f.folder||cloudRootName;if(!m.has(g))m.set(g,[]);m.get(g).push(f)});
+ const keys=[...m.keys()].sort((a,b)=>a===cloudRootName?1:b===cloudRootName?-1:b.localeCompare(a,'zh-Hant',{numeric:true}));
+ return new Map(keys.map(k=>[k,m.get(k)]));
+};
+const cloudCurFolder=()=>{const m=cloudFolders();return cloudInbox.folder&&m.has(cloudInbox.folder)?cloudInbox.folder:(m.size?m.keys().next().value:null)};
+const cloudPicked=()=>{const f=cloudFolders().get(cloudCurFolder())||[];return f.filter(x=>cloudInbox.sel.has(x.id))};   // 目前這個資料夾裡勾選的
 const cloudIdByFile=new Map();
 const cloudKey=f=>f.name+'|'+f.size;
 const cloudIdOfFile=f=>(f&&cloudIdByFile.get(cloudKey(f)))||'';
 function cloudInboxOn(){const e=$('entry');return !!authUser&&canCeoHistPanel()&&!!e&&e.classList.contains('ceo-mode')&&!e.classList.contains('hide')}
 const cloudKB=n=>n>=1048576?(n/1048576).toFixed(1)+' MB':Math.max(1,Math.round(n/1024))+' KB';
-function cloudInboxCount(){const n=$('cloudSelN');if(n)n.textContent=cloudInbox.sel.size;const b=$('cloudInboxImport');if(b)b.disabled=!cloudInbox.sel.size||cloudInbox.busy}
+function cloudInboxCount(){
+ const k=cloudPicked().length,b=$('cloudInboxImport');
+ if(b){b.disabled=!k||cloudInbox.busy;b.textContent=k>CLOUD_BATCH_MAX?'匯入前 '+CLOUD_BATCH_MAX+' 張（已勾 '+k+' 張）':'匯入選取的（'+k+' 張）'}
+ const n=$('cloudSplitNote');if(n)n.textContent=k>CLOUD_BATCH_MAX?'已勾 '+k+' 張，超過 '+CLOUD_BATCH_MAX+' 張會分次匯入：這次先匯入前 '+CLOUD_BATCH_MAX+' 張，剩下 '+(k-CLOUD_BATCH_MAX)+' 張保持勾選，等這批核對、儲存之後再按一次「匯入」匯入下一批。':'';
+}
 function renderCloudInbox(){
  const box=$('cloudInbox');if(!box)return;
  const c=cloudInbox,btn=(id,label,cls='')=>'<button type="button" id="'+id+'" class="'+cls+'"'+(c.busy?' disabled':'')+'>'+label+'</button>';
@@ -3840,17 +3855,18 @@ function renderCloudInbox(){
  if(c.err){box.classList.remove('hide');box.innerHTML='☁ 雲端資料夾：'+esc(c.err)+'　'+btn('cloudInboxRefresh','重新檢查');return}
  if(!c.files.length){box.classList.add('hide');box.innerHTML='';return}   // 沒有新發票就不佔畫面
  box.classList.remove('hide');
- let h='☁ 雲端有 <b>'+c.files.length+'</b> 張新發票　'+btn('cloudInboxToggle',c.open?'收合清單':'選擇要匯入的發票','primary')+' '+btn('cloudInboxRefresh','重新檢查')+(c.linked?'<span class="muted small">　（已匯入過 '+c.linked+' 張，不再列出）</span>':'');
+ const fm=cloudFolders();
+ let h='☁ 雲端有 <b>'+c.files.length+'</b> 張新發票（'+fm.size+' 個資料夾）　'+btn('cloudInboxToggle',c.open?'收合清單':'選擇要匯入的發票','primary')+' '+btn('cloudInboxRefresh','重新檢查')+(c.linked?'<span class="muted small">　（已匯入過 '+c.linked+' 張，不再列出）</span>':'');
  if(c.open){
-  const groups=new Map();c.files.forEach(f=>{const g=f.folder||'（資料夾最上層）';if(!groups.has(g))groups.set(g,[]);groups.get(g).push(f)});
-  h+='<div class="cloud-pick"><div class="cloud-pick-bar">'+btn('cloudInboxAll','全選')+' '+btn('cloudInboxNone','全不選')+' <button type="button" id="cloudInboxImport" class="primary"'+(c.sel.size&&!c.busy?'':' disabled')+'>匯入選取的（<span id="cloudSelN">'+c.sel.size+'</span> 張）</button><span class="muted small">　勾選後匯入到批次辨識，核對完才存草稿或送出；點「預覽」可先看照片</span></div><div class="cloud-pick-list">';
-  groups.forEach((fs,g)=>{
-   h+='<div class="cloud-grp"><b>📁 '+esc(g)+'</b> <span class="muted small">'+fs.length+' 張</span></div>';
-   fs.forEach(f=>{h+='<label class="cloud-row"><input type="checkbox" data-cid="'+esc(f.id)+'"'+(c.sel.has(f.id)?' checked':'')+'> <span class="cloud-name">'+esc(f.name)+'</span> <span class="muted small">'+cloudKB(f.size)+(f.modified?'　'+esc(f.modified):'')+'</span> <button type="button" class="cloud-prev" data-cid="'+esc(f.id)+'">預覽</button></label>'});
-  });
+  const cur=cloudCurFolder(),fs=fm.get(cur)||[];
+  const opts=[...fm].map(([g,a])=>'<option value="'+esc(g)+'"'+(g===cur?' selected':'')+'>📁 '+esc(g)+'（'+a.length+' 張）</option>').join('');
+  h+='<div class="cloud-pick"><div class="cloud-pick-bar"><label>要匯入哪個資料夾：<select id="cloudInboxFolder">'+opts+'</select></label> '+btn('cloudInboxAll','全選這個資料夾')+' '+btn('cloudInboxNone','全不選')+' <button type="button" id="cloudInboxImport" class="primary" disabled>匯入選取的（0 張）</button></div>'
+   +'<div class="muted small">勾選後匯入到批次辨識，核對完才存草稿或送出；一次最多匯入 '+CLOUD_BATCH_MAX+' 張，超過會分次匯入；點「預覽」可先看照片</div><div id="cloudSplitNote" class="small" style="color:#9a5b00"></div><div class="cloud-pick-list">';
+  fs.forEach(f=>{h+='<label class="cloud-row"><input type="checkbox" data-cid="'+esc(f.id)+'"'+(c.sel.has(f.id)?' checked':'')+'> <span class="cloud-name">'+esc(f.name)+'</span> <span class="muted small">'+cloudKB(f.size)+(f.modified?'　'+esc(f.modified):'')+'</span> <button type="button" class="cloud-prev" data-cid="'+esc(f.id)+'">預覽</button></label>'});
   h+='</div></div>';
  }
  box.innerHTML=h;
+ if(c.open)cloudInboxCount();
 }
 async function cloudInboxRefresh(force){
  if(!cloudInboxOn()||cloudInbox.busy)return;
@@ -3867,7 +3883,8 @@ async function cloudInboxRefresh(force){
 }
 function cloudB64ToFile(b64,name,type){const raw=atob(b64),u=new Uint8Array(raw.length);for(let i=0;i<raw.length;i++)u[i]=raw.charCodeAt(i);return new File([u],name,{type})}
 async function cloudInboxImport(){
- const c=cloudInbox,list=c.files.filter(f=>c.sel.has(f.id));if(c.busy||!list.length)return;   // 只匯入勾選的
+ const c=cloudInbox,picked=cloudPicked(),list=picked.slice(0,CLOUD_BATCH_MAX),rest=picked.length-list.length;   // 只匯入目前資料夾勾選的；超過 30 張先匯入前 30 張
+ if(c.busy||!list.length)return;
  if(batchBusy){toast('目前正在辨識，請等這一批完成再匯入');return}
  if(batchRows.some(r=>!r.saved)&&!confirm('批次清單裡還有尚未儲存的發票，匯入會取代它們，是否繼續？'))return;
  c.busy=true;
@@ -3884,8 +3901,9 @@ async function cloudInboxImport(){
   const dt=new DataTransfer();
   ok.forEach(g=>{dt.items.add(g.file);cloudIdByFile.set(cloudKey(g.file),g.f.id)});
   el('files').files=dt.files;
-  ok.forEach(g=>c.sel.delete(g.f.id));c.open=false;   // 匯入成功的不再勾著，清單收起來
+  ok.forEach(g=>c.sel.delete(g.f.id));c.open=rest>0;   // 匯入成功的不再勾著；還有沒匯入的勾選（超過 30 張）→ 清單保持展開，等這批存好再按一次
   autoStartBatch(ok.length);   // 一律用批次（只有 1 張也一樣，這樣存的時候才記得到雲端檔案 ID）
+  if(rest>0)toast('已匯入前 '+ok.length+' 張；還有 '+rest+' 張仍勾著——請先核對、儲存這批，再按一次「匯入」匯入下一批（每批最多 '+CLOUD_BATCH_MAX+' 張）');
   if(failed.length)toast('有 '+failed.length+' 張下載失敗：'+failed.slice(0,3).join('；'));
  }catch(e){c.err=(e&&e.message)||'匯入失敗'}
  finally{c.progress='';c.busy=false;c.last=0;renderCloudInbox()}
@@ -3909,10 +3927,15 @@ document.addEventListener('click',e=>{
  if(b.id==='cloudInboxImport')cloudInboxImport();
  else if(b.id==='cloudInboxRefresh')cloudInboxRefresh(true);
  else if(b.id==='cloudInboxToggle'){cloudInbox.open=!cloudInbox.open;renderCloudInbox()}
- else if(b.id==='cloudInboxAll'||b.id==='cloudInboxNone'){const all=b.id==='cloudInboxAll';cloudInbox.sel.clear();if(all)cloudInbox.files.forEach(f=>cloudInbox.sel.add(f.id));$('cloudInbox').querySelectorAll('input[data-cid]').forEach(i=>{i.checked=all});cloudInboxCount()}
+ else if(b.id==='cloudInboxAll'||b.id==='cloudInboxNone'){const all=b.id==='cloudInboxAll';cloudInbox.sel.clear();if(all)(cloudFolders().get(cloudCurFolder())||[]).forEach(f=>cloudInbox.sel.add(f.id));$('cloudInbox').querySelectorAll('input[data-cid]').forEach(i=>{i.checked=all});cloudInboxCount()}
  else if(b.classList.contains('cloud-prev'))cloudPreview(b.dataset.cid);
 });
-document.addEventListener('change',e=>{const i=e.target;if(!i||!i.matches||!i.matches('#cloudInbox input[data-cid]'))return;if(i.checked)cloudInbox.sel.add(i.dataset.cid);else cloudInbox.sel.delete(i.dataset.cid);cloudInboxCount()});
+document.addEventListener('change',e=>{
+ const i=e.target;if(!i||!i.matches)return;
+ if(i.matches('#cloudInboxFolder')){cloudInbox.folder=i.value;cloudInbox.sel.clear();renderCloudInbox();return}   // 換資料夾：清掉勾選（一次只匯入一個資料夾的檔案）
+ if(!i.matches('#cloudInbox input[data-cid]'))return;
+ if(i.checked)cloudInbox.sel.add(i.dataset.cid);else cloudInbox.sel.delete(i.dataset.cid);cloudInboxCount();
+});
 // 打開執行長發票頁（#entry 的 class 改變）、視窗回到前景、每 2 分鐘：檢查一次（最快每分鐘一次）
 if($('entry'))new MutationObserver(()=>{cloudInboxRefresh()}).observe($('entry'),{attributes:true,attributeFilter:['class']});
 window.addEventListener('focus',()=>cloudInboxRefresh());
