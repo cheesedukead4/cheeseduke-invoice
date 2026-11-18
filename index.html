@@ -370,7 +370,7 @@ main{padding-bottom:12px}
 </div>
 <datalist id="acctCodeList"></datalist><datalist id="acctNameList"></datalist><script src="config.js?v=ce0fe7cf"></script><script src="js/cloud.js?v=0ee0c57c"></script><script src="js/lazy-libs.js?v=8f101f03"></script><script src="js/image-zoom.js?v=c70fc93c"></script><script src="js/einvoice-qr.js?v=62f1615a"></script><script src="js/quick-judge.js?v=61bbe864"></script><script src="js/ceo-judge.js?v=765c0cf6"></script>
 <script src="js/card-detect.js?v=79cf21e8"></script>
-<script src="js/pdf-text.js?v=7842e591"></script>
+<script src="js/pdf-text.js?v=012b6baf"></script>
 <header><div><h1>公司簽呈與簽核系統</h1><div class="sub">網頁版 v7.0｜主畫面統一入口・表單／請款・雲端共用資料・Google 登入</div></div><div class="role"><span id="loggedSummary">尚未登入</span><span id="syncState" class="sub">雲端：—</span><button id="syncNowBtn" type="button">🔄 同步</button><button id="logoutBtn" type="button">登出</button><select id="role" class="hide"><option value="staff">申請人</option><option value="manager">部門主管</option><option value="executive">執行長</option><option value="finance">財務人員</option><option value="admin">系統管理者</option></select><input id="actorName" class="hide" readonly aria-label="操作人員姓名"></div></header>
 <nav id="tabs"><button type="button" id="menuToggle" aria-expanded="false">☰ 選單</button></nav>
 <main>
@@ -3434,7 +3434,7 @@ async function applyQRToSingle(file){
  }).catch(()=>show(doneMsg));
  return true;
 }
-async function scan(file){if(!file||inProgress)return;const ok=/^image\/(jpeg|png|webp)$/.test(file.type)||file.type==='application/pdf';if(!ok){show('請使用 JPG、PNG、WEBP 或 PDF 檔案',true);return}if(file.size>10*1024*1024){show('單一檔案超過 10MB，請縮小後再試',true);return}inProgress=true;el('ocrStart').disabled=true;el('ocrReview').classList.add('hide');setPreview(file);show('準備辨識 '+file.name+'…');try{if(await applyQRToSingle(file))return;const target=await loadImage(file);const w=await getWorker();const enhanced=await improveImage(target);const result=await w.recognize(enhanced);let raw=result.data.text||'';let detected=extractInvoice(raw);if(!detected.invoiceNo||!detected.taxId||!detected.amount||!detected.vendor){show('正在進行第二輪英數字補強辨識…');await w.setParameters({tessedit_pageseg_mode:'11'});const secondary=await w.recognize(enhanced);await w.setParameters({tessedit_pageseg_mode:'3'});const alternative=extractInvoice(secondary.data.text||'');for(const key of ['invoiceDate','invoiceNo','taxId','amount','vendor'])if(detected[key]===undefined&&alternative[key]!==undefined)detected[key]=alternative[key];}{const pt=await pdfTextRead(file);if(pt){detected=pdfOverlay(detected,pt);raw=pdfRawText(pt)+'\n\n---\n\n'+raw}}   // PDF 電子發票：文字層讀到的發票號碼、日期、金額、統編蓋掉文字辨識的結果
+async function scan(file){if(!file||inProgress)return;const ok=/^image\/(jpeg|png|webp)$/.test(file.type)||file.type==='application/pdf';if(!ok){show('請使用 JPG、PNG、WEBP 或 PDF 檔案',true);return}if(file.size>10*1024*1024){show('單一檔案超過 10MB，請縮小後再試',true);return}inProgress=true;el('ocrStart').disabled=true;el('ocrReview').classList.add('hide');setPreview(file);show('準備辨識 '+file.name+'…');try{if(await applyQRToSingle(file))return;const target=await loadImage(file);const w=await getWorker();const enhanced=await improveImage(target);const result=await w.recognize(enhanced);let raw=result.data.text||'';let detected=extractInvoice(raw);if(!detected.invoiceNo||!detected.taxId||!detected.amount||!detected.vendor){show('正在進行第二輪英數字補強辨識…');await w.setParameters({tessedit_pageseg_mode:'11'});const secondary=await w.recognize(enhanced);await w.setParameters({tessedit_pageseg_mode:'3'});const alternative=extractInvoice(secondary.data.text||'');for(const key of ['invoiceDate','invoiceNo','taxId','amount','vendor'])if(detected[key]===undefined&&alternative[key]!==undefined)detected[key]=alternative[key];}{const pt=await pdfTextRead(file);if(pt){detected=pdfOverlay(detected,pt);raw=pdfRawText(pt)+'\n\n---\n\n'+raw;pdfFillSingle(pt.p)}}   // PDF 電子發票：文字層讀到的發票號碼、日期、金額、統編蓋掉文字辨識的結果
 window.lastSingleOCRVendor=detected.vendor||'';window.lastSingleOCRTax=detected.taxId||'';
 let vendorSource=detected.vendor?'OCR 自動判讀・待核對':'尚未辨識';
 if(detected.taxId){show('已辨識賣方統編 '+detected.taxId+'，正在查詢網路登記資料…');
@@ -3794,12 +3794,12 @@ el('batchScan').addEventListener('click',async()=>{
  const scanRow=async i=>{
   const r=batchRows[i];running.add(i);progress();
   try{const result=await recognizeOne(r.file);r.viaQR=!!result.qr;r.viaPDF=!!result.pdf;r.raw=result.raw;Object.assign(r.values,result.data);
-  if(result.pdf&&result.pdf.description&&r.claim.items.length===1&&r.claim.items[0].description==='發票費用'){r.claim.items[0].description=result.pdf.description;r.claim.items[0].amount=moneyValue(r.values.amount);r.claimAutoAmount=true}   // PDF 文字層的品名（沒改過預設「發票費用」才帶入）；一筆請款項目＝發票含稅總額
+  if(result.pdf&&result.pdf.description&&r.claim.items.length===1&&r.claim.items[0].description==='發票費用'){r.claim.items[0].description=result.pdf.description;r.claim.items[0].amount=moneyValue(r.values.amount);r.claimAutoAmount=true;{const t=pdfClaimText(result.pdf);if(!String(r.values.memo||'').includes(t))r.values.memo=(r.values.memo?r.values.memo+'\n':'')+t}}   // PDF 文字層的品名（只有品名）、金額（＝發票含稅總額）帶進請款項目（沒改過預設「發票費用」才帶入），品項明細與備註記在備註欄
   if(AUTO_FILL_CLAIM_ITEMS&&r.claimAutoAmount&&r.claim.items.length===1)r.claim.items[0].amount=moneyValue(r.values.amount);
   if(result.qr){applyQRToBatchRow(r,result.qr);if(AUTO_FILL_CLAIM_ITEMS){r.qrObj=result.qr;r.qrSnap=claimSnapshot(r.claim.items)}}r.ocrVendor=result.data.vendor||'';r.uncertain=result.uncertain;
   if(validTax(r.values.taxId)){await verifyBatchSeller(i,result.data.vendor||'');if(r.registryVerified)r.uncertain=(r.uncertain||[]).filter(k=>k!=='vendor');}
   else {r.registryVerified=false;r.vendorSource=(result.taxNote||'未讀到賣方統編')+'；'+(r.ocrVendor?'OCR 廠商名稱待核對':'請人工填入廠商名稱');}
-  let n=batchKeys.filter(k=>r.values[k]!==undefined&&r.values[k]!=='').length;r.note=result.pdf?`📄 PDF 電子發票讀取 ${n}/5 欄（直接讀 PDF 裡的文字，不是文字辨識：發票號碼、日期、含稅金額不會讀錯）${result.pdf.sellerTaxId?'':'；賣方統編不在 PDF 文字裡，改用文字辨識讀印章，請核對'}${result.pdf.notes.filter(x=>/對不起來/.test(x)).map(x=>'；⚠ '+x).join('')}；請核對`:result.qr?`發票 QR code 讀取 ${n}/5 欄（廠商名稱由統編查詢）；${r.qrNote}；請核對`:`⚠ 沒讀到發票 QR code，改用文字辨識 ${n}/5 欄（${result.rounds} 輪，比 QR code 容易讀錯）${r.uncertain?.length?'；⚠ 需核對（多輪結果不一致，或統編沒通過檢查碼、可能讀錯一個數字）：'+r.uncertain.map(k=>({invoiceDate:'日期',invoiceNo:'號碼',taxId:'統編',vendor:'廠商',amount:'金額'})[k]).join('、'):''}；請逐欄核對原圖`;}
+  let n=batchKeys.filter(k=>r.values[k]!==undefined&&r.values[k]!=='').length;r.note=result.pdf?`📄 PDF 電子發票讀取 ${n}/5 欄（直接讀 PDF 裡的文字，不是文字辨識：發票號碼、日期、含稅金額不會讀錯）${result.pdf.sales&&result.pdf.tax?`；金額：未稅 ${result.pdf.sales}＋營業稅 ${result.pdf.tax}＝含稅 ${result.pdf.amount}（請款項目金額用含稅總額）`:''}${result.pdf.sellerTaxId?'':'；賣方統編不在 PDF 文字裡，改用文字辨識讀印章，請核對'}${result.pdf.notes.filter(x=>/對不起來/.test(x)).map(x=>'；⚠ '+x).join('')}；請核對`:result.qr?`發票 QR code 讀取 ${n}/5 欄（廠商名稱由統編查詢）；${r.qrNote}；請核對`:`⚠ 沒讀到發票 QR code，改用文字辨識 ${n}/5 欄（${result.rounds} 輪，比 QR code 容易讀錯）${r.uncertain?.length?'；⚠ 需核對（多輪結果不一致，或統編沒通過檢查碼、可能讀錯一個數字）：'+r.uncertain.map(k=>({invoiceDate:'日期',invoiceNo:'號碼',taxId:'統編',vendor:'廠商',amount:'金額'})[k]).join('、'):''}；請逐欄核對原圖`;}
   catch(err){r.error='辨識失敗：'+(err.message||String(err))+'；可手動填寫';r.selected=false}
   if(!r.error&&cardDetectOn())await cardDetectRow(r);   // 執行長發票：偵測卡號（末 4 碼 7170＝公司卡 → N；其他卡 → Y 填卡號；沒有卡號 → Y 填現金）
   running.delete(i);doneN++;renderBatch();progress();
@@ -3963,6 +3963,13 @@ async function pdfTextRead(file){
  }catch(e){console.warn('PDF 文字層讀取失敗，改用文字辨識',e);return null}
 }
 const pdfRawText=pt=>'資料來源：PDF 文字層（直接讀 PDF 裡的文字，不是文字辨識）\n'+pt.text;
+// 品名、金額帶進請款項目：一筆請款項目＝品名（只有品名），金額＝發票含稅總額（請款合計要等於發票總計；明細表裡的「金額」欄是未稅，加營業稅才是總額）；品項明細（數量、單價、備註）記在備註欄
+const pdfClaimText=p=>'發票品項（PDF）：'+p.itemsText+(p.sales&&p.tax?'；未稅 '+p.sales+'＋營業稅 '+p.tax+'＝含稅 '+p.amount:'');
+function pdfFillSingle(p){
+ if(!p||!p.description||!qjItemsBlank(singleClaimItems))return;   // 請款項目已經有人填過就不取代
+ singleClaimItems=[{description:p.description,amount:moneyValue(p.amount),allocations:[{dept:'',ratio:100}]}];singleAmountLinked=true;displaySingleClaimItems();
+ const m=$('memo'),t=pdfClaimText(p);if(m&&!m.value.includes(t))m.value=(m.value?m.value+'\n':'')+t;
+}
 // PDF 文字層讀到的值蓋到辨識結果上（沒讀到的欄位維持原值）
 function pdfOverlay(data,pt){
  const p=pt.p;

@@ -67,7 +67,7 @@
     var own = opt.ownTaxId || '', taxOk = typeof opt.taxOk === 'function' ? opt.taxOk : function () { return true; };
     var L = (lines || []).map(function (x) { return String(x == null ? '' : x).normalize('NFKC'); });
     var F = L.map(flat), all = L.join('\n');
-    var out = { invoiceNo: '', invoiceDate: '', amount: '', amountSure: false, sellerTaxId: '', buyerTaxId: '', vendor: '', buyerName: '', description: '', sales: '', tax: '', ok: false, complete: false, notes: [] };
+    var out = { invoiceNo: '', invoiceDate: '', amount: '', amountSure: false, sellerTaxId: '', buyerTaxId: '', vendor: '', buyerName: '', description: '', remark: '', itemsText: '', items: [], sales: '', tax: '', ok: false, complete: false, notes: [] };
 
     // 發票號碼：2 個英文字母＋8 碼數字（有「發票號碼」標籤優先）
     var fAll = F.join('\n'), m = /發票號碼[:：]?([A-Z]{2})[-－]?(\d{8})(?!\d)/.exec(fAll);
@@ -131,17 +131,32 @@
     if (h >= 0) {
       // 一行裡的格子（以 | 分開）：第一個以數字開頭的格子之前是品名；從那格起（數量、單價、金額）把開頭的數字拿掉，剩下的字是備註；
       // 數字出現之後的整行文字（沒有數字）是備註接續。品名與數字有時會被排在同一行（"服務費 | 1 | 9,092 | 9,092 備註…"），也有分兩行的
-      var body = L.slice(h + 1, t < 0 ? Math.min(L.length, h + 8) : t).map(function (x) { return x.trim(); }).filter(Boolean), names = [], rest = [], inRest = false;
+      // 每個品項：{name 品名, qty 數量, unit 單價, amount 金額（未稅的明細金額）, remark 備註}
+      var body = L.slice(h + 1, t < 0 ? Math.min(L.length, h + 8) : t).map(function (x) { return x.trim(); }).filter(Boolean), pend = [], items = [], inRest = false;
       body.forEach(function (x, bi) {
         var cells = x.split(' | ').map(function (c) { return c.trim(); }), k = -1;
         for (var q = 0; q < cells.length; q++) if (/^\d[\d,.]*(\s|$)/.test(cells[q])) { k = q; break; }
-        if (k < 0) { var nextIsNumRow = bi + 1 < body.length && /^\d[\d,.]*(\s|\||$)/.test(body[bi + 1]); (inRest && !nextIsNumRow ? rest : names).push(cells.join(' ')); return; }   // 數字之後的文字行：下一行又是數字列＝新的品項名稱；否則是備註接續
+        if (k < 0) {   // 沒有數字的行：下一行又是數字列＝新的品項名稱；否則（數字之後）是上一個品項的備註接續
+          var nextIsNumRow = bi + 1 < body.length && /^\d[\d,.]*(\s|\||$)/.test(body[bi + 1]);
+          if (inRest && !nextIsNumRow && items.length) items[items.length - 1].remark = (items[items.length - 1].remark + ' ' + cells.join(' ')).trim(); else pend.push(cells.join(' '));
+          return;
+        }
         inRest = true;
-        if (k > 0) names.push(cells.slice(0, k).join(' '));
-        cells.slice(k).forEach(function (c) { var tail = c.replace(/^\d[\d,.]*\s*/, '').trim(); if (tail) rest.push(tail); });
+        if (k > 0) pend.push(cells.slice(0, k).join(' '));
+        var nums = [], tails = [];
+        cells.slice(k).forEach(function (c) { var mm = /^(\d[\d,.]*)\s*(.*)$/.exec(c); if (mm) { nums.push(Number(mm[1].replace(/,/g, ''))); if (mm[2]) tails.push(mm[2]); } else tails.push(c); });
+        items.push({ name: pend.join(' ').trim(), qty: nums.length >= 3 ? nums[0] : (nums.length === 2 ? nums[0] : NaN), unit: nums.length >= 3 ? nums[1] : NaN, amount: nums.length ? nums[nums.length - 1] : NaN, remark: tails.join(' ').trim() });
+        pend = [];
       });
-      var nm = names.join(' ').trim(), rm = rest.join(' ').trim();
-      out.description = nm ? (rm ? nm + '（' + rm + '）' : nm) : rm;
+      if (pend.length && items.length) items[items.length - 1].remark = (items[items.length - 1].remark + ' ' + pend.join(' ')).trim();
+      else if (pend.length) items.push({ name: pend.join(' ').trim(), qty: NaN, unit: NaN, amount: NaN, remark: '' });
+      out.items = items;
+      out.description = items.map(function (i) { return i.name; }).filter(Boolean).join('、');                       // 品名（只有品名，不含備註）
+      out.remark = items.map(function (i) { return i.remark; }).filter(Boolean).join('；');                           // 備註
+      out.itemsText = items.map(function (i) {                                                                    // 品項明細一行字（放進備註欄）：服務費 ×1 @9092 ＝9092（備註：…）
+        var s = i.name || '（無品名）'; if (!isNaN(i.qty)) s += ' ×' + i.qty; if (!isNaN(i.unit)) s += ' @' + i.unit; if (!isNaN(i.amount)) s += ' ＝' + i.amount;
+        return s + (i.remark ? '（備註：' + i.remark + '）' : '');
+      }).join('；');
     }
 
     out.ok = !!(out.invoiceNo && out.amount);
