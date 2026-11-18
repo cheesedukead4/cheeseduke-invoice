@@ -368,7 +368,7 @@ main{padding-bottom:12px}
     <div class="auth-warn"><b>資料安全：</b>簽呈、發票、金額與存摺影本存在公司的 Google 雲端硬碟，系統會依你的角色與部門過濾可見範圍，並檢查簽核順序。請勿在公用電腦登入，離開座位請先登出。</div>
   </div>
 </div>
-<datalist id="acctCodeList"></datalist><datalist id="acctNameList"></datalist><script src="config.js"></script><script src="js/cloud.js"></script><script src="js/lazy-libs.js"></script><script src="js/einvoice-qr.js"></script><script src="js/quick-judge.js"></script><script src="js/ceo-judge.js"></script>
+<datalist id="acctCodeList"></datalist><datalist id="acctNameList"></datalist><script src="config.js"></script><script src="js/cloud.js"></script><script src="js/lazy-libs.js"></script><script src="js/image-zoom.js"></script><script src="js/einvoice-qr.js"></script><script src="js/quick-judge.js"></script><script src="js/ceo-judge.js"></script>
 <header><div><h1>公司簽呈與簽核系統</h1><div class="sub">網頁版 v7.0｜主畫面統一入口・表單／請款・雲端共用資料・Google 登入</div></div><div class="role"><span id="loggedSummary">尚未登入</span><span id="syncState" class="sub">雲端：—</span><button id="syncNowBtn" type="button">🔄 同步</button><button id="logoutBtn" type="button">登出</button><select id="role" class="hide"><option value="staff">申請人</option><option value="manager">部門主管</option><option value="executive">執行長</option><option value="finance">財務人員</option><option value="admin">系統管理者</option></select><input id="actorName" class="hide" readonly aria-label="操作人員姓名"></div></header>
 <nav id="tabs"><button type="button" id="menuToggle" aria-expanded="false">☰ 選單</button></nav>
 <main>
@@ -3152,6 +3152,9 @@ let worker=null, inProgress=false, previewURL=null;
 const show=(msg,isError=false)=>{el('ocrStatus').textContent=msg;el('ocrStatus').classList.toggle('ocr-status-error',isError)};
 const cleanMoney=s=>{const v=String(s||'').replace(/[,，\sNT＄$元]/g,'').replace(/[^0-9.]/g,'');return /^\d{1,10}(?:\.\d{1,2})?$/.test(v)?Number(v):null};
 function twDate(y,m,d){let Y=Number(y),M=Number(m),D=Number(d);if(Y<1900&&Y>=90)Y+=1911;if(Y<2000||Y>2100||M<1||M>12||D<1||D>31)return null;const date=new Date(Y,M-1,D);if(date.getFullYear()!==Y||date.getMonth()!==M-1||date.getDate()!==D)return null;return `${Y}-${String(M).padStart(2,'0')}-${String(D).padStart(2,'0')}`}
+// 本公司（起士公爵有限公司）的統編是「買方」，不可能是賣方統編；統編另有檢查碼（2023 年起除數改為 5）：真的統編一定通過，沒通過代表有數字讀錯
+const OWN_TAX_ID='53296137';
+function taxOk(v){if(!/^\d{8}$/.test(v))return false;const w=[1,2,1,2,1,2,4,1];let s=0;for(let k=0;k<8;k++){const p=Number(v[k])*w[k];s+=Math.floor(p/10)+p%10}return s%5===0||(v[6]==='7'&&(s+1)%5===0)}
 function extractInvoice(text){
 const norm=s=>String(s||'').normalize('NFKC').replace(/[｜¦]/g,'|').replace(/[：﹕]/g,':').replace(/[，]/g,',');
 const lines=norm(text).split(/\r?\n/).map(x=>x.trim()).filter(Boolean), all=lines.join('\n'), out={};
@@ -3201,14 +3204,24 @@ for(let i=0;i<lines.length;i++){
  if(direct&&!buyerExplicit)tax.push({value:direct[1],score:28,i,reason:'明確賣方'});
 }
 // 沒有賣方標記且只看到買方統編時，保留空白，避免錯誤回填。
-tax.sort((a,b)=>b.score-a.score||a.i-b.i);
-if(tax.length){
- const top=tax[0],second=tax.find(x=>x.value!==top.value);
- if(top.score>=14||(!second&&top.score>=8)){
-  if(!second||top.score-second.score>=5){out.taxId=top.value;out.taxNote='辨識到'+top.reason;}
+// ① 本公司統編是買方，一律剔除（以前如果發票上只印了本公司統編，可能被誤填成賣方）；② 統編檢查碼：通過的加分、沒通過的扣分（真的統編一定通過，沒通過＝有數字讀錯，仍保留讓人只改一個數字）；
+// ③ 備援：整份文字裡「沒有標示賣方」的 8 碼數字，只要通過檢查碼、不是本公司、不在電話／載具／卡號那幾行，也列入候選（分數低，只有在唯一的時候才採用）
+{
+ const have=new Set(tax.map(x=>x.value));
+ lines.forEach((line,i)=>{
+  if(/電話|\btel\b|fax|傳真|手機|載具|卡號|交易|序號|發票號|驗證|隨機|地址|郵遞|金額|合計|總計|應收|實收|找零|折扣/i.test(line))return;
+  for(const m of line.matchAll(/(?<![\dA-Za-z\-－(（$＄.,])(\d{8})(?![\dA-Za-z.,])/g)){const v=m[1];if(v===OWN_TAX_ID||have.has(v)||!taxOk(v))continue;have.add(v);tax.push({value:v,score:11,i,reason:'沒標示賣方、但通過統編檢查碼的 8 碼數字（請確認是賣方）'})}
+ });
+ for(const x of tax){if(x.value===OWN_TAX_ID)x.score=-100;else if(taxOk(x.value))x.score+=3;else x.score-=4}
+}
+const taxC=tax.filter(x=>x.score>-50).sort((a,b)=>b.score-a.score||a.i-b.i);
+if(taxC.length){
+ const top=taxC[0],second=taxC.find(x=>x.value!==top.value);
+ if(top.score>=14||(!second&&top.score>=5)){
+  if(!second||top.score-second.score>=5){out.taxId=top.value;out.taxNote='辨識到'+top.reason+(taxOk(top.value)?'':'；但沒通過統編檢查碼，可能有一個數字讀錯，請對照發票');}
   else out.taxNote='出現多個可能的統編，請確認賣方';
  }else out.taxNote='統編所屬不明，請手動核對賣方';
-}else out.taxNote='未可靠讀到賣方統編（不使用買方統編）';
+}else out.taxNote=tax.some(x=>x.value===OWN_TAX_ID)?'只讀到本公司統編（買方），沒有讀到賣方統編':'未可靠讀到賣方統編（不使用買方統編）';
 // 廠商名稱：優先以明確賣方標籤定位，避免誤抓買受人／客戶公司。
 const companyTail=/(?:股份有限公司|有限公司|有限合夥|企業社|商行|工作室|實業社|商號|餐飲店|小吃店|便利商店|百貨公司|超級市場|商店|藥局|診所|加油站|飯店|旅館|餐廳|咖啡館|茶行|工廠|公司|門市|分店)$/;
 const vendorLabel=/(?:銷售(?:人|方)|賣方(?:名稱|公司|資料)?|營業人(?:名稱|資料)?|店家(?:名稱)?|商家(?:名稱)?|商店名稱|公司名稱|發票開立人|seller|merchant|store\s*name)/i;
