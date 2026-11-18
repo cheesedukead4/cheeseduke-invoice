@@ -23,7 +23,8 @@
 .batch-card{border:1px solid #dce3ed;border-radius:10px;padding:18px;margin:16px 0;background:#fff}
 .batch-card-head{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:16px;padding-bottom:12px;border-bottom:1px solid #e1e7ef}
 .batch-card-head .batch-preview{max-width:90px;max-height:92px}.batch-card-head .batch-file{flex:1;min-width:150px}
-.batch-card .formgrid .field label{font-weight:600}.batch-card textarea{min-height:74px}
+.batch-card .formgrid .field label{font-weight:600}
+#cloudInbox .cloud-pick{margin-top:8px}#cloudInbox .cloud-pick-bar{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-bottom:6px}#cloudInbox .cloud-pick-list{max-height:300px;overflow:auto;border:1px solid #dce3ed;border-radius:6px;padding:4px 8px;background:#fff}#cloudInbox .cloud-grp{margin:8px 0 2px;color:#33475b}#cloudInbox .cloud-row{display:flex;align-items:center;gap:8px;padding:3px 2px;font-weight:normal;border-bottom:1px dashed #eef1f5;cursor:pointer}#cloudInbox .cloud-row input{width:auto;flex:0 0 auto}#cloudInbox .cloud-name{flex:1 1 auto;word-break:break-all}#cloudInbox .cloud-prev{padding:2px 8px;font-size:12px;flex:0 0 auto}.batch-card textarea{min-height:74px}
 .batch-card .batch-retry{margin-left:auto;white-space:nowrap}
 details.fold{border:1px solid #dce3ed;border-radius:8px;padding:8px 12px;margin-top:10px;background:#fbfdff}details.fold>summary{cursor:pointer;font-weight:600;color:var(--blue)}
 .ledger-cands{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-top:6px}.ledger-cands:empty{display:none}
@@ -3822,13 +3823,16 @@ el('batchScan').addEventListener('click',async()=>{
   batchProgress(`已處理 ${batchRows.length} 張：QR code 讀到 ${nQR} 張`+(nPDF?`；PDF 電子發票直接讀文字 ${nPDF} 張（發票號碼、日期、金額不是辨識出來的，不會讀錯）`:'')+(ocrIdx.length?`；沒讀到 QR code、改用文字辨識 ${ocrIdx.length} 張（第 ${ocrIdx.map(i=>i+1).join('、')} 張，比較容易讀錯，請逐欄核對，或對準 QR code 重拍）`:'')+'；辨識不完整的發票請手動補上欄位，確認無誤再匯入。');}
 });
 // ===== ☁ 雲端資料夾匯入（執行長發票頁）=====
-// 後端只列「發票上傳」資料夾裡「上個月」、而且還沒匯入過的照片（有沒有匯入過＝有沒有發票紀錄的 cloudFileId 對得上；草稿也算，發票刪掉照片就會再出現）。
-// 一鍵匯入＝下載 → 放進批次辨識（QR／OCR 仍在這台電腦跑）→ 你核對後再存草稿或送出；存的時候把雲端檔案 ID 記在發票上，之後就不會再列出。
-const cloudInbox={files:[],label:'',linked:0,err:'',busy:false,last:0,progress:''};
+// 後端列出雲端資料夾（含底下兩層子資料夾）裡「還沒匯入過」的照片（有沒有匯入過＝有沒有發票紀錄的 cloudFileId 對得上；草稿也算，發票刪掉照片就會再出現）。
+// 使用者要求「可以選擇我要匯入哪個檔案」：橫幅上按「選擇要匯入的發票」展開清單（依資料夾分組、每張可預覽），勾選後按「匯入選取的」＝下載 → 放進批次辨識（QR／OCR 仍在這台電腦跑）
+// → 你核對後再存草稿或送出；存的時候把雲端檔案 ID 記在發票上，之後就不會再列出。清單展開與勾選的狀態在每 2 分鐘自動更新時會保留。
+const cloudInbox={files:[],linked:0,err:'',busy:false,last:0,progress:'',open:false,sel:new Set()};
 const cloudIdByFile=new Map();
 const cloudKey=f=>f.name+'|'+f.size;
 const cloudIdOfFile=f=>(f&&cloudIdByFile.get(cloudKey(f)))||'';
 function cloudInboxOn(){const e=$('entry');return !!authUser&&canCeoHistPanel()&&!!e&&e.classList.contains('ceo-mode')&&!e.classList.contains('hide')}
+const cloudKB=n=>n>=1048576?(n/1048576).toFixed(1)+' MB':Math.max(1,Math.round(n/1024))+' KB';
+function cloudInboxCount(){const n=$('cloudSelN');if(n)n.textContent=cloudInbox.sel.size;const b=$('cloudInboxImport');if(b)b.disabled=!cloudInbox.sel.size||cloudInbox.busy}
 function renderCloudInbox(){
  const box=$('cloudInbox');if(!box)return;
  const c=cloudInbox,btn=(id,label,cls='')=>'<button type="button" id="'+id+'" class="'+cls+'"'+(c.busy?' disabled':'')+'>'+label+'</button>';
@@ -3836,7 +3840,17 @@ function renderCloudInbox(){
  if(c.err){box.classList.remove('hide');box.innerHTML='☁ 雲端資料夾：'+esc(c.err)+'　'+btn('cloudInboxRefresh','重新檢查');return}
  if(!c.files.length){box.classList.add('hide');box.innerHTML='';return}   // 沒有新發票就不佔畫面
  box.classList.remove('hide');
- box.innerHTML='☁ 雲端有 <b>'+c.files.length+'</b> 張新發票（'+esc(c.label)+'）　'+btn('cloudInboxImport','一鍵匯入','primary')+' '+btn('cloudInboxRefresh','重新檢查')+(c.linked?'<span class="muted small">　（'+esc(c.label)+'已匯入 '+c.linked+' 張）</span>':'');
+ let h='☁ 雲端有 <b>'+c.files.length+'</b> 張新發票　'+btn('cloudInboxToggle',c.open?'收合清單':'選擇要匯入的發票','primary')+' '+btn('cloudInboxRefresh','重新檢查')+(c.linked?'<span class="muted small">　（已匯入過 '+c.linked+' 張，不再列出）</span>':'');
+ if(c.open){
+  const groups=new Map();c.files.forEach(f=>{const g=f.folder||'（資料夾最上層）';if(!groups.has(g))groups.set(g,[]);groups.get(g).push(f)});
+  h+='<div class="cloud-pick"><div class="cloud-pick-bar">'+btn('cloudInboxAll','全選')+' '+btn('cloudInboxNone','全不選')+' <button type="button" id="cloudInboxImport" class="primary"'+(c.sel.size&&!c.busy?'':' disabled')+'>匯入選取的（<span id="cloudSelN">'+c.sel.size+'</span> 張）</button><span class="muted small">　勾選後匯入到批次辨識，核對完才存草稿或送出；點「預覽」可先看照片</span></div><div class="cloud-pick-list">';
+  groups.forEach((fs,g)=>{
+   h+='<div class="cloud-grp"><b>📁 '+esc(g)+'</b> <span class="muted small">'+fs.length+' 張</span></div>';
+   fs.forEach(f=>{h+='<label class="cloud-row"><input type="checkbox" data-cid="'+esc(f.id)+'"'+(c.sel.has(f.id)?' checked':'')+'> <span class="cloud-name">'+esc(f.name)+'</span> <span class="muted small">'+cloudKB(f.size)+(f.modified?'　'+esc(f.modified):'')+'</span> <button type="button" class="cloud-prev" data-cid="'+esc(f.id)+'">預覽</button></label>'});
+  });
+  h+='</div></div>';
+ }
+ box.innerHTML=h;
 }
 async function cloudInboxRefresh(force){
  if(!cloudInboxOn()||cloudInbox.busy)return;
@@ -3844,7 +3858,8 @@ async function cloudInboxRefresh(force){
  cloudInbox.busy=true;
  try{
   const r=await InvCloud.call('inboxList',{});
-  Object.assign(cloudInbox,{files:r.files||[],label:r.label||'',linked:r.linked||0,err:''});
+  Object.assign(cloudInbox,{files:r.files||[],linked:r.linked||0,err:''});
+  const ids=new Set(cloudInbox.files.map(f=>f.id));[...cloudInbox.sel].forEach(id=>{if(!ids.has(id))cloudInbox.sel.delete(id)});   // 已經匯入或被移走的就不再勾著
  }catch(e){
   // 後端還沒更新（unknown_action）或沒有權限（denied）：不打擾，不顯示橫幅
   cloudInbox.files=[];cloudInbox.err=(e&&(e.code==='unknown_action'||e.code==='denied'||e.code==='unauthorized'))?'':(e&&e.message)||'讀取失敗';
@@ -3852,11 +3867,11 @@ async function cloudInboxRefresh(force){
 }
 function cloudB64ToFile(b64,name,type){const raw=atob(b64),u=new Uint8Array(raw.length);for(let i=0;i<raw.length;i++)u[i]=raw.charCodeAt(i);return new File([u],name,{type})}
 async function cloudInboxImport(){
- const c=cloudInbox;if(c.busy||!c.files.length)return;
+ const c=cloudInbox,list=c.files.filter(f=>c.sel.has(f.id));if(c.busy||!list.length)return;   // 只匯入勾選的
  if(batchBusy){toast('目前正在辨識，請等這一批完成再匯入');return}
  if(batchRows.some(r=>!r.saved)&&!confirm('批次清單裡還有尚未儲存的發票，匯入會取代它們，是否繼續？'))return;
  c.busy=true;
- const list=c.files.slice(),got=new Array(list.length),failed=[];let done=0;
+ const got=new Array(list.length),failed=[];let done=0;
  const prog=()=>{c.progress='正在從雲端資料夾下載發票… '+done+'/'+list.length;renderCloudInbox()};prog();
  try{
   await runLimited(list,3,async(f,i)=>{
@@ -3869,12 +3884,35 @@ async function cloudInboxImport(){
   const dt=new DataTransfer();
   ok.forEach(g=>{dt.items.add(g.file);cloudIdByFile.set(cloudKey(g.file),g.f.id)});
   el('files').files=dt.files;
+  ok.forEach(g=>c.sel.delete(g.f.id));c.open=false;   // 匯入成功的不再勾著，清單收起來
   autoStartBatch(ok.length);   // 一律用批次（只有 1 張也一樣，這樣存的時候才記得到雲端檔案 ID）
   if(failed.length)toast('有 '+failed.length+' 張下載失敗：'+failed.slice(0,3).join('；'));
  }catch(e){c.err=(e&&e.message)||'匯入失敗'}
  finally{c.progress='';c.busy=false;c.last=0;renderCloudInbox()}
 }
-document.addEventListener('click',e=>{const b=e.target.closest&&e.target.closest('#cloudInboxImport,#cloudInboxRefresh');if(!b)return;if(b.id==='cloudInboxImport')cloudInboxImport();else cloudInboxRefresh(true)});
+// 預覽：下載這一張，用全螢幕蓋住畫面顯示（點一下或按 Esc 關閉）；PDF 開新分頁
+async function cloudPreview(id){
+ if(!cloudInbox.files.some(x=>x.id===id))return;
+ toast('正在讀取預覽…');
+ try{
+  const r=await InvCloud.call('inboxGet',{id}),file=cloudB64ToFile(r.b64,r.name,r.type),url=URL.createObjectURL(file);
+  if(r.type==='application/pdf'){window.open(url,'_blank');setTimeout(()=>URL.revokeObjectURL(url),60000);return}
+  const ov=document.createElement('div');ov.id='cloudPreview';ov.title='點一下關閉';
+  ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.8);z-index:9999;display:flex;align-items:center;justify-content:center;cursor:zoom-out';
+  ov.innerHTML='<img alt="" style="max-width:94vw;max-height:94vh;background:#fff">';ov.querySelector('img').src=url;
+  const onKey=ev=>{if(ev.key==='Escape')close()},close=()=>{ov.remove();URL.revokeObjectURL(url);document.removeEventListener('keydown',onKey)};
+  ov.addEventListener('click',close);document.addEventListener('keydown',onKey);document.body.appendChild(ov);
+ }catch(e){toast('預覽失敗：'+((e&&e.message)||''))}
+}
+document.addEventListener('click',e=>{
+ const b=e.target.closest&&e.target.closest('#cloudInboxImport,#cloudInboxRefresh,#cloudInboxToggle,#cloudInboxAll,#cloudInboxNone,.cloud-prev');if(!b)return;
+ if(b.id==='cloudInboxImport')cloudInboxImport();
+ else if(b.id==='cloudInboxRefresh')cloudInboxRefresh(true);
+ else if(b.id==='cloudInboxToggle'){cloudInbox.open=!cloudInbox.open;renderCloudInbox()}
+ else if(b.id==='cloudInboxAll'||b.id==='cloudInboxNone'){const all=b.id==='cloudInboxAll';cloudInbox.sel.clear();if(all)cloudInbox.files.forEach(f=>cloudInbox.sel.add(f.id));$('cloudInbox').querySelectorAll('input[data-cid]').forEach(i=>{i.checked=all});cloudInboxCount()}
+ else if(b.classList.contains('cloud-prev'))cloudPreview(b.dataset.cid);
+});
+document.addEventListener('change',e=>{const i=e.target;if(!i||!i.matches||!i.matches('#cloudInbox input[data-cid]'))return;if(i.checked)cloudInbox.sel.add(i.dataset.cid);else cloudInbox.sel.delete(i.dataset.cid);cloudInboxCount()});
 // 打開執行長發票頁（#entry 的 class 改變）、視窗回到前景、每 2 分鐘：檢查一次（最快每分鐘一次）
 if($('entry'))new MutationObserver(()=>{cloudInboxRefresh()}).observe($('entry'),{attributes:true,attributeFilter:['class']});
 window.addEventListener('focus',()=>cloudInboxRefresh());
