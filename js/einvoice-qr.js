@@ -19,6 +19,7 @@
   // 第二道解碼器（zxing-cpp 的 WebAssembly 版）：jsQR 讀不到時才載入，約 1MB。實測手機拍的發票照片，
   // 左邊那個密度較高的 QR code jsQR 讀不到，zxing 放大 2 倍後讀得到
   var ZXING_BASE = 'https://cdn.jsdelivr.net/npm/zxing-wasm@3.0.3/dist/';
+  var JSQR_BUDGET_MS = 6000; // jsQR 最多花這麼久（至少會跑完第一輪），超過就換 zxing
 
   // ---------- 解析 ----------
   function asBytes(x) {
@@ -271,6 +272,7 @@
     if (S <= 2000) passes.push([0, 0, W, H, 2]);
     else [[0, 0], [0.4, 0], [0, 0.4], [0.4, 0.4]].forEach(function (o) { passes.push([W * o[0], H * o[1], W * 0.6, H * 0.6, Math.min(1, 3000 / (0.6 * S))]); });
     passes.push([W * 0.05, H * 0.2, W * 0.9, H * 0.6, S * 0.9 <= 2000 ? 2 : 1]);
+    if (S > 2000) [0, 0.25, 0.5].forEach(function (oy) { [0, 0.25, 0.5].forEach(function (ox) { passes.push([W * ox, H * oy, W * 0.5, H * 0.5, 2]); }); });
     for (var i = 0; i < passes.length && !done(); i++) {
       var p = passes[i], c = newCanvas(p[2] * p[4], p[3] * p[4]), ctx = c.getContext('2d', { willReadFrequently: true });
       ctx.imageSmoothingEnabled = p[4] < 1; ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, c.width, c.height);
@@ -301,7 +303,9 @@
     passes.push([W * 0.05, H * 0.2, W * 0.9, H * 0.6, Math.min(1, 2600 / (0.9 * S)), 'dontInvert']);
     passes.push([0, 0, W, H, 0.75 * base, 'dontInvert']);
     passes.push([0, 0, W, H, base, 'attemptBoth']);
+    var t0 = Date.now();
     for (var i = 0; i < passes.length && !done(); i++) {
+      if (i > 0 && Date.now() - t0 > JSQR_BUDGET_MS) break; // 超過時間預算：剩下的輪次交給 zxing
       var p = passes[i], tmp = [];
       try { scanRegion(jsQR, canvas, p[0], p[1], p[2], p[3], p[4], p[5], tmp); } catch (e) { /* 這一輪失敗就換下一輪 */ }
       tmp.forEach(function (b) { addUnique(found, b); });
