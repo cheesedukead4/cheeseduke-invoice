@@ -280,11 +280,70 @@
       var img = ctx.getImageData(0, 0, c.width, c.height);
       for (var j = 0; j < 2 && !done(); j++) {
         try {
-          var res = await Z.readBarcodes(img, { formats: ['QRCode'], binarizer: j ? 'GlobalHistogram' : 'LocalAverage', tryHarder: true, tryRotate: true, tryInvert: true, tryDownscale: true, maxNumberOfSymbols: 4 });
-          res.forEach(function (r) { if (r.isValid && r.bytes && r.bytes.length) addUnique(found, Uint8Array.from(r.bytes)); });
+          var probe = i === 0;
+          var res = await Z.readBarcodes(img, { formats: ['QRCode'], binarizer: j ? 'GlobalHistogram' : 'LocalAverage', tryHarder: true, tryRotate: true, tryInvert: true, tryDownscale: true, maxNumberOfSymbols: probe ? 6 : 4, returnErrors: probe });
+          res.forEach(function (r) {
+            if (r.isValid && r.bytes && r.bytes.length) addUnique(found, Uint8Array.from(r.bytes));
+            else if (probe && r.position && Math.abs(r.position.bottomRight.x - r.position.topLeft.x) > 20) found._sawQR = true; // 看得到 QR、解不出來
+          });
         } catch (e) { /* 這一輪失敗就換下一輪 */ }
       }
       c.width = c.height = 0;
+    }
+    if (!done() && (found._sawQR || found.length)) { try { await scanEnhanced(Z, canvas, found, done); } catch (e) { console.warn('強化讀取失敗', e); } }
+  }
+  // ---------- 低解析度／模糊／微彎曲的照片：橫帶裁切 + 整數倍放大 + 對比拉伸（再不行加銳利化）----------
+  // 實測（使用者傳來的 7 張真實發票照片，1108×1477）：左邊那個較密的 QR 每個點只有 2 像素左右，
+  // zxing 偵測得到它的位置卻解不出來（校驗錯誤），原本各種讀法只讀到 1 張；
+  // 把照片切成上下重疊的橫帶、放大 3～4 倍、拉伸對比（有的還要銳利化）之後，7 張全部讀得到。
+  // 只在前面每一輪都沒讀齊時才跑，所以不影響原本就讀得到的照片
+  function enhGray(d, n) { var g = new Float32Array(n); for (var i = 0; i < n; i++) g[i] = 0.299 * d[i * 4] + 0.587 * d[i * 4 + 1] + 0.114 * d[i * 4 + 2]; return g; }
+  function boxBlurOnce(src, w, h, r) {
+    var tmp = new Float32Array(src.length), out = new Float32Array(src.length), x, y, s, row, k = 2 * r + 1;
+    for (y = 0; y < h; y++) {
+      row = y * w; s = 0; for (x = -r; x <= r; x++) s += src[row + Math.min(w - 1, Math.max(0, x))];
+      for (x = 0; x < w; x++) { tmp[row + x] = s / k; s += src[row + Math.min(w - 1, x + r + 1)] - src[row + Math.max(0, x - r)]; }
+    }
+    for (x = 0; x < w; x++) {
+      s = 0; for (y = -r; y <= r; y++) s += tmp[Math.min(h - 1, Math.max(0, y)) * w + x];
+      for (y = 0; y < h; y++) { out[y * w + x] = s / k; s += tmp[Math.min(h - 1, y + r + 1) * w + x] - tmp[Math.max(0, y - r) * w + x]; }
+    }
+    return out;
+  }
+  function enhUnsharp(g, w, h, r, amount) { var bl = boxBlurOnce(boxBlurOnce(g, w, h, r), w, h, r), o = new Float32Array(g.length); for (var i = 0; i < g.length; i++) o[i] = g[i] + amount * (g[i] - bl[i]); return o; }
+  // 對比拉伸：把第 2% 到第 98% 的亮度拉到 0～255，回傳 RGBA
+  function enhStretch(g) {
+    var hist = new Uint32Array(256), i, n = g.length;
+    for (i = 0; i < n; i++) hist[Math.max(0, Math.min(255, Math.round(g[i])))]++;
+    var lo = 0, hi = 255, acc = 0; for (i = 0; i < 256; i++) { acc += hist[i]; if (acc >= n * 0.02) { lo = i; break; } }
+    acc = 0; for (i = 255; i >= 0; i--) { acc += hist[i]; if (acc >= n * 0.02) { hi = i; break; } }
+    var k = 255 / Math.max(1, hi - lo), a = new Uint8ClampedArray(n * 4);
+    for (i = 0; i < n; i++) { var v = (g[i] - lo) * k; a[i * 4] = a[i * 4 + 1] = a[i * 4 + 2] = v; a[i * 4 + 3] = 255; }
+    return a;
+  }
+  async function scanEnhanced(Z, canvas, found, done) {
+    var W = canvas.width, H = canvas.height, t0 = Date.now(), sh = Math.max(1, Math.round(H * 0.5));
+    var up = Math.max(1, Math.min(5, Math.round(3500 / W)));
+    while (up > 1 && W * up * sh * up > 12e6) up--;   // 太大就少放大一點（省記憶體）
+    var offs = [0, 0.25, 0.5];
+    for (var o = 0; o < offs.length && !done(); o++) {
+      if (o > 0 && Date.now() - t0 > 25000) break;
+      var sy = Math.max(0, Math.min(H - sh, Math.round(H * offs[o]))), cw = W * up, ch = sh * up, c = newCanvas(cw, ch), ctx = c.getContext('2d', { willReadFrequently: true });
+      ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high'; ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, cw, ch);
+      ctx.drawImage(canvas, 0, sy, W, sh, 0, 0, cw, ch);
+      var g = enhGray(ctx.getImageData(0, 0, cw, ch).data, cw * ch);
+      c.width = c.height = 0;
+      for (var v = 0; v < 2 && !done(); v++) {
+        var arr = enhStretch(v ? enhUnsharp(g, cw, ch, up * 2, 1.5) : g);   // 先只拉伸對比；不行再加銳利化
+        var img = typeof ImageData !== 'undefined' ? new ImageData(arr, cw, ch) : { data: arr, width: cw, height: ch, colorSpace: 'srgb' };
+        for (var j = 0; j < 2 && !done(); j++) {
+          try {
+            var res = await Z.readBarcodes(img, { formats: ['QRCode'], binarizer: j ? 'GlobalHistogram' : 'LocalAverage', tryHarder: true, tryRotate: true, tryInvert: true, tryDownscale: true, maxNumberOfSymbols: 4 });
+            res.forEach(function (r) { if (r.isValid && r.bytes && r.bytes.length) addUnique(found, Uint8Array.from(r.bytes)); });
+          } catch (e) { /* 這一輪失敗就換下一輪 */ }
+        }
+        await new Promise(function (r) { setTimeout(r, 0); }); // 讓畫面有機會更新
+      }
     }
   }
   function addUnique(list, bytes) { var k = Array.prototype.join.call(bytes, ','); if (!list._seen) list._seen = {}; if (!list._seen[k]) { list._seen[k] = 1; list.push(bytes); } }
