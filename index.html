@@ -3301,6 +3301,54 @@ async function improveImage(source){
  if(bitmap!==source&&bitmap.close)bitmap.close();return canvas;
 }
 async function getWorker(){try{await LazyLibs.ensure('ocr')}catch(_){throw Error('OCR 模組載入失敗，請連接網路後再試')}if(!worker){show('第一次啟用：正在下載繁體中文及英文辨識資料，可能需要約 10–60 秒…');worker=await Tesseract.createWorker('chi_tra+eng',1,{logger:m=>{if(m.status==='recognizing text')show(`正在辨識發票文字：${Math.round((m.progress||0)*100)}%`);else if(/loading|initializing/i.test(m.status))show('正在載入 OCR 引擎與辨識資料…')}})}return worker}
+// ===OCR-POOL-BEGIN
+// 批次辨識：文字辨識（Tesseract）在背景執行緒（Web Worker）裡跑，可以真的同時辨識好幾張。
+// 引擎「用到才建立」：QR code 讀得到的發票完全不需要引擎；同時開幾個依裝置決定（電腦 3、手機 2；處理器核心少或記憶體小的裝置只開 1），批次做完就把多開的收掉，把記憶體還回去。
+const ocrPool=[],ocrWaiters=[];let ocrFirstReady=null,ocrCapLimit=0;
+function ocrPoolSizeFor(cores,mem,mobile){let n=mobile?2:3;if(cores&&cores-1<n)n=Math.max(1,cores-1);if(mem&&mem<=2)n=1;return n}
+function ocrPoolMax(){
+ const nav=typeof navigator!=='undefined'?navigator:{};
+ const mobile=/Android|iPhone|iPad|iPod|Mobile/i.test(nav.userAgent||'')||(typeof matchMedia==='function'&&!matchMedia('(hover:hover) and (pointer:fine)').matches);
+ const n=ocrPoolSizeFor(nav.hardwareConcurrency,nav.deviceMemory,mobile);
+ return ocrCapLimit?Math.min(n,ocrCapLimit):n;
+}
+// 取一個閒置的引擎（沒有就在上限內新開一個，再沒有就排隊等別人用完）；第一個引擎沿用單張辨識用的那一個，多開的要等第一個載好語言資料再開（第一次使用才不會同時重複下載）
+async function acquireOcrWorker(){
+ for(;;){
+  const idle=ocrPool.find(e=>e.w&&!e.busy);
+  if(idle){idle.busy=true;return idle}
+  if(ocrPool.length<ocrPoolMax()){
+   const ent={w:null,busy:true},first=ocrPool.length===0;let firstBad=false;ocrPool.push(ent);
+   try{
+    if(first){ocrFirstReady=getWorker();ent.w=await ocrFirstReady}
+    else{try{await ocrFirstReady}catch(e){firstBad=true;throw e}ent.w=await Tesseract.createWorker('chi_tra+eng',1,{})}
+    return ent;
+   }catch(e){
+    const k=ocrPool.indexOf(ent);if(k>=0)ocrPool.splice(k,1);
+    if(first||firstBad)throw e;   // 第一個引擎就載入失敗（例如辨識模組下載不到）：直接回報錯誤
+    ocrCapLimit=Math.max(1,ocrPool.length);   // 多開的引擎建不起來（記憶體不足等）：這一批就只用現有的
+    continue;
+   }
+  }
+  return await new Promise(res=>ocrWaiters.push(res));
+ }
+}
+function releaseOcrWorker(ent){if(!ent)return;const next=ocrWaiters.shift();if(next)next(ent);else ent.busy=false}
+// 批次做完：多開的引擎關掉，只留第一個
+async function shrinkOcrPool(){
+ for(;;){
+  const k=ocrPool.findIndex((e,i)=>i>0&&e.w&&!e.busy);if(k<0)break;
+  const ent=ocrPool.splice(k,1)[0];try{await ent.w.terminate()}catch(_){}
+ }
+}
+// 最多同時跑 limit 件；某一件出錯不影響其他件（fn 自己處理錯誤，這裡只是保險）
+async function runLimited(items,limit,fn){
+ let next=0;const results=new Array(items.length);
+ const lane=async()=>{while(next<items.length){const i=next++;try{results[i]=await fn(items[i],i)}catch(e){results[i]={error:e}}}};
+ await Promise.all(Array.from({length:Math.max(1,Math.min(limit,items.length))},lane));
+ return results;
+}
+// ===OCR-POOL-END
 // QR code 只存品名、數量、單價；證明聯下方「交易明細」才印出套餐底下的 (附)… 與去冰／無糖等行。
 // QR 讀完、表單填好之後，在背景用文字辨識把這些行補進該品項的項目說明（單行頁面用 psm 6 對這種直式小票最準；讀不到就維持 QR 的結果）
 async function ocrReceiptText(file,variant='soft'){
@@ -3637,7 +3685,9 @@ function selectCrossChecked(rounds){
  const fields=['invoiceDate','invoiceNo','taxId','vendor','amount'];
  const values={},conflicts=[],votes={};
  for(const k of fields){
-  const samples=rounds.map(r=>r.data[k]).filter(v=>v!==undefined&&v!==null&&v!=='');
+  let samples=rounds.map(r=>r.data[k]).filter(v=>v!==undefined&&v!==null&&v!=='');
+  // 統編有檢查碼，真的統編一定通過；各輪不一致時，沒通過的一定有數字讀錯，只在通過的候選之間投票（全都沒通過才維持原樣，交給人核對）
+  if(k==='taxId'){const ok=samples.filter(v=>taxOk(String(v).trim()));if(ok.length&&ok.length<samples.length)samples=ok}
   const counts=new Map();for(const v of samples){const key=String(v).trim();counts.set(key,(counts.get(key)||0)+1)}
   const sorted=[...counts].sort((a,b)=>b[1]-a[1]);
   if(!sorted.length)continue;
@@ -3668,10 +3718,11 @@ async function recognizeOne(file,force=false){
  try{const qr=await window.EInvoiceQR.scanFile(file);
   if(qr)return {data:{invoiceDate:qr.invoiceDate,invoiceNo:qr.invoiceNo,taxId:qr.sellerId,amount:qr.total},raw:'資料來源：發票 QR code（'+(qr.hasRight?'左＋右':'只讀到左邊')+'）\n隨機碼 '+qr.randomCode+'；銷售額 '+qr.sales+'；總計額 '+qr.total+'；品項 '+qr.items.length+'/'+(qr.declaredTotal||qr.items.length),rounds:0,uncertain:[],votes:{},conflicts:[],qr}}
  catch(e){console.warn('QR code 讀取失敗，改用文字辨識',e)}
- const w=await getWorker(),source=await loadImage(file);
+ const source=await loadImage(file);let ent=null,w=null;
  const variants=['soft','sharp','binary'];
  const rounds=[],raw=[],errors=[];
  try{
+  ent=await acquireOcrWorker();w=ent.w;
   for(let idx=0;idx<variants.length;idx++){
    const mode=variants[idx];let canvas;
    try{
@@ -3683,13 +3734,15 @@ async function recognizeOne(file,force=false){
    }catch(e){errors.push(e);raw.push(`【${mode} 辨識錯誤】${e.message||e}`)}
    finally{if(canvas){canvas.width=0;canvas.height=0}}
   }
- }finally{await w.setParameters({tessedit_pageseg_mode:'3'}).catch(()=>{});if(source instanceof HTMLCanvasElement){source.width=0;source.height=0}}
+ }finally{if(w){try{await w.setParameters({tessedit_pageseg_mode:'3'})}catch(_){}}if(ent)releaseOcrWorker(ent);if(source instanceof HTMLCanvasElement){source.width=0;source.height=0}}
  if(!rounds.length)throw errors[0]||Error('辨識模組未回傳文字');
  // 合併原文用於補回分行標籤，但其擷取只補空值，不參與投票，避免把同一證據重複計票。
  const decision=selectCrossChecked(rounds),combined=extractInvoice(rounds.map(r=>r.text).join('\n'));
  mergeRecognized(decision.values,combined);
  const uncertain=decision.conflicts.map(c=>c.key);
- return {data:decision.values,raw:raw.join('\n\n---\n\n'),rounds:rounds.length,uncertain,votes:decision.votes,conflicts:decision.conflicts};
+ const tv=String(decision.values.taxId||'').trim(),taxCheckFail=!!tv&&!taxOk(tv);
+ if(taxCheckFail&&!uncertain.includes('taxId'))uncertain.push('taxId');   // 統編沒通過檢查碼＝一定有數字讀錯，要人核對
+ return {data:decision.values,taxNote:tv?'':(combined.taxNote||''),taxCheckFail,raw:raw.join('\n\n---\n\n'),rounds:rounds.length,uncertain,votes:decision.votes,conflicts:decision.conflicts};
 }
 async function retryBatchRow(i){
  const r=batchRows[i];if(batchBusy||!r||r.saved)return;
@@ -3716,16 +3769,19 @@ el('batchScan').addEventListener('click',async()=>{
  batchBusy=true;el('batchScan').disabled=true;el('batchDraft').disabled=true;el('batchSubmit').disabled=true;
  disposeBatchURLs();batchRows=files.map(f=>({file:f,values:{invoiceDate:'',invoiceNo:'',vendor:'',taxId:'',amount:'',dept:authUser?.dept||'',applicant:authUser?.name||'',requestDate:'',dueDate:'',payee:'',payment:'匯款',transferHistory:'非首次匯款',feeDeduction:'不扣匯費',voucherMissing:0,description:'',memo:''},claim:{items:[{description:'發票費用',amount:0,allocations:[{dept:authUser?.dept||'',ratio:100}]}],allocations:[{dept:authUser?.dept||'',ratio:100}]},claimAutoAmount:true,passbookFile:null,selected:true,error:'',note:'等待辨識',raw:'',ocrVendor:'',vendorSource:'待辨識',saved:false,manualFields:new Set(),uncertain:[]}));
  batchURLs=files.map(f=>f.type.startsWith('image/')?URL.createObjectURL(f):'');renderBatch();
- for(let i=0;i<batchRows.length;i++){
-  const r=batchRows[i];batchProgress(`辨識第 ${i+1}/${files.length} 張：${r.file.name}（依序處理，請勿關閉網頁）`);
+ ocrCapLimit=0;let doneN=0;const running=new Set(),laneN=ocrPoolMax()+1;
+ const progress=()=>batchProgress(`已完成 ${doneN}/${files.length} 張${running.size?'；辨識中：第 '+[...running].sort((a,b)=>a-b).map(x=>x+1).join('、')+' 張':''}（最多同時辨識 ${laneN} 張，請勿關閉網頁）`);
+ const scanRow=async i=>{
+  const r=batchRows[i];running.add(i);progress();
   try{const result=await recognizeOne(r.file);r.raw=result.raw;Object.assign(r.values,result.data);if(AUTO_FILL_CLAIM_ITEMS&&r.claimAutoAmount&&r.claim.items.length===1)r.claim.items[0].amount=moneyValue(r.values.amount);
   if(result.qr){applyQRToBatchRow(r,result.qr);if(AUTO_FILL_CLAIM_ITEMS){r.qrObj=result.qr;r.qrSnap=claimSnapshot(r.claim.items)}}r.ocrVendor=result.data.vendor||'';r.uncertain=result.uncertain;
   if(validTax(r.values.taxId)){await verifyBatchSeller(i,result.data.vendor||'');if(r.registryVerified)r.uncertain=(r.uncertain||[]).filter(k=>k!=='vendor');}
-  else {r.registryVerified=false;r.vendorSource=(result.data.taxNote||'未讀到賣方統編')+'；'+(r.ocrVendor?'OCR 廠商名稱待核對':'請人工填入廠商名稱');}
-  let n=batchKeys.filter(k=>r.values[k]!==undefined&&r.values[k]!=='').length;r.note=result.qr?`發票 QR code 讀取 ${n}/5 欄（廠商名稱由統編查詢）；${r.qrNote}；請核對`:`OCR 辨識 ${n}/5 欄（${result.rounds} 輪）${r.uncertain?.length?'；⚠ 多輪結果不一致：'+r.uncertain.map(k=>({invoiceDate:'日期',invoiceNo:'號碼',taxId:'統編',vendor:'廠商',amount:'金額'})[k]).join('、'):''}；請逐欄核對原圖`;}
+  else {r.registryVerified=false;r.vendorSource=(result.taxNote||'未讀到賣方統編')+'；'+(r.ocrVendor?'OCR 廠商名稱待核對':'請人工填入廠商名稱');}
+  let n=batchKeys.filter(k=>r.values[k]!==undefined&&r.values[k]!=='').length;r.note=result.qr?`發票 QR code 讀取 ${n}/5 欄（廠商名稱由統編查詢）；${r.qrNote}；請核對`:`OCR 辨識 ${n}/5 欄（${result.rounds} 輪）${r.uncertain?.length?'；⚠ 需核對（多輪結果不一致，或統編沒通過檢查碼、可能讀錯一個數字）：'+r.uncertain.map(k=>({invoiceDate:'日期',invoiceNo:'號碼',taxId:'統編',vendor:'廠商',amount:'金額'})[k]).join('、'):''}；請逐欄核對原圖`;}
   catch(err){r.error='辨識失敗：'+(err.message||String(err))+'；可手動填寫';r.selected=false}
-  renderBatch();
- }
+  running.delete(i);doneN++;renderBatch();progress();
+ };
+ try{await runLimited(batchRows.map((_,i)=>i),laneN,scanRow)}finally{await shrinkOcrPool()}
  // QR 都讀完後，依序用文字辨識補每張的附餐明細（讀不到就維持 QR 的結果；使用者若已改過請款項目就不覆蓋）
  for(let i=0;i<batchRows.length;i++){
   const r=batchRows[i];if(!r.qrObj||r.saved)continue;
