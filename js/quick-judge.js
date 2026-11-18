@@ -159,7 +159,7 @@
   // 把標籤寫到項目說明開頭（原本有標籤就換掉）
   function applyLabel(desc, label) {
     var pl = parseLabel(desc), rest = pl ? pl.rest : String(desc == null ? '' : desc).trim();
-    if (rest === '發票費用') rest = '';
+    if (rest === '發票費用' || rest === String(label).split('-')[0]) rest = ''; // 說明只是品類名稱（統稱）時，不要寫成「食品-研發：食品」
     return rest ? label + '：' + rest : label;
   }
   function stripLabel(desc) { var pl = parseLabel(desc); return pl ? pl.rest : String(desc == null ? '' : desc).trim(); }
@@ -189,6 +189,52 @@
     });
     return groups;
   }
+  // 統稱：把整張發票的明細整理成「一筆」請款項目。名稱由品類表決定（咖啡、雞腿飯 → 食品；多個品類時依金額由大到小列前兩個）；
+  // 品類表沒有的，用下面這幾個一般用語（加油、洗車…）；都沒有的，取品名裡共同的字（桂冠花生小湯圓＋桂冠芝麻小湯圓 → 小湯圓），再沒有就「第一個品名＋等」。
+  // 折扣、點數折抵、稅額、尾差這些行不參與命名，只進合計；金額＝所有行加總（＝發票總計）。lines：[{description, amount}]
+  var UMBRELLA = [
+    { name: '油費', kw: ['無鉛', '汽油', '柴油', '加油', '油品', '主油', '油資'] },
+    { name: '洗車', kw: ['洗車', '鍍膜', '打蠟'] }
+  ];
+  function umbrellaOf(text) {
+    var t = norm(text);
+    for (var i = 0; i < UMBRELLA.length; i++) if (UMBRELLA[i].kw.some(function (k) { return t.indexOf(k) >= 0; })) return UMBRELLA[i].name;
+    return '';
+  }
+  // 所有品名共同的最長片段（至少 2 個字、要有中英文字，不能只有數字或符號）
+  function commonSub(names) {
+    var base = names.slice().sort(function (a, b) { return a.length - b.length; })[0] || '';
+    for (var len = base.length; len >= 2; len--) {
+      for (var i = 0; i + len <= base.length; i++) {
+        var s = base.slice(i, i + len);
+        if (s.trim().length < 2 || !/[A-Za-z\u3400-\u9fff]/.test(s)) continue;
+        if (names.every(function (n) { return n.indexOf(s) >= 0; })) return s.trim();
+      }
+    }
+    return '';
+  }
+  function summarize(lines, ctx) {
+    var total = 0, items = [], tally = {}, order = [];
+    (lines || []).forEach(function (l) {
+      var d = String(l.description == null ? '' : l.description).trim(), amt = Number(l.amount) || 0;
+      total += amt;
+      if (ADJUST_RE.test(d) && !parseLabel(d)) return;   // 稅額、尾差等對帳補的行：只進金額
+      if (amt < 0 || !d) return;                          // 折扣、點數折抵：只進金額
+      items.push({ d: stripLabel(d) || d, d0: d, amt: amt });
+    });
+    items.forEach(function (it) {
+      var j = judgeLine(it.d0, ctx), nm = j ? j.cat : umbrellaOf(it.d);
+      if (!nm) return;
+      if (!(nm in tally)) { tally[nm] = 0; order.push(nm); }
+      tally[nm] += it.amt;
+    });
+    var cats = order.slice().sort(function (a, b) { return tally[b] - tally[a] || order.indexOf(a) - order.indexOf(b); });
+    var names = uniq(items.map(function (it) { return it.d; })), label = '', basis = '';
+    if (cats.length) { label = cats.length <= 2 ? cats.join('、') : cats.slice(0, 2).join('、') + '等'; basis = 'category'; }
+    else if (names.length === 1) { label = names[0]; basis = 'item'; }
+    else if (names.length > 1) { label = commonSub(names) || (names[0] + '等'); basis = 'items'; }
+    return { description: label, amount: Math.round(total * 100) / 100, names: names, categories: cats, basis: basis };
+  }
   function uniq(a) { var seen = {}, out = []; a.forEach(function (x) { if (!seen[x]) { seen[x] = 1; out.push(x); } }); return out; }
 
   // 建議分攤部門。depts：[{name, prefix}]（部門名稱與科目代號編碼）。
@@ -213,7 +259,7 @@
     isDefault: isDefault,
     get CATS() { return CATS; }, get PURPOSES() { return PURPOSES.map(function (p) { return p.name; }); }, get LABELS() { return LABELS; },
     setRules: setRules, resetRules: resetRules, getRules: getRules, defaultRules: defaultRules, sanitize: sanitize,
-    classify: classify, foodPurpose: foodPurpose, parseLabel: parseLabel, judgeLine: judgeLine, applyLabel: applyLabel, stripLabel: stripLabel, groupLines: groupLines, suggestDepts: suggestDepts
+    classify: classify, foodPurpose: foodPurpose, parseLabel: parseLabel, judgeLine: judgeLine, applyLabel: applyLabel, stripLabel: stripLabel, groupLines: groupLines, summarize: summarize, suggestDepts: suggestDepts
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.QuickJudge = api;
 })(typeof window !== 'undefined' ? window : this);

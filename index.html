@@ -1589,20 +1589,22 @@ $('qjGroup').onclick=()=>{const next=qjRegroup(singleClaimItems,qjCtxSingle(),$(
 // 按「重新依發票明細整理」（auto=false）則是已經填了內容會先問。回傳整理後的項數（0＝沒做）
 const qjItemsSnap=items=>JSON.stringify((items||[]).map(l=>[l.description,Number(l.amount)||0]));
 const qjItemsBlank=items=>(items||[]).every(x=>(!x.description||x.description==='發票費用')&&!moneyValue(x.amount));
+// 使用者要求：判讀完明細後整理成「一筆統稱」（不再逐品類列出）——名稱規則見 QuickJudge.summarize；金額＝發票總計
 function qjGroupsFromQR(qr,ctx,dept){
- const cl=window.EInvoiceQR.claimLines(qr),groups=QuickJudge.groupLines(cl.lines,ctx);
- return {note:cl.note,groups,items:groups.map(g=>({description:g.description,amount:g.amount,accountCode:'',accountName:'',allocations:[{dept:dept||'',ratio:100}]}))};
+ const cl=window.EInvoiceQR.claimLines(qr),s=QuickJudge.summarize(cl.lines,ctx),desc=s.description||'發票費用';
+ return {note:cl.note,summary:s,groups:[{label:s.description,description:desc,amount:s.amount,names:s.names}],items:[{description:desc,amount:s.amount,accountCode:'',accountName:'',allocations:[{dept:dept||'',ratio:100}]}]};
 }
+const qjSumText=s=>'「'+(s.description||'發票費用')+'」'+(s.names&&s.names.length?'（明細：'+s.names.slice(0,6).join('、')+(s.names.length>6?'…':'')+'）':'');
 function qjFillSingle(qr,auto){
  if(!qr||!qr.items||!qr.items.length)return 0;
  const r=qjGroupsFromQR(qr,qjCtxSingle(),$('dept').value);if(!r.groups.length)return 0;
  const untouched=qjItemsBlank(singleClaimItems)||qjItemsSnap(singleClaimItems)===window.qjAutoSnap;
  if(auto?!untouched:!untouched&&!confirm('目前已經填了請款項目，要換成依發票明細整理的結果嗎？'))return 0;
- singleClaimItems=r.items;singleAmountLinked=false;displaySingleClaimItems();window.qjAutoSnap=qjItemsSnap(singleClaimItems);
+ singleClaimItems=r.items;singleAmountLinked=false;displaySingleClaimItems();window.qjAutoSnap=qjItemsSnap(singleClaimItems);window.qjLastSummary=r.summary;
  return r.groups.length;
 }
 $('ocrValues').addEventListener('click',e=>{if(!e.target.closest('#qjFromQR')||!window.qjQR)return;
- const n=qjFillSingle(window.qjQR,false);if(n)toast('已依發票明細整理成 '+n+' 項；食品請選用途，並確認分攤')});
+ const n=qjFillSingle(window.qjQR,false);if(n)toast('已依發票明細整理成一筆統稱'+qjSumText(window.qjLastSummary)+'；可直接改名稱，食品請選用途，並確認分攤')});
 // ===== 🗄 資料庫（集中管理）：所有資料庫的總覽與維護，只有管理員。各表單只讀取使用；原本散在「會計科目」頁與「執行長發票上傳」頁的資料庫面板都搬到這裡 =====
 const DB_CATALOG=[
  {id:'accounts',pane:'accounts',icon:'📒',name:'會計科目表',store:'accounts',desc:'正確的科目代號與名稱：財務覆核只能選表內的科目，輸入代號自動帶出名稱',used:'財務覆核、快速判讀',who:'管理員、財務'},
@@ -3404,12 +3406,12 @@ async function applyQRToSingle(file){
   // 快速判讀：按了才把明細依品類整理成請款項目（咖啡、雞腿飯 → 食品），不會自動填
   // 快速判讀：辨識出發票明細之後自動轉成分類（咖啡、雞腿飯 → 食品…），同品類合併成請款項目；請款項目已經有人填過的不取代
   if(qr.items.length){window.qjQR=qr;qjDone=qjFillSingle(qr,true);
-   cards.push('<div><b>快速判讀</b>'+(qjDone?'已依發票明細自動轉成分類，整理成 '+qjDone+' 項請款項目（同品類合併、合計等於發票總計）。食品請再選用途（研發／職工福利／交際費），並確認分攤。':'請款項目已經有內容，沒有自動取代。')+' <button type="button" id="qjFromQR">🔎 重新依發票明細整理</button></div>')}}
+   cards.push('<div><b>快速判讀</b>'+(qjDone?'已依發票明細整理成一筆統稱'+esc(qjSumText(window.qjLastSummary))+'，金額＝發票總計；可直接改名稱。食品請再選用途（研發／職工福利／交際費），並確認分攤。':'請款項目已經有內容，沒有自動取代。')+' <button type="button" id="qjFromQR">🔎 重新依發票明細整理</button></div>')}}
  if(qr.buyerId&&qr.buyerId!=='00000000')cards.push('<div><b>買方統編</b>'+esc(qr.buyerId)+'（請確認是本公司）</div>');
  el('ocrValues').innerHTML=cards.join('');
  el('ocrRaw').textContent='資料來源：發票 QR code（'+(qr.hasRight?'左＋右':'只讀到左邊')+'）\n隨機碼 '+qr.randomCode+'；銷售額 '+qr.sales+'；總計額 '+qr.total+'；品項 '+qr.items.length+'/'+(qr.declaredTotal||qr.items.length);
  el('ocrReview').classList.remove('hide');
- const doneMsg='已從發票 QR code 讀取：'+filled+'/5 欄'+(AUTO_FILL_CLAIM_ITEMS?'，發票明細 '+cl.lines.length+' 筆':qjDone?'，發票明細已自動轉成分類，整理成 '+qjDone+' 項請款項目（食品請選用途、確認分攤）':'（請款項目明細請自行填寫，QR code 讀到的品項只列在下方供參考）')+'。廠商名稱來源：'+vendorSource+'。請核對後再儲存或送出簽核。';
+ const doneMsg='已從發票 QR code 讀取：'+filled+'/5 欄'+(AUTO_FILL_CLAIM_ITEMS?'，發票明細 '+cl.lines.length+' 筆':qjDone?'，發票明細已整理成一筆統稱（食品請選用途、確認分攤）':'（請款項目明細請自行填寫，QR code 讀到的品項只列在下方供參考）')+'。廠商名稱來源：'+vendorSource+'。請核對後再儲存或送出簽核。';
  if(!AUTO_FILL_CLAIM_ITEMS){show(doneMsg);return true}
  show(doneMsg+'（正在背景讀取交易明細的附餐明細…）');
  const snap=claimSnapshot(singleClaimItems),invNo=qr.invoiceNo;
@@ -3589,9 +3591,9 @@ root.querySelectorAll('[data-bi]').forEach(node=>node.addEventListener('input',(
  root.querySelectorAll('[data-bqj-group]').forEach(node=>node.addEventListener('click',()=>{const r=batchRows[+node.dataset.bqjGroup],next=qjRegroup(r.claim.items,qjCtxBatch(r),r.values.dept);if(!next)return toast('沒有可以合併的項目：同一品類（例如咖啡、雞腿飯都是食品）的項目才會合併');
   r.claim.items=next;r.claimAutoAmount=false;r.error='';renderBatch();toast('已整理成 '+next.length+' 項（金額合計不變）；分攤沿用每組的第一項，請確認用途與分攤')}));
  root.querySelectorAll('[data-bqj-qr]').forEach(node=>node.addEventListener('click',()=>{const r=batchRows[+node.dataset.bqjQr];if(!r?.qjQR)return;
-  const cl=window.EInvoiceQR.claimLines(r.qjQR),groups=QuickJudge.groupLines(cl.lines,qjCtxBatch(r));
+  const cl=window.EInvoiceQR.claimLines(r.qjQR),gq=qjGroupsFromQR(r.qjQR,qjCtxBatch(r),r.values.dept),groups=gq.groups;
   if(r.claim.items.some(x=>(x.description&&x.description!=='發票費用')||moneyValue(x.amount)>0)&&!confirm('這張已經填了請款項目，要換成依發票明細整理的結果嗎？'))return;
-  r.claim.items=groups.map(g=>({description:g.description,amount:g.amount,accountCode:'',accountName:'',allocations:[{dept:r.values.dept||'',ratio:100}]}));r.claimAutoAmount=false;r.error='';renderBatch();toast('已依發票明細整理成 '+groups.length+' 項（'+cl.note+'）；食品請選用途，並確認分攤')}));
+  r.claim.items=gq.items;r.claimAutoAmount=false;r.error='';renderBatch();toast('已依發票明細整理成一筆統稱'+qjSumText(gq.summary)+'（'+cl.note+'）；食品請選用途，並確認分攤')}));
  root.querySelectorAll('[data-bline-remove]').forEach(node=>node.addEventListener('click',()=>{const r=batchRows[+node.dataset.blineRemove];if(r.claim.items.length<=1)return;r.claim.items.splice(+node.dataset.blineIndex,1);r.claimAutoAmount=false;renderBatch()}));
  root.querySelectorAll('[data-bk=taxId]').forEach(node=>node.addEventListener('change',()=>verifyBatchSeller(Number(node.dataset.bi))));
  root.querySelectorAll('[data-blookup]').forEach(node=>node.addEventListener('click',()=>verifyBatchSeller(Number(node.dataset.blookup))));
@@ -3709,7 +3711,7 @@ function applyQRToBatchRow(r,qr){
   // 快速判讀：辨識出發票明細之後自動轉成分類（同品類合併成請款項目）；請款項目已經有人填過（不是空白、也不是上次自動整理的結果）就不取代
   if(r.qjQR&&(qjItemsBlank(r.claim.items)||qjItemsSnap(r.claim.items)===r.qjAutoSnap)){
    const g=qjGroupsFromQR(qr,qjCtxBatch(r),r.values.dept);
-   if(g.groups.length){r.claim.items=g.items;r.claimAutoAmount=false;r.qjAutoSnap=qjItemsSnap(r.claim.items);r.qrNote='發票明細已自動轉成分類，整理成 '+g.groups.length+' 項請款項目（食品請選用途、確認分攤）；'+g.note;return}
+   if(g.groups.length){r.claim.items=g.items;r.claimAutoAmount=false;r.qjAutoSnap=qjItemsSnap(r.claim.items);r.qrNote='發票明細已整理成一筆統稱'+qjSumText(g.summary)+'（食品請選用途、確認分攤）；'+g.note;return}
   }
   r.qrNote='請款項目明細請自行填寫（未自動帶入 QR code 的品項；可按「依發票明細整理」快速判讀）';return}
  r.claim.items=cl.lines.map(l=>({description:l.description,amount:l.amount,accountCode:'',accountName:''}));
