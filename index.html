@@ -373,7 +373,7 @@ main{padding-bottom:12px}
 <script src="js/card-detect.js?v=79cf21e8"></script>
 <script src="js/doc-type.js?v=9ddce6b6"></script>
 <script src="js/upright.js?v=003a6474"></script>
-<script src="js/stamp.js?v=0dc6bb4e"></script>
+<script src="js/stamp.js?v=2cfa64cd"></script>
 <script src="js/pdf-text.js?v=012b6baf"></script>
 <header><div><h1>公司簽呈與簽核系統</h1><div class="sub">網頁版 v7.0｜主畫面統一入口・表單／請款・雲端共用資料・Google 登入</div></div><div class="role"><span id="loggedSummary">尚未登入</span><span id="syncState" class="sub">雲端：—</span><button id="syncNowBtn" type="button">🔄 同步</button><button id="logoutBtn" type="button">登出</button><select id="role" class="hide"><option value="staff">申請人</option><option value="manager">部門主管</option><option value="executive">執行長</option><option value="finance">財務人員</option><option value="admin">系統管理者</option></select><input id="actorName" class="hide" readonly aria-label="操作人員姓名"></div></header>
 <nav id="tabs"><button type="button" id="menuToggle" aria-expanded="false">☰ 選單</button></nav>
@@ -3457,7 +3457,7 @@ async function applyQRToSingle(file){
  return true;
 }
 async function scan(file){if(!file||inProgress)return;const ok=/^image\/(jpeg|png|webp)$/.test(file.type)||file.type==='application/pdf';if(!ok){show('請使用 JPG、PNG、WEBP 或 PDF 檔案',true);return}if(file.size>10*1024*1024){show('單一檔案超過 10MB，請縮小後再試',true);return}inProgress=true;el('ocrStart').disabled=true;el('ocrReview').classList.add('hide');setPreview(file);show('準備辨識 '+file.name+'…');try{if(await applyQRToSingle(file))return;const target=await loadImage(file);const w=await getWorker();const enhanced=await improveImage(target);const result=await w.recognize(enhanced);let raw=result.data.text||'';let detected=extractInvoice(raw);if(!detected.invoiceNo||!detected.taxId||!detected.amount||!detected.vendor){show('正在進行第二輪英數字補強辨識…');await w.setParameters({tessedit_pageseg_mode:'11'});const secondary=await w.recognize(enhanced);await w.setParameters({tessedit_pageseg_mode:'3'});const alternative=extractInvoice(secondary.data.text||'');for(const key of ['invoiceDate','invoiceNo','taxId','amount','vendor'])if(detected[key]===undefined&&alternative[key]!==undefined)detected[key]=alternative[key];}{const pt=await pdfTextRead(file);if(pt){detected=pdfOverlay(detected,pt);raw=pdfRawText(pt)+'\n\n---\n\n'+raw;pdfFillSingle(pt.p)}}
-{if(!(detected.taxId&&taxOk(detected.taxId))&&IMG_TYPES.test(file.type)){show('沒讀到賣方統編，正在看發票上有沒有蓋大章…');try{const st=await stampTax(file);if(st&&st.taxId){detected.taxId=st.taxId;detected.taxNote='賣方統編是從蓋的大章讀出來的'+(st.sure?'':'（沒讀得很清楚）')+'，請對照發票核對；手寫的金額讀不出來，請自行填寫';raw='【大章】'+JSON.stringify(st.votes)+'\n\n'+raw}}catch(e){console.warn('大章辨識失敗',e)}}}   // PDF 電子發票：文字層讀到的發票號碼、日期、金額、統編蓋掉文字辨識的結果
+{if(!(detected.taxId&&taxOk(detected.taxId))&&IMG_TYPES.test(file.type)){show('沒讀到賣方統編，正在看發票上有沒有蓋大章…');try{const st=await stampTax(file);if(st&&st.taxId){detected.taxId=st.taxId;detected.taxNote='賣方統編是從蓋的大章讀出來的'+(st.sure?(st.verified?'（已查到財政部登記）':''):'（沒讀得很清楚'+((st.alts||[]).length?'，也可能是 '+st.alts.join('、'):'')+'）')+'，請對照發票核對；手寫的金額讀不出來，請自行填寫';raw='【大章】'+JSON.stringify(st.votes)+'\n\n'+raw}}catch(e){console.warn('大章辨識失敗',e)}}}   // PDF 電子發票：文字層讀到的發票號碼、日期、金額、統編蓋掉文字辨識的結果
 window.lastSingleOCRVendor=detected.vendor||'';window.lastSingleOCRTax=detected.taxId||'';
 let vendorSource=detected.vendor?'OCR 自動判讀・待核對':'尚未辨識';
 if(detected.taxId){show('已辨識賣方統編 '+detected.taxId+'，正在查詢網路登記資料…');
@@ -3842,7 +3842,7 @@ el('batchScan').addEventListener('click',async()=>{
      r.uprightNote='已自動轉正（'+(up.turned?'順時針轉 '+up.turned+'°':'')+(up.tilt?(up.turned?'、':'')+'擺正 '+Math.abs(up.tilt).toFixed(1)+'°':'')+'）'}}
    catch(e){console.warn('轉正失敗，用原圖',e)}
    const result=await recognizeOne(r.file);r.viaQR=!!result.qr;r.viaPDF=!!result.pdf;r.raw=result.raw;
-   r.stampNote=result.stamp&&result.stamp.taxId?'🔏 賣方統編 '+result.stamp.taxId+' 是從蓋的大章讀出來的'+(result.stamp.sure?'':'（沒讀得很清楚）')+'，請對照發票核對；廠商名稱由統編查詢；手寫的金額讀不出來，請自行填寫':'';Object.assign(r.values,result.data);
+   r.stampNote=result.stamp&&result.stamp.taxId?'🔏 賣方統編 '+result.stamp.taxId+' 是從蓋的大章讀出來的'+(result.stamp.sure?(result.stamp.verified?'（已查到財政部登記）':''):'（沒讀得很清楚'+((result.stamp.alts||[]).length?'，也可能是 '+result.stamp.alts.join('、'):'')+'）')+'，請對照發票核對；廠商名稱由統編查詢；手寫的金額讀不出來，請自行填寫':'';Object.assign(r.values,result.data);
   if(!r.manualFields?.has('docType')&&DocType.norm(r.values.docType)==='invoice'&&!result.qr&&!result.pdf&&!String(r.values.invoiceNo||'').trim()){const g=DocType.guess(result.raw);if(g){r.values.docType=g;r.docNote='📝 判斷這張是「'+DocType.label(g)+'」（沒有發票 QR code、沒有發票號碼，照片上有「'+(g==='proof'?'證明':'收據')+'」字樣）；不對請在「憑證類型」改選統一發票'}}
   if(result.pdf&&result.pdf.description&&r.claim.items.length===1&&r.claim.items[0].description==='發票費用'){r.claim.items[0].description=result.pdf.description;r.claim.items[0].amount=moneyValue(r.values.amount);r.claimAutoAmount=true;{const t=pdfClaimText(result.pdf);if(!String(r.values.memo||'').includes(t))r.values.memo=(r.values.memo?r.values.memo+'\n':'')+t}}   // PDF 文字層的品名（只有品名）、金額（＝發票含稅總額）帶進請款項目（沒改過預設「發票費用」才帶入），品項明細與備註記在備註欄
   if(AUTO_FILL_CLAIM_ITEMS&&r.claimAutoAmount&&r.claim.items.length===1)r.claim.items[0].amount=moneyValue(r.values.amount);
@@ -4096,7 +4096,9 @@ async function stampTax(file){
   if(!StampRead.find(cv).length)return null;   // 照片上沒有章：不用花時間
   return await withOcrWorker(async w=>{
    const ocr=async(c,psm)=>{await w.setParameters({tessedit_pageseg_mode:psm||'7',tessedit_char_whitelist:'0123456789-'});return (await w.recognize(c)).data.text||''};
-   return await StampRead.readStamp(cv,ocr,taxOk,{exclude:[OWN_TAX_ID]});
+   // verify：章上讀到的統編不太確定（票數不夠高、或有接近的第二名）時，依得票順序查財政部登記，查得到的才算數（6 讀成 8、5 讀成 6 這類讀錯的統編通常查無登記）；每個最多等 6 秒
+   const verify=async tax=>{try{const info=await Promise.race([window.lookupSeller(tax),new Promise(r=>setTimeout(()=>r(null),6000))]);return !!(info&&info.verified)}catch(e){return false}};
+   return await StampRead.readStamp(cv,ocr,taxOk,{exclude:[OWN_TAX_ID],verify});
   });
  }finally{cv.width=cv.height=0}
 }

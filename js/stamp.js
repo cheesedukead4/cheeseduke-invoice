@@ -3,6 +3,9 @@
  * 做法：①依顏色找章（藍色或紅色墨水、字很密的那一塊）；②只留章的墨水顏色（去掉紅色表格線、手寫的別種顏色）；
  *       ③章常常蓋歪，所以轉幾個小角度（±3、±6 度）、每個角度橫著切成幾條，每條只認數字，找出「剛好 8 碼、而且通過統編檢查碼」的數字投票；
  *       ④得票最多的就是統編；廠商名稱靠統編去查（章上弧形排列的名稱文字辨識讀不準，只當參考）。
+ * 2026-11-19（使用者連說「收據辨識統編還不完全」）用使用者的 5 張真實收據實測後補強：
+ *   ⑤藍墨水「優勢圖」（B−R 越大越黑，扣掉紙張色偏）：淡藍／青色的章、細瘦的數字、章旁的黑字／紅線／鉛筆字都不會干擾；整塊章直接給文字辨識（只認數字）讀，比切行準很多；
+ *   ⑥章躺著（照片歪 90／270／180 度）時，優勢圖轉向再讀；⑦找章的藍色判斷也加上優勢（淡色章不再被當成「墨水不夠密」）。
  * 純函式＋畫布，Node 也能測（開發工具/test-stamp.cjs，用 setCanvasFactory 換成 Node 的畫布）。文字辨識由呼叫的人傳進來（ocrDigits），這裡不載辨識引擎。 */
 (function (root) {
   'use strict';
@@ -23,14 +26,22 @@
     return 0;
   }
 
+  // 紙張色偏：亮像素（紅色 > 170）的 B−R 中間值（白紙在偏冷／偏暖的光線下會有一點色偏，算「優勢」時要扣掉）
+  function paperTint(d, n) {
+    var a = []; for (var i = 0; i < n; i += 5) if (d[i * 4] > 170) a.push(d[i * 4 + 2] - d[i * 4]);
+    if (!a.length) return 0; a.sort(function (x, y) { return x - y; }); return a[a.length >> 1];
+  }
+
   // ---- 找章：回傳候選（依密度由高到低）[{color:'blue'|'red', box:{x,y,w,h}（原圖座標）, density}] ----
   function find(canvas) {
     var W0 = canvas.width, H0 = canvas.height, k = Math.min(1, 800 / Math.max(W0, H0)), W = Math.max(1, Math.round(W0 * k)), H = Math.max(1, Math.round(H0 * k));
     var c = mkCanvas(W, H), g = c.getContext('2d'); g.imageSmoothingQuality = 'high'; g.fillStyle = '#fff'; g.fillRect(0, 0, W, H); g.drawImage(canvas, 0, 0, W, H);
     var d = g.getImageData(0, 0, W, H).data, masks = { blue: new Uint8Array(W * H), red: new Uint8Array(W * H) }, faint = { blue: new Uint8Array(W * H), red: new Uint8Array(W * H) };
+    var tint = paperTint(d, W * H);   // 紙張的色偏（B−R 的中間值）
     for (var i = 0; i < W * H; i++) {
-      var cl = inkClass(d[i * 4], d[i * 4 + 1], d[i * 4 + 2], 0.30); if (cl === 1) masks.blue[i] = 1; else if (cl === 2) masks.red[i] = 1;
-      var cf = inkClass(d[i * 4], d[i * 4 + 1], d[i * 4 + 2], 0.17); if (cf === 1) faint.blue[i] = 1; else if (cf === 2) faint.red[i] = 1;
+      var dom = d[i * 4 + 2] - d[i * 4] - tint;   // 藍墨水優勢：藍多於紅（黑字、紅線、鉛筆字、白紙都接近 0）
+      var cl = inkClass(d[i * 4], d[i * 4 + 1], d[i * 4 + 2], 0.30); if (cl === 1 || (dom >= 30 && d[i * 4] < 225)) masks.blue[i] = 1; else if (cl === 2) masks.red[i] = 1;
+      var cf = inkClass(d[i * 4], d[i * 4 + 1], d[i * 4 + 2], 0.17); if (cf === 1 || (dom >= 16 && d[i * 4] < 235)) faint.blue[i] = 1; else if (cf === 2) faint.red[i] = 1;
     }
     var out = [];
     ['blue', 'red'].forEach(function (color) {
@@ -79,7 +90,7 @@
       out.push({ color: color, density: seed.den, fill: inkN / (bw2 * bh2), box: { x: Math.round(b.x0 / k), y: Math.round(b.y0 / k), w: Math.round(bw2 / k), h: Math.round(bh2 / k) }, alt: alt ? { x: Math.round(alt.x0 / k), y: Math.round(alt.y0 / k), w: Math.round((alt.x1 - alt.x0) / k), h: Math.round((alt.y1 - alt.y0) / k) } : null });
     });
     // 章的樣子：夠大（寬至少是照片的 14%）、不是實心的小私章（墨水占比 ≤ 0.5）；候選依面積大到小
-    return out.filter(function (c) { return c.box.w >= W0 * 0.14 && c.fill <= 0.5; }).sort(function (a, b) { return b.box.w * b.box.h - a.box.w * a.box.h; });
+    return out.filter(function (c) { return c.box.w >= W0 * 0.14 && c.fill <= 0.42; }).sort(function (a, b) { return b.box.w * b.box.h - a.box.w * a.box.h; });
   }
 
   // ---- 只留章墨水顏色的黑白圖（墨水＝黑、其他＝白），放大／縮小到長邊約 1200 像素 ----
@@ -87,11 +98,24 @@
     var W = canvas.width, H = canvas.height, padX = Math.round(box.w * 0.18), padY = Math.round(box.h * 0.15);   // 找到的範圍常常只框到章裡面最密的那塊（外圈與數字最後一碼可能在框外），往外多留一圈
     var cx = Math.max(0, box.x - padX), cy = Math.max(0, box.y - padY), cw = Math.min(W - cx, box.w + 2 * padX), ch = Math.min(H - cy, box.h + 2 * padY);
     var t = mkCanvas(cw, ch), tg = t.getContext('2d'); tg.fillStyle = '#fff'; tg.fillRect(0, 0, cw, ch); tg.drawImage(canvas, cx, cy, cw, ch, 0, 0, cw, ch);
-    var id = tg.getImageData(0, 0, cw, ch), d = id.data, want = color === 'red' ? 2 : 1;
+    var id = tg.getImageData(0, 0, cw, ch), d = id.data, want = color === 'red' ? 2 : 1;   // 舊的切行／切條方法用這個硬分類的黑白圖（低解析度小章靠它）；淡藍章用上面的優勢圖整塊讀
     for (var i = 0; i < cw * ch; i++) { var v = inkClass(d[i * 4], d[i * 4 + 1], d[i * 4 + 2], 0.22) === want ? 0 : 255; d[i * 4] = d[i * 4 + 1] = d[i * 4 + 2] = v; d[i * 4 + 3] = 255; }
     tg.putImageData(id, 0, 0);
     var up = Math.max(0.5, Math.min(4, 1200 / Math.max(cw, ch)));
     return { canvas: t, w: cw, h: ch, up: up };
+  }
+  // ---- 藍墨水優勢圖：把章（加外框）切出來，B−R 越大越黑（扣掉紙張色偏）→ 灰階圖，可轉 q×90 度；縮放到長邊約 longSide 像素 ----
+  function domCrop(canvas, box, q, longSide, lo, hi) {
+    var W = canvas.width, H = canvas.height, padX = Math.round(box.w * 0.12), padY = Math.round(box.h * 0.12);
+    var cx = Math.max(0, box.x - padX), cy = Math.max(0, box.y - padY), cw = Math.max(1, Math.min(W - cx, box.w + 2 * padX)), ch = Math.max(1, Math.min(H - cy, box.h + 2 * padY));
+    var sc = Math.max(0.4, Math.min(3, (longSide || 1800) / Math.max(cw, ch))), tw = Math.max(1, Math.round(cw * sc)), th = Math.max(1, Math.round(ch * sc));
+    var t = mkCanvas(tw, th), g = t.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, tw, th); g.imageSmoothingQuality = 'high'; g.drawImage(canvas, cx, cy, cw, ch, 0, 0, tw, th);
+    var id = g.getImageData(0, 0, tw, th), d = id.data, tint = paperTint(d, tw * th), LO = lo == null ? 8 : lo, HI = hi == null ? 58 : hi;
+    for (var i = 0; i < tw * th; i++) { var v = 255 - Math.max(0, Math.min(255, (d[i * 4 + 2] - d[i * 4] - tint - LO) * 255 / (HI - LO))); d[i * 4] = d[i * 4 + 1] = d[i * 4 + 2] = Math.round(v); d[i * 4 + 3] = 255; }
+    g.putImageData(id, 0, 0);
+    q = ((q || 0) % 4 + 4) % 4; if (!q) return t;
+    var ow = q % 2 ? th : tw, oh = q % 2 ? tw : th, o = mkCanvas(ow, oh), og = o.getContext('2d'); og.fillStyle = '#fff'; og.fillRect(0, 0, ow, oh); og.translate(ow / 2, oh / 2); og.rotate(q * Math.PI / 2); og.drawImage(t, -tw / 2, -th / 2);
+    return o;
   }
   function rotated(ink, angle) {
     var R = Math.ceil(Math.hypot(ink.w, ink.h) * ink.up), c = mkCanvas(R, R), g = c.getContext('2d');
@@ -169,27 +193,48 @@
     var base = (opt.finder || find)(canvas).slice(0, opt.maxCandidates || 2), cands = [], tried = [], exclude = opt.exclude || [];
     base.forEach(function (c) { cands.push(c); if (c.alt) cands.push({ color: c.color, density: c.density, fill: c.fill, box: c.alt, alt: null }); });   // 整塊讀不到統編 → 再試「往外長」那塊（只有失敗時才多花時間）
     for (var ci = 0; ci < cands.length; ci++) {
-      var cand = cands[ci], ink = inkImage(canvas, cand.box, cand.color), votes = {}, calls = 0;
+      var cand = cands[ci], ink = inkImage(canvas, cand.box, cand.color), votes = {}, strong = {}, calls = 0;
+      // 票數：完全讀到 8 碼＝2 票（strong＋1）、9～11 碼長串裡的連續 8 碼＝1 票（多半是旁邊的字被多讀成一兩碼，不算 strong）
+      var addV = function (txt) { digitVotes(txt).forEach(function (v) { if (taxOk(v[0]) && exclude.indexOf(v[0]) < 0) { votes[v[0]] = (votes[v[0]] || 0) + v[1]; if (v[1] === 2) strong[v[0]] = (strong[v[0]] || 0) + 1; } }); };
+      // 方法零（藍色章）：藍墨水優勢圖整塊直接讀（psm 6／12，只認數字；縮放大小各讀一次）。沒讀到才把圖轉 90／270／180 度再讀（章躺著的收據照片）
+      if (cand.color === 'blue' && opt.dom !== false) {
+        var addVotes = addV;
+        var sureNow = function () { var ks = Object.keys(votes).sort(function (a, b) { return votes[b] - votes[a]; }); return ks.length && votes[ks[0]] >= 6 && (ks.length === 1 || votes[ks[1]] <= votes[ks[0]] / 2); };
+        // [長邊像素, psm, 低門檻 LO, 高門檻 HI]：LO/HI 越小筆畫越粗。實測 4 張真實收據：淡藍章／歪躺章用 (4,40) 最準、橢圓章小字用 (8,58)＋psm 11 最準 → 兩種粗細、幾種縮放與 psm 交叉投票
+        var variants = [[1800, '6', 4, 40], [1800, '6', 8, 58], [1200, '6', 4, 40], [1800, '11', 8, 58], [2600, '6', 4, 40], [1800, '12', 8, 58], [1200, '11', 8, 58], [2600, '12', 4, 40]];
+        var turnVariants = [[1800, '6', 4, 40], [2600, '6', 4, 40], [1200, '6', 4, 40], [2600, '12', 4, 40]];
+        var turns = opt.turns || [0, 1, 3, 2];
+        for (var ti = 0; ti < turns.length && !Object.keys(votes).length; ti++) {
+          var vs = turns[ti] ? turnVariants : variants;   // 轉向（章躺著）的只試前幾種（省時間）
+          for (var vi = 0; vi < vs.length && !sureNow(); vi++) {
+            var dc = domCrop(canvas, cand.box, turns[ti], vs[vi][0], vs[vi][2], vs[vi][3]); addVotes(await ocrDigits(dc, vs[vi][1])); calls++;
+          }
+        }
+      }
       // 方法一：找出章裡「字最大的那幾行」（統編通常是章上最大的數字），擺平、單獨切出來，只認數字，微調角度各讀一次
-      var rows = []; try { rows = bigRows(ink, 3); } catch (e) { rows = []; }
+      // 方法零（優勢圖）已經很有把握（至少兩次完全讀到同一個、而且遠勝第二名）→ 不再跑舊的切行／切條方法（它們在淡藍章上會系統性讀錯，例如把 6 讀成 8 還拿到高票）；
+      // 方法零只有零星一兩票（可能是亂讀剛好通過檢查碼，低解析度小章常這樣）→ 再跑舊方法，兩邊的票加在一起，兩種方法都讀到的會勝出
+      var domKeys = Object.keys(votes).sort(function (a, b) { return votes[b] - votes[a]; }), domTrusted = domKeys.length > 0 && votes[domKeys[0]] >= 3 && (domKeys.length === 1 || votes[domKeys[1]] <= votes[domKeys[0]] / 2);   // 3 票＝至少兩次讀到（一次完全讀到＝2 票、長串裡的連續 8 碼＝1 票）
+      var rows = [];
+      if (!domTrusted) try { rows = bigRows(ink, 3); } catch (e) { rows = []; }
       for (var ri = 0; ri < rows.length; ri++) {
         [0, -2, 2].forEach(function () { });
         var extras = [0, -2, 2];
         for (var ei = 0; ei < extras.length; ei++) {
           var rimg = rowImage(ink, rows[ri], extras[ei]);
-          for (var pm = 0; pm < 2; pm++) { var txt0 = await ocrDigits(rimg, pm ? '7' : '8'); calls++; digitVotes(txt0).forEach(function (v) { if (taxOk(v[0]) && exclude.indexOf(v[0]) < 0) votes[v[0]] = (votes[v[0]] || 0) + v[1]; }); }
+          for (var pm = 0; pm < 2; pm++) { var txt0 = await ocrDigits(rimg, pm ? '7' : '8'); calls++; addV(txt0); }
         }
         var k0 = Object.keys(votes).sort(function (a, b) { return votes[b] - votes[a]; });
         if (k0.length && votes[k0[0]] >= 6 && (k0.length === 1 || votes[k0[1]] <= votes[k0[0]] / 2)) break;   // 已經很確定（高票且遠勝第二名）就不再讀別行
       }
       // 方法二（方法一沒讀到統編才用）：橫條切片
-      var angles = Object.keys(votes).length ? [] : (opt.angles || [0, -3, 3, -6, 6]);   // 章常蓋歪，轉幾個小角度各試一遍   // 章常蓋歪，轉幾個小角度各試一遍
+      var angles = (domTrusted || (function () { var ks = Object.keys(votes).sort(function (a, b) { return votes[b] - votes[a]; }); return ks.length > 0 && votes[ks[0]] >= 3 && (ks.length === 1 || votes[ks[1]] <= votes[ks[0]] / 2); })()) ? [] : (opt.angles || [0, -3, 3, -6, 6]);   // 已經有把握（≥3 票且遠勝第二名）就不切條   // 方法零或方法一已經有票就不用切條   // 章常蓋歪，轉幾個小角度各試一遍   // 章常蓋歪，轉幾個小角度各試一遍
       for (var ai = 0; ai < angles.length; ai++) {
         var rot = rotated(ink, angles[ai]), sh = Math.round(ink.h * ink.up * (opt.stripFrac || 0.20)), step = Math.max(4, Math.round(ink.h * ink.up * (opt.stepFrac || 0.06)));   // 切成窄條（高度 20%、每次移 6%）：一條裡大多只有一行字，認數字時不會被旁邊的中文字干擾
         for (var y = rot.y0; y + sh <= rot.y1 + 2; y += step) {
           var s = mkCanvas(rot.R, sh), sg = s.getContext('2d'); sg.fillStyle = '#fff'; sg.fillRect(0, 0, rot.R, sh); sg.drawImage(rot.canvas, 0, y, rot.R, sh, 0, 0, rot.R, sh);
           var txt = await ocrDigits(s, '7'); calls++;
-          digitVotes(txt).forEach(function (v) { if (taxOk(v[0]) && exclude.indexOf(v[0]) < 0) votes[v[0]] = (votes[v[0]] || 0) + v[1]; });
+          addV(txt);
         }
         // 已經有一個統編拿到 3 票以上、別的都沒有超過 1 票：很確定了，不再多轉角度（省時間）
         var ks = Object.keys(votes).sort(function (a, b) { return votes[b] - votes[a]; });
@@ -198,13 +243,17 @@
       var keys = Object.keys(votes).sort(function (a, b) { return votes[b] - votes[a]; });
       tried.push({ color: cand.color, density: cand.density, box: cand.box, calls: calls, votes: votes });
       if (keys.length) {
-        var top = keys[0], second = keys[1] ? votes[keys[1]] : 0;
-        return { taxId: top, votes: votes, sure: votes[top] >= 5 && votes[top] >= second * 2, box: cand.box, color: cand.color, tried: tried };
+        var top = keys[0], second = keys[1] ? votes[keys[1]] : 0, strong2 = keys[1] ? (strong[keys[1]] || 0) : 0, sure = (votes[top] >= 5 && votes[top] >= second * 2) || ((strong[top] || 0) >= 3 && (strong[top] || 0) >= strong2 * 3), verified = false;
+        // 不太確定（得票不夠高、或有票數接近的第二名）：如果呼叫的人給了 opt.verify(8碼)→Promise<是否查得到登記>，依得票順序（最多 3 個）找第一個查得到的；查得到就以它為準（6／8、5／6 這類讀錯的統編，登記裡不會有）
+        if (!sure && opt.verify && keys.length) {
+          for (var vk = 0; vk < Math.min(3, keys.length); vk++) { var okv = false; try { okv = await opt.verify(keys[vk]); } catch (e) { okv = false; } if (okv) { top = keys[vk]; sure = true; verified = true; break; } }
+        }
+        return { taxId: top, votes: votes, sure: sure, verified: verified, alts: keys.filter(function (k) { return k !== top; }).slice(0, 3), box: cand.box, color: cand.color, tried: tried };
       }
     }
     return { taxId: '', votes: {}, sure: false, box: null, color: '', tried: tried };
   }
 
-  var api = { _bigRows: bigRows, _rowImage: rowImage, setCanvasFactory: setCanvasFactory, find: find, inkImage: inkImage, rotated: rotated, groups8: groups8, digitVotes: digitVotes, readStamp: readStamp, inkClass: inkClass };
+  var api = { _domCrop: domCrop, _paperTint: paperTint, _bigRows: bigRows, _rowImage: rowImage, setCanvasFactory: setCanvasFactory, find: find, inkImage: inkImage, rotated: rotated, groups8: groups8, digitVotes: digitVotes, readStamp: readStamp, inkClass: inkClass };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.StampRead = api;
 })(typeof window !== 'undefined' ? window : this);
