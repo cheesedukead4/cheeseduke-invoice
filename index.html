@@ -3693,6 +3693,21 @@ window.ceoBatchClassify=function(){
  if(changed)renderBatch();
 };
 function batchProgress(msg){el('batchProgress').textContent=msg}
+// ===== 匯入檢查完就先有發票編號（使用者 2026-11-19：「我要在匯入的時候就有編號了，因為匯入的時候檢查完就會在發票寫上編號」）=====
+// 編號要先寫在紙本發票上，所以辨識完、還沒存檔就要有號碼：向雲端後端「預留」N 個編號（serialReserve），每張發票記在 r.serialNo／r.serialYm、顯示在標題旁；
+// 之後按「儲存勾選項目為草稿」或「送出簽核」，存檔時帶 serialClaim 認領這個號碼（後端確認預留過、沒被用掉才採用）。沒存的預留號碼會空著（可能已經寫在紙本上，不重用）。
+// 後端還沒更新（unknown_action）或連不上：不擋，編號改成存檔時才編。
+async function batchReserveSerials(){
+ const need=batchRows.filter(r=>!r.saved&&!r.serialNo&&!r.error);if(!need.length)return 0;
+ let got=0;
+ try{
+  for(let k=0;k<need.length;k+=50){
+   const part=need.slice(k,k+50),res=await InvCloud.call('serialReserve',{count:part.length}),nums=(res&&res.numbers)||[];
+   part.forEach((r,j)=>{if(nums[j]){r.serialNo=nums[j];r.serialYm=res.ym||'';got++}});
+  }
+ }catch(e){console.warn('預留發票編號失敗（存檔時再編）：',e&&e.message)}
+ renderBatch();return got;
+}
 function resetBatch(){if(batchBusy)return;disposeBatchURLs();batchRows=[];el('batchFiles').value='';el('files').value='';renderBatch();batchProgress('批次清單已清空，原有已儲存發票不受影響。')}
 el('batchReset').addEventListener('click',resetBatch);
 $('batchTable').addEventListener('click',e=>{const cb=e.target.closest('[data-cand-code]');if(!cb)return;const td=cb.closest('td'),n=td&&td.querySelector('[data-bci]');if(!n)return;const r=batchRows[+n.dataset.bci],line=r&&r.claim.items[+n.dataset.bline];if(line)applyLedgerCandidate(line,cb,td)});
@@ -3804,7 +3819,7 @@ async function retryBatchRow(i){
   else {r.vendorSource=r.values.vendor?'OCR 自動判讀・待確認':'賣方統編／名稱需人工確認';r.registryVerified=false;}
   r.note=`重新辨識 ${countFields(r.values)}/5 欄${r.uncertain?.length?'；欄位有不同辨識結果，需核對：'+r.uncertain.map(k=>({invoiceDate:'日期',invoiceNo:'號碼',taxId:'統編',vendor:'廠商',amount:'金額'})[k]).join('、'):''}`;r.selected=true;
  }catch(e){r.error='重試失敗：'+(e.message||e);r.selected=false}
- finally{batchBusy=false;el('batchScan').disabled=false;el('batchDraft').disabled=false;el('batchSubmit').disabled=false;renderBatch();batchProgress(`第 ${i+1} 張已完成重新辨識。未辨識欄位請人工補填，再確認後匯入。`)}
+ finally{batchBusy=false;el('batchScan').disabled=false;el('batchDraft').disabled=false;el('batchSubmit').disabled=false;renderBatch();batchProgress(`第 ${i+1} 張已完成重新辨識。未辨識欄位請人工補填，再確認後匯入。`);batchReserveSerials()}   // 這張原本辨識失敗沒有編號的，現在補預留
 }
 el('batchScan').addEventListener('click',async()=>{
  if(batchBusy)return;
@@ -3857,6 +3872,8 @@ el('batchScan').addEventListener('click',async()=>{
  {const nQR=batchRows.filter(r=>r.viaQR).length,nPDF=batchRows.filter(r=>r.viaPDF).length,ocrIdx=batchRows.map((r,i)=>r.viaQR||r.viaPDF||r.error?-1:i).filter(i=>i>=0);
   batchProgress(`已處理 ${batchRows.length} 張：QR code 讀到 ${nQR} 張`+(nPDF?`；PDF 電子發票直接讀文字 ${nPDF} 張（發票號碼、日期、金額不是辨識出來的，不會讀錯）`:'')+(ocrIdx.length?`；沒讀到 QR code、改用文字辨識 ${ocrIdx.length} 張（第 ${ocrIdx.map(i=>i+1).join('、')} 張，比較容易讀錯，請逐欄核對，或對準 QR code 重拍）`:'')+'；辨識不完整的發票請手動補上欄位。【還沒有存檔】核對每一張之後，按下面的「儲存勾選項目為草稿」或「勾選項目送出簽核」才會存（辨識完不會自動存成草稿）。');}
  // 辨識完不再自動存成草稿（使用者 2026-11-19：「不要自動轉草稿」；11/18 原本要求「辨識完自動存草稿一整包」，現在撤回）：留在這個清單讓人核對，按「儲存勾選項目為草稿」或「勾選項目送出簽核」才存。batchAutoDraft 函式保留但不再呼叫。
+ // 但「匯入檢查完就要有發票編號」（同日使用者補充）：不存檔，改向後端預留編號，顯示在每張旁邊（存檔時認領）
+ const nSerial=await batchReserveSerials();if(nSerial)batchProgress(el('batchProgress').textContent+`　已替 ${nSerial} 張發票編好發票編號（標題旁邊「編號 ○○○」），可以先寫在紙本發票上；存檔時沿用這個號碼，沒存的號碼會空著。`);
 });
 // ===== ☁ 雲端資料夾匯入（執行長發票頁）=====
 // 後端列出雲端資料夾（含底下兩層子資料夾）裡「還沒匯入過」的照片（有沒有匯入過＝有沒有發票紀錄的 cloudFileId 對得上；草稿也算，發票刪掉照片就會再出現）。
@@ -4148,7 +4165,7 @@ async function batchAutoDraft(){
 // 組出一筆發票（批次登錄的一列 → 要存到雲端的發票資料）；手動「儲存勾選項目」與辨識完自動存草稿共用
 function batchItemFor(r,status,ceoOn,stamp){
    const v=r.values;
-   const claim={requestDate:status==='pending'?claimToday():'',dueDate:v.dueDate||'',payee:v.payee,purpose:v.description||'',items:r.claim.items.map(({allocManual,_ledgerTimer,...x})=>({...x,allocations:(x.allocations||[]).map(a=>({dept:a.dept,ratio:a.ratio}))})),allocations:aggregateAllocations(r.claim.items),paymentMethod:v.payment||'匯款',transferHistory:v.transferHistory||'非首次匯款',feeDeduction:v.feeDeduction||'不扣匯費',voucherMissing:Number(v.voucherMissing)||0,voucherProvided:1,passbook:isFirstTransfer(v.payment,v.transferHistory)&&r.passbookFile?{name:r.passbookFile.name,type:r.passbookFile.type,size:r.passbookFile.size,blob:r.passbookFile}:null,...(ceoOn&&r.cj?{ceo:CeoJudge.toClaim(r.cj.sel,r.cj.judge)}:{})};const item={id:uid(),cloudFileId:cloudIdOfFile(r.file)||undefined,invoiceDate:v.invoiceDate||'',docType:DocType.norm(v.docType),invoiceNo:(String(v.invoiceNo||'').trim()||(DocType.norm(v.docType)!=='invoice'?DocType.genNo(v.docType,v.invoiceDate):'')),vendor:String(v.vendor||'').trim(),taxId:String(v.taxId||'').trim(),vendorSource:r.vendorSource||'人工核對',dept:v.dept,applicant:String(v.applicant||'').trim(),category:'其他費用',amount:Number(v.amount)||0,payment:claim.paymentMethod,description:String(v.description||'').trim(),memo:String(v.memo||'').trim(),claim,attachments:[{name:r.file.name,type:r.file.type,size:r.file.size,blob:r.file}],status,history:[],createdAt:now(),updatedAt:stamp,serialOnSave:true,...(claim.voucherMissing>0?{voucher:{state:'pending',placeholder:false}}:{})};   // serialOnSave：匯入存入的當下（草稿也是）就編發票編號
+   const claim={requestDate:status==='pending'?claimToday():'',dueDate:v.dueDate||'',payee:v.payee,purpose:v.description||'',items:r.claim.items.map(({allocManual,_ledgerTimer,...x})=>({...x,allocations:(x.allocations||[]).map(a=>({dept:a.dept,ratio:a.ratio}))})),allocations:aggregateAllocations(r.claim.items),paymentMethod:v.payment||'匯款',transferHistory:v.transferHistory||'非首次匯款',feeDeduction:v.feeDeduction||'不扣匯費',voucherMissing:Number(v.voucherMissing)||0,voucherProvided:1,passbook:isFirstTransfer(v.payment,v.transferHistory)&&r.passbookFile?{name:r.passbookFile.name,type:r.passbookFile.type,size:r.passbookFile.size,blob:r.passbookFile}:null,...(ceoOn&&r.cj?{ceo:CeoJudge.toClaim(r.cj.sel,r.cj.judge)}:{})};const item={id:uid(),cloudFileId:cloudIdOfFile(r.file)||undefined,invoiceDate:v.invoiceDate||'',docType:DocType.norm(v.docType),invoiceNo:(String(v.invoiceNo||'').trim()||(DocType.norm(v.docType)!=='invoice'?DocType.genNo(v.docType,v.invoiceDate):'')),vendor:String(v.vendor||'').trim(),taxId:String(v.taxId||'').trim(),vendorSource:r.vendorSource||'人工核對',dept:v.dept,applicant:String(v.applicant||'').trim(),category:'其他費用',amount:Number(v.amount)||0,payment:claim.paymentMethod,description:String(v.description||'').trim(),memo:String(v.memo||'').trim(),claim,attachments:[{name:r.file.name,type:r.file.type,size:r.file.size,blob:r.file}],status,history:[],createdAt:now(),updatedAt:stamp,serialOnSave:true,...(r.serialNo?{serialClaim:{no:r.serialNo,ym:r.serialYm||''}}:{}),...(claim.voucherMissing>0?{voucher:{state:'pending',placeholder:false}}:{})};   // serialOnSave：匯入存入的當下（草稿也是）就編發票編號；serialClaim：認領匯入檢查完預留的編號
    return item;
 }
 async function saveBatch(status, onlyIndices=null){
@@ -4197,9 +4214,10 @@ async function saveBatch(status, onlyIndices=null){
    const prev=r.draftId?await get(r.draftId).catch(()=>null):null;
    if(prev&&['draft','rejected'].includes(prev.status)){item.id=prev.id;item.createdAt=prev.createdAt;item.history=Array.isArray(prev.history)?[...prev.history]:[];item.attachments=prev.attachments||item.attachments;if(prev.cloudFileId)item.cloudFileId=prev.cloudFileId}   // 更新原本那筆草稿
    prepareRouting(item);audit(item,status==='draft'?(prev?'批次草稿更新':'批次登錄草稿'):routingAction(item));
-   try{const sv=await put(item);r.draftId=item.id;r.serialNo=(sv&&sv.serialNo)||r.serialNo||'';
+   try{const sv=await put(item);r.draftId=item.id;const oldNo=r.serialNo;r.serialNo=(sv&&sv.serialNo)||r.serialNo||'';r.serialYm=(sv&&sv.serialYm)||r.serialYm||'';
+    const warn=(oldNo&&r.serialNo&&oldNo!==r.serialNo)?'⚠ 預留的編號 '+oldNo+' 已不能用，這張改編成 '+r.serialNo+'，紙本上的編號請更正':'';
     if(status==='draft'){r.saved=false;r.submitted=false;r.selected=true;r.note='已存成草稿（可以繼續修改，改完再按「儲存勾選項目為草稿」更新，或「勾選項目送出簽核」）'}
-    else{r.saved=true;r.submitted=true;r.selected=false;r.note='已成功儲存'}count++}catch(e){r.error='儲存失敗：'+e.message;break}
+    else{r.saved=true;r.submitted=true;r.selected=false;r.note='已成功儲存'}if(warn)r.note+='　'+warn;count++}catch(e){r.error='儲存失敗：'+e.message;break}
   }
   let removedN=0;
   if(status==='pending'){ // 已送出簽核的單據不再留在發票登錄頁面（預覽圖一併釋放）
