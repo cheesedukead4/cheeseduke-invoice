@@ -128,7 +128,8 @@
   async function makeUpright(canvas, ocrScore, opt) {
     opt = opt || {};
     var out = { canvas: canvas, turned: 0, tilt: 0, info: {} };
-    var tp = await pickTurn(canvas, ocrScore, opt); out.info.turn = tp;
+    // opt.turn：呼叫的人已經知道要順時針轉幾個 90 度（例如發票 QR code 的朝向，不用文字辨識）→ 直接用，省下 1～4 次文字辨識
+    var tp = (opt.turn === 0 || opt.turn === 1 || opt.turn === 2 || opt.turn === 3) ? { q: opt.turn, via: 'given' } : await pickTurn(canvas, ocrScore, opt); out.info.turn = tp;
     var c = canvas;
     if (tp.q) { c = rotate90(canvas, tp.q); out.turned = tp.q * 90; }
     var tl = pickTilt(c); out.info.tilt = tl;

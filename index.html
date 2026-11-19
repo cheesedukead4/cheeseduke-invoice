@@ -394,10 +394,10 @@ dialog{border:1px solid var(--cd-gold-deep)}
     <div class="auth-warn"><b>資料安全：</b>簽呈、發票、金額與存摺影本存在公司的 Google 雲端硬碟，系統會依你的角色與部門過濾可見範圍，並檢查簽核順序。請勿在公用電腦登入，離開座位請先登出。</div>
   </div>
 </div>
-<datalist id="acctCodeList"></datalist><datalist id="acctNameList"></datalist><script src="config.js?v=ce0fe7cf"></script><script src="js/cloud.js?v=0ee0c57c"></script><script src="js/lazy-libs.js?v=8f101f03"></script><script src="js/image-zoom.js?v=c70fc93c"></script><script src="js/einvoice-qr.js?v=62f1615a"></script><script src="js/quick-judge.js?v=61bbe864"></script><script src="js/ceo-judge.js?v=765c0cf6"></script>
+<datalist id="acctCodeList"></datalist><datalist id="acctNameList"></datalist><script src="config.js?v=ce0fe7cf"></script><script src="js/cloud.js?v=0ee0c57c"></script><script src="js/lazy-libs.js?v=8f101f03"></script><script src="js/image-zoom.js?v=c70fc93c"></script><script src="js/einvoice-qr.js?v=53401bde"></script><script src="js/quick-judge.js?v=61bbe864"></script><script src="js/ceo-judge.js?v=765c0cf6"></script>
 <script src="js/card-detect.js?v=79cf21e8"></script>
 <script src="js/doc-type.js?v=9ddce6b6"></script>
-<script src="js/upright.js?v=003a6474"></script>
+<script src="js/upright.js?v=ee3ee62e"></script>
 <script src="js/stamp.js?v=2cfa64cd"></script>
 <script src="js/pdf-text.js?v=012b6baf"></script>
 <header><div><h1>公司簽呈與簽核系統</h1><div class="sub">網頁版 v7.0｜主畫面統一入口・表單／請款・雲端共用資料・Google 登入</div></div><div class="role"><span id="loggedSummary">尚未登入</span><span id="syncState" class="sub">雲端：—</span><button id="syncNowBtn" type="button">🔄 同步</button><button id="logoutBtn" type="button">登出</button><select id="role" class="hide"><option value="staff">申請人</option><option value="manager">部門主管</option><option value="executive">執行長</option><option value="finance">財務人員</option><option value="admin">系統管理者</option></select><input id="actorName" class="hide" readonly aria-label="操作人員姓名"></div></header>
@@ -3357,7 +3357,8 @@ async function getWorker(){try{await LazyLibs.ensure('ocr')}catch(_){throw Error
 // 批次辨識：文字辨識（Tesseract）在背景執行緒（Web Worker）裡跑，可以真的同時辨識好幾張。
 // 引擎「用到才建立」：QR code 讀得到的發票完全不需要引擎；同時開幾個依裝置決定（電腦 3、手機 2；處理器核心少或記憶體小的裝置只開 1），批次做完就把多開的收掉，把記憶體還回去。
 const ocrPool=[],ocrWaiters=[];let ocrFirstReady=null,ocrCapLimit=0;
-function ocrPoolSizeFor(cores,mem,mobile){let n=mobile?2:3;if(cores&&cores-1<n)n=Math.max(1,cores-1);if(mem&&mem<=2)n=1;return n}
+function ocrPoolSizeFor(cores,mem,mobile){let n=mobile?2:3;if(!mobile&&cores&&cores>=8&&(!mem||mem>=8))n=Math.min(5,Math.floor(cores/2));   // 使用者問「發票匯入跟判斷有辦法加速嗎」：8 核以上、記憶體 8GB 以上的電腦多開幾個辨識引擎（8 核 4 個、10 核以上 5 個），同時辨識的張數變多；多開的建不起來會自動退回現有數量
+ if(cores&&cores-1<n)n=Math.max(1,cores-1);if(mem&&mem<=2)n=1;return n}
 function ocrPoolMax(){
  const nav=typeof navigator!=='undefined'?navigator:{};
  const mobile=/Android|iPhone|iPad|iPod|Mobile/i.test(nav.userAgent||'')||(typeof matchMedia==='function'&&!matchMedia('(hover:hover) and (pointer:fine)').matches);
@@ -3396,6 +3397,9 @@ async function shrinkOcrPool(){
 // QR code 掃描排隊，一次只掃一張（見上面說明）
 let qrChain=Promise.resolve();
 function scanQRExclusive(file){const run=qrChain.then(()=>window.EInvoiceQR.scanFile(file));qrChain=run.catch(()=>{});return run}
+// 同一個檔案的 QR code 結果記起來：轉正前先掃一次（用 QR code 的朝向轉正，不用文字辨識），辨識時直接用，不重掃；掃不到（null）也記；掃的時候出錯不記
+const qrCache=new WeakMap();
+async function scanQRCached(file){if(file&&typeof file==='object'&&qrCache.has(file))return qrCache.get(file);const q=await scanQRExclusive(file);if(file&&typeof file==='object')qrCache.set(file,q||null);return q||null}
 // 最多同時跑 limit 件；某一件出錯不影響其他件（fn 自己處理錯誤，這裡只是保險）
 async function runLimited(items,limit,fn){
  let next=0;const results=new Array(items.length);
@@ -3789,7 +3793,7 @@ function applyQRToBatchRow(r,qr){
  r.qrNote=cl.note;
 }
 async function recognizeOne(file,force=false){
- try{const qr=await scanQRExclusive(file);
+ try{const qr=await scanQRCached(file);
   if(qr)return {data:{invoiceDate:qr.invoiceDate,invoiceNo:qr.invoiceNo,taxId:qr.sellerId,amount:qr.total},raw:'資料來源：發票 QR code（'+(qr.hasRight?'左＋右':'只讀到左邊')+'）\n隨機碼 '+qr.randomCode+'；銷售額 '+qr.sales+'；總計額 '+qr.total+'；品項 '+qr.items.length+'/'+(qr.declaredTotal||qr.items.length),rounds:0,uncertain:[],votes:{},conflicts:[],qr}}
  catch(e){console.warn('QR code 讀取失敗，改用文字辨識',e)}
  const pdfT=await pdfTextRead(file);   // PDF 電子發票：先讀文字層
@@ -3797,23 +3801,25 @@ async function recognizeOne(file,force=false){
   const d=pdfOverlay({},pdfT);
   return {data:d,raw:pdfRawText(pdfT),rounds:0,uncertain:pdfT.p.amountSure?[]:['amount'],pdf:pdfT.p,taxNote:'',taxCheckFail:false,votes:{},conflicts:[]};
  }
- const source=await loadImage(file);let ent=null,w=null;
+ const source=await loadImage(file);
  const variants=['soft','sharp','binary'];
  const rounds=[],raw=[],errors=[];
+ // 三輪文字辨識同時跑：每一輪各自向引擎池借一個閒置的引擎（沒有閒置的就排隊）。原本一張照片要在同一個引擎上依序跑完 3 輪，批量小（1～3 張）時其他引擎閒著；現在最快縮短到約 1/3，辨識結果與順序不變（rounds 仍依第 1、2、3 輪排列）
+ const runRound=async idx=>{
+  const mode=variants[idx];let canvas=null,ent=null;
+  try{
+   ent=await acquireOcrWorker();const w=ent.w;
+   canvas=await prepareVariant(source,mode);
+   await w.setParameters({tessedit_pageseg_mode:idx===1?'11':'3'});
+   const txt=(await w.recognize(canvas)).data.text||'';
+   return {idx,mode,txt};
+  }catch(e){return {idx,mode,err:e}}
+  finally{if(canvas){canvas.width=0;canvas.height=0}if(ent){try{await ent.w.setParameters({tessedit_pageseg_mode:'3'})}catch(_){}releaseOcrWorker(ent)}}
+ };
  try{
-  ent=await acquireOcrWorker();w=ent.w;
-  for(let idx=0;idx<variants.length;idx++){
-   const mode=variants[idx];let canvas;
-   try{
-    canvas=await prepareVariant(source,mode);
-    await w.setParameters({tessedit_pageseg_mode:idx===1?'11':'3'});
-    const txt=(await w.recognize(canvas)).data.text||'';
-    raw.push(`【第${idx+1}輪 ${mode}】\n${txt}`);
-    rounds.push({data:extractInvoice(txt),text:txt});
-   }catch(e){errors.push(e);raw.push(`【${mode} 辨識錯誤】${e.message||e}`)}
-   finally{if(canvas){canvas.width=0;canvas.height=0}}
-  }
- }finally{if(w){try{await w.setParameters({tessedit_pageseg_mode:'3'})}catch(_){}}if(ent)releaseOcrWorker(ent);if(source instanceof HTMLCanvasElement){source.width=0;source.height=0}}
+  const outs=await Promise.all(variants.map((_,i)=>runRound(i)));
+  outs.forEach(o=>{if(o.err){errors.push(o.err);raw.push(`【${o.mode} 辨識錯誤】${o.err.message||o.err}`)}else{raw.push(`【第${o.idx+1}輪 ${o.mode}】\n${o.txt}`);rounds.push({data:extractInvoice(o.txt),text:o.txt})}});
+ }finally{if(source instanceof HTMLCanvasElement){source.width=0;source.height=0}}
  if(!rounds.length)throw errors[0]||Error('辨識模組未回傳文字');
  // 合併原文用於補回分行標籤，但其擷取只補空值，不參與投票，避免把同一證據重複計票。
  const decision=selectCrossChecked(rounds),combined=extractInvoice(rounds.map(r=>r.text).join('\n'));
@@ -3969,7 +3975,7 @@ async function cloudInboxImport(){
  const got=new Array(list.length),failed=[];let done=0;
  const prog=()=>{c.progress='正在從雲端資料夾下載發票… '+done+'/'+list.length;renderCloudInbox()};prog();
  try{
-  await runLimited(list,3,async(f,i)=>{
+  await runLimited(list,5,async(f,i)=>{
    try{const r=await InvCloud.call('inboxGet',{id:f.id});got[i]={f,file:cloudB64ToFile(r.b64,r.name,r.type)}}
    catch(e){failed.push(f.name+'：'+((e&&e.message)||'下載失敗'))}
    done++;prog();
@@ -4026,9 +4032,11 @@ setInterval(()=>{if(!document.hidden)cloudInboxRefresh()},120000);
 // ②不夠確定就把下半部切成一條一條、只認數字與星號再讀一遍（短短一行，整塊辨識常讀錯數字甚至漏掉）。實測照片裡這一行的數字常讀錯，所以結果都會標示「請對照發票確認」。
 const cardDetectOn=()=>entryMode==='ceo'&&canCeoHistPanel()&&window.CardDetect;
 async function cardDrawable(file){const src=await loadImage(file);return src instanceof HTMLCanvasElement?src:await createImageBitmap(src)}
-function cardCrop(bmp,fx,fy,fw,fh,up,maxW){
+const CARD_WORD_CAP_W=2200;   // 找「信用卡」「卡號」兩個字時，圖的寬度最多 2200 像素（手機原圖 3000～4000 像素寬，整塊下半部用 psm 6 讀要 27～43 秒；縮小後快很多，字還是夠大）
+function cardCrop(bmp,fx,fy,fw,fh,up,maxW,capW){
  const sw=Math.max(1,Math.round(bmp.width*fw)),sh=Math.max(1,Math.round(bmp.height*fh));let k=up;while(k>1&&(sw*k>maxW||sw*k*sh*k>9e6))k--;   // 放大倍數受寬度與總像素限制（手機的畫布有上限）
- const c=document.createElement('canvas');c.width=sw*k;c.height=sh*k;const g=c.getContext('2d');
+ let cw=sw*k,ch=sh*k;if(capW&&cw>capW){const s=capW/cw;cw=Math.max(1,Math.round(cw*s));ch=Math.max(1,Math.round(ch*s))}
+ const c=document.createElement('canvas');c.width=cw;c.height=ch;const g=c.getContext('2d');
  g.imageSmoothingQuality='high';g.fillStyle='#fff';g.fillRect(0,0,c.width,c.height);g.drawImage(bmp,Math.round(bmp.width*fx),Math.round(bmp.height*fy),sw,sh,0,0,c.width,c.height);return c;
 }
 async function cardDetectFile(file){
@@ -4038,12 +4046,12 @@ async function cardDetectFile(file){
   // ①先看發票上有沒有寫「信用卡」（使用者的規則：沒寫信用卡就不判斷卡號）。實測「信用卡」三個字在下半部「中間那一塊、用逐段（psm4）模式」最讀得到；
   //   整塊寬的下半部（psm6）常整行漏掉。所以先讀中間那塊；沒讀到再讀整個下半部（收據不在照片中間時用）；兩次都沒讀到「信用卡」→ 不判斷，也不再往下花時間
   await w.setParameters({tessedit_pageseg_mode:'4'});
-  let c=cardCrop(bmp,0.2,0.4,0.6,0.6,3,3600);
+  let c=cardCrop(bmp,0.2,0.4,0.6,0.6,3,3600,CARD_WORD_CAP_W);
   texts.push((await w.recognize(c)).data.text||'');c.width=c.height=0;
   let j=CardDetect.judgeCard(texts),wide=false;
   if(!j.credit||!j.cardWord){   // 還沒讀到「信用卡」或「卡號」兩個字：再讀整個下半部（使用者：要抓到「卡號」兩個字才可填卡號末 4 碼）
    await w.setParameters({tessedit_pageseg_mode:'6'});
-   c=cardCrop(bmp,0,0.45,1,0.55,3,3600);
+   c=cardCrop(bmp,0,0.45,1,0.55,3,3600,CARD_WORD_CAP_W);
    texts.push((await w.recognize(c)).data.text||'');c.width=c.height=0;wide=true;
    j=CardDetect.judgeCard(texts);
   }
@@ -4099,16 +4107,20 @@ async function canvasOfFile(file){const src=await loadImage(file);if(src instanc
 async function uprightFile(file){
  const same={file,turned:0,tilt:0};
  if(!window.ImageUpright||!IMG_TYPES.test(file.type))return same;
+ // 先掃發票 QR code：讀得到、而且朝向很明確（jsQR 給的角度）→ 照 QR code 轉正，不跑文字辨識（原本判斷方向要跑 1～4 次文字辨識，每次約 6～8 秒；實測兩張 3000×4000 的電子發票照片，轉正就佔 27 秒／張）。
+ // QR code 讀不到、或朝向不明確（只有 zxing 讀到、角度不一致）→ 照舊用文字辨識判斷；結果記起來，辨識時不重掃
+ let qr=null,turn=null;
+ try{qr=await scanQRCached(file);const o=qr&&qr.orient;if(o&&Number.isInteger(o.turn))turn=o.turn}catch(e){console.warn('QR code 朝向判斷失敗，改用文字辨識轉正',e)}
  const cv=await canvasOfFile(file);let out=null;
  try{
-  const res=await withOcrWorker(async w=>{
+  const res=turn!==null?await ImageUpright.makeUpright(cv,null,{turn}):await withOcrWorker(async w=>{
    await w.setParameters({tessedit_pageseg_mode:'6',tessedit_char_whitelist:''});
    const score=async c=>{const r=await w.recognize(c,{},{blocks:true});let n=0;(r.data.words||[]).forEach(x=>{if(x.confidence>=70)n+=(x.text.match(/[\u4e00-\u9fffA-Za-z0-9]/g)||[]).length});return n};
    return await ImageUpright.makeUpright(cv,score);
   });
   if(res.turned||res.tilt){
    const blob=await new Promise(ok=>res.canvas.toBlob(ok,'image/jpeg',0.92));
-   if(blob)out={file:new File([blob],file.name.replace(/\.(png|webp|jpe?g)$/i,'')+'.jpg',{type:'image/jpeg',lastModified:file.lastModified}),turned:res.turned,tilt:res.tilt};
+   if(blob){out={file:new File([blob],file.name.replace(/\.(png|webp|jpe?g)$/i,'')+'.jpg',{type:'image/jpeg',lastModified:file.lastModified}),turned:res.turned,tilt:res.tilt,viaQR:turn!==null};if(qr)qrCache.set(out.file,qr)}   // 轉正後的新檔案沿用同一份 QR 結果
    if(res.canvas!==cv){res.canvas.width=res.canvas.height=0}
   }
  }finally{cv.width=cv.height=0}

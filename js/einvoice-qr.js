@@ -279,6 +279,7 @@
       var r = jsQR(img.data, c.width, c.height, { inversionAttempts: inversion });
       if (!r) break;
       found.push(Uint8Array.from(r.binaryData && r.binaryData.length ? r.binaryData : new TextEncoder().encode(r.data)));
+      var L = r.location; if (L && L.topLeftCorner && L.topRightCorner) (found.angles = found.angles || []).push(Math.atan2(L.topRightCorner.y - L.topLeftCorner.y, L.topRightCorner.x - L.topLeftCorner.x) * 180 / Math.PI);   // QR code 的「上邊」在照片裡指向哪個角度（0＝正、90＝照片順時針轉了 90 度…）
       mask(img.data, c.width, c.height, r.location);
     }
     c.width = c.height = 0;
@@ -303,7 +304,7 @@
           var probe = i === 0;
           var res = await Z.readBarcodes(img, { formats: ['QRCode'], binarizer: j ? 'GlobalHistogram' : 'LocalAverage', tryHarder: true, tryRotate: true, tryInvert: true, tryDownscale: true, maxNumberOfSymbols: probe ? 6 : 4, returnErrors: probe });
           res.forEach(function (r) {
-            if (r.isValid && r.bytes && r.bytes.length) addUnique(found, Uint8Array.from(r.bytes));
+            if (r.isValid && r.bytes && r.bytes.length) { addUnique(found, Uint8Array.from(r.bytes)); noteAngle(found, r.position); }
             else if (probe && r.position && Math.abs(r.position.bottomRight.x - r.position.topLeft.x) > 20) found._sawQR = true; // 看得到 QR、解不出來
           });
         } catch (e) { /* 這一輪失敗就換下一輪 */ }
@@ -359,13 +360,15 @@
         for (var j = 0; j < 2 && !done(); j++) {
           try {
             var res = await Z.readBarcodes(img, { formats: ['QRCode'], binarizer: j ? 'GlobalHistogram' : 'LocalAverage', tryHarder: true, tryRotate: true, tryInvert: true, tryDownscale: true, maxNumberOfSymbols: 4 });
-            res.forEach(function (r) { if (r.isValid && r.bytes && r.bytes.length) addUnique(found, Uint8Array.from(r.bytes)); });
+            res.forEach(function (r) { if (r.isValid && r.bytes && r.bytes.length) { addUnique(found, Uint8Array.from(r.bytes)); noteAngle(found, r.position); } });
           } catch (e) { /* 這一輪失敗就換下一輪 */ }
         }
         await new Promise(function (r) { setTimeout(r, 0); }); // 讓畫面有機會更新
       }
     }
   }
+  // 記下 QR code 的朝向（position 的 topLeft→topRight 在照片裡指向的角度；0＝正）。放大、切塊都是等比例、不旋轉，角度不受影響
+  function noteAngle(found, pos) { if (pos && pos.topLeft && pos.topRight) (found.angles = found.angles || []).push(Math.atan2(pos.topRight.y - pos.topLeft.y, pos.topRight.x - pos.topLeft.x) * 180 / Math.PI); }
   function addUnique(list, bytes) { var k = Array.prototype.join.call(bytes, ','); if (!list._seen) list._seen = {}; if (!list._seen[k]) { list._seen[k] = 1; list.push(bytes); } }
 
   // 由粗到細，找齊（左＋右）就提早結束：
@@ -388,6 +391,7 @@
       var p = passes[i], tmp = [];
       try { scanRegion(jsQR, canvas, p[0], p[1], p[2], p[3], p[4], p[5], tmp); } catch (e) { /* 這一輪失敗就換下一輪 */ }
       tmp.forEach(function (b) { addUnique(found, b); });
+      (tmp.angles || []).forEach(function (a) { (found.angles = found.angles || []).push(a); });
       await new Promise(function (r) { setTimeout(r, 0); }); // 讓畫面有機會更新
     }
     // 第二道：zxing（jsQR 沒找齊左右兩個、或品項不完整時才載入）
@@ -401,7 +405,16 @@
         codes.forEach(function (c) { if (c.rawValue) addUnique(found, new TextEncoder().encode(c.rawValue)); });
       } catch (e) { /* 不支援就算了 */ }
     }
-    return parse(found);
+    var res = parse(found);
+    if (res && res.ok && found.angles && found.angles.length) res.orient = orientOf(found.angles);   // 照片的方向（不用文字辨識就知道要不要轉正）
+    return res;
+  }
+  // QR code 的朝向 → {turn：要順時針轉幾個 90 度才會正（0～3）, tilt：剩下的歪斜角度, n：幾個 QR code 都這樣說}；彼此不一致、或歪在 45 度附近（不確定）就回 null（呼叫端改用文字辨識判斷）
+  function orientOf(angles) {
+    var qs = angles.map(function (a) { a = ((a % 360) + 360) % 360; var q = Math.round(a / 90); return { q: q % 4, resid: a - q * 90 }; });
+    var q0 = qs[0].q, i, sum = 0;
+    for (i = 0; i < qs.length; i++) { if (qs[i].q !== q0) return null; if (Math.abs(qs[i].resid) > 30) return null; sum += qs[i].resid; }
+    return { turn: (4 - q0) % 4, tilt: sum / qs.length, n: qs.length };
   }
   async function fileToCanvases(file) {
     if (file.type === 'application/pdf' || /\.pdf$/i.test(file.name || '')) {
@@ -430,5 +443,5 @@
     return result && result.ok ? result : null;
   }
 
-  return { parse: parse, claimLines: claimLines, scanFile: scanFile, scanCanvas: scanCanvas, enrichFromOcrText: enrichFromOcrText, withDetails: withDetails, _internal: { parseLeft: parseLeft, splitColon: splitColon, isLeft: isLeft, isRight: isRight } };
+  return { parse: parse, claimLines: claimLines, scanFile: scanFile, scanCanvas: scanCanvas, enrichFromOcrText: enrichFromOcrText, withDetails: withDetails, _internal: { orientOf: orientOf, parseLeft: parseLeft, splitColon: splitColon, isLeft: isLeft, isRight: isRight } };
 });
