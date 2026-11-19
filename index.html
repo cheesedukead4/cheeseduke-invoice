@@ -3855,8 +3855,8 @@ el('batchScan').addEventListener('click',async()=>{
  }
  batchBusy=false;el('batchScan').disabled=false;el('batchDraft').disabled=false;el('batchSubmit').disabled=false;
  {const nQR=batchRows.filter(r=>r.viaQR).length,nPDF=batchRows.filter(r=>r.viaPDF).length,ocrIdx=batchRows.map((r,i)=>r.viaQR||r.viaPDF||r.error?-1:i).filter(i=>i>=0);
-  batchProgress(`已處理 ${batchRows.length} 張：QR code 讀到 ${nQR} 張`+(nPDF?`；PDF 電子發票直接讀文字 ${nPDF} 張（發票號碼、日期、金額不是辨識出來的，不會讀錯）`:'')+(ocrIdx.length?`；沒讀到 QR code、改用文字辨識 ${ocrIdx.length} 張（第 ${ocrIdx.map(i=>i+1).join('、')} 張，比較容易讀錯，請逐欄核對，或對準 QR code 重拍）`:'')+'；辨識不完整的發票請手動補上欄位，確認無誤再匯入。');}
- await batchAutoDraft();   // 全部辨識完 → 自動存成草稿（一整包）
+  batchProgress(`已處理 ${batchRows.length} 張：QR code 讀到 ${nQR} 張`+(nPDF?`；PDF 電子發票直接讀文字 ${nPDF} 張（發票號碼、日期、金額不是辨識出來的，不會讀錯）`:'')+(ocrIdx.length?`；沒讀到 QR code、改用文字辨識 ${ocrIdx.length} 張（第 ${ocrIdx.map(i=>i+1).join('、')} 張，比較容易讀錯，請逐欄核對，或對準 QR code 重拍）`:'')+'；辨識不完整的發票請手動補上欄位。【還沒有存檔】核對每一張之後，按下面的「儲存勾選項目為草稿」或「勾選項目送出簽核」才會存（辨識完不會自動存成草稿）。');}
+ // 辨識完不再自動存成草稿（使用者 2026-11-19：「不要自動轉草稿」；11/18 原本要求「辨識完自動存草稿一整包」，現在撤回）：留在這個清單讓人核對，按「儲存勾選項目為草稿」或「勾選項目送出簽核」才存。batchAutoDraft 函式保留但不再呼叫。
 });
 // ===== ☁ 雲端資料夾匯入（執行長發票頁）=====
 // 後端列出雲端資料夾（含底下兩層子資料夾）裡「還沒匯入過」的照片（有沒有匯入過＝有沒有發票紀錄的 cloudFileId 對得上；草稿也算，發票刪掉照片就會再出現）。
