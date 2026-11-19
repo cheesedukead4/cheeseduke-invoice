@@ -58,6 +58,10 @@ details.fold{border:1px solid #dce3ed;border-radius:8px;padding:8px 12px;margin-
 .cgrid.cg5{grid-template-columns:repeat(5,minmax(0,1fr))}
 @media(max-width:760px){.cgrid.cg5{grid-template-columns:repeat(3,minmax(0,1fr))}}
 @media(max-width:480px){.cgrid.cg5{grid-template-columns:repeat(2,minmax(0,1fr))}}
+/* 批次登錄每張發票的第一排（使用者 2026-11-19 留言：「幫我把這一列濃縮成一列即可」）：憑證類型、發票日期、號碼、含稅金額、賣方統編、廠商名稱 6 欄排成一列（原本 5 欄，廠商名稱會掉到第二排）；窄螢幕才換行 */
+.cgrid.cg6{grid-template-columns:minmax(0,.85fr) minmax(0,1.1fr) minmax(0,1fr) minmax(0,.9fr) minmax(0,1fr) minmax(0,1.35fr)}
+@media(max-width:760px){.cgrid.cg6{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media(max-width:480px){.cgrid.cg6{grid-template-columns:repeat(2,minmax(0,1fr))}}
 #entry.ceo-mode .ceo-off{display:none}#entry.ceo-mode .who-dept{display:none}#entry.ceo-mode.ceo-cat-dept .item-alloc-fold{display:none}#entry.ceo-mode .qj-host{display:none}#entry.ceo-mode #invoiceForm .claim-scroll{max-height:none!important;overflow:visible}#entry.ceo-mode #invoiceForm .claim-scroll thead th{position:static}#entry.ceo-mode #invoiceForm .fgrid .field.span2{grid-column:1/-1} /* 執行長發票：不填申請部門（部門由費用類別或分攤決定）、申請人固定 */
 .claim-lines{min-width:0!important}.claim-lines th:nth-child(2),.claim-lines th:nth-child(3){min-width:0!important}
 #finReviewBody .claim-lines td:last-child{width:auto!important;text-align:left!important}#finReviewBody .claim-lines th:nth-child(4){min-width:240px!important}#finReviewBody .claim-lines th:nth-child(5){min-width:300px!important}#finReviewBody .claim-lines td:nth-child(4){text-align:left!important}
@@ -307,13 +311,14 @@ main{padding-bottom:12px}
 .item-alloc-fold.bad{border-color:#d6a444;background:#fff8ec}.item-alloc-fold>.item-alloc{margin:0;border:0;border-top:1px dashed #cbd5e1;border-radius:0 0 8px 8px}
 @media(max-width:1139px){
  #entry .cgrid.cg5{grid-template-columns:repeat(3,minmax(0,1fr))}
+ #entry .cgrid.cg6{grid-template-columns:repeat(3,minmax(0,1fr))}
  #invoiceForm .fsteps{display:flex;gap:6px;margin:0 0 6px}
  #invoiceForm .fsteps button{flex:1 1 0;min-height:36px;padding:4px 6px;font-size:13px;border-radius:8px;white-space:nowrap}
  #invoiceForm .fsteps button.on{background:var(--blue);color:#fff;border-color:var(--blue);font-weight:700}
  #invoiceForm .fgrid{display:block}#invoiceForm .fstep{display:none}
  #invoiceForm[data-step="1"] .fstep[data-step="1"],#invoiceForm[data-step="2"] .fstep[data-step="2"],#invoiceForm[data-step="3"] .fstep[data-step="3"]{display:block}
 }
-@media(max-width:600px){#entry .cgrid.cg5{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:600px){#entry .cgrid.cg5,#entry .cgrid.cg6{grid-template-columns:repeat(2,minmax(0,1fr))}}
 /* 手機版面修正：提示小字不要吃到全域 .warn 的方塊樣式（行內元素的上下 padding 會蓋到相鄰兩行）；費用類別提示改成一塊完整的提示框 */
 @media(max-width:1139px){
  .lookup-note.warn,.lookup-note.fail,.lookup-note.ok{background:none;border-left:0;padding:0;margin-bottom:0}
@@ -3565,7 +3570,7 @@ function renderBatch(){
   const prev=r.file.type.startsWith('image/')?`<img class="batch-preview" src="${batchURLs[i]}" alt="第${i+1}張發票影像">`:'📄 PDF';
   return `<div class="batch-card" id="batch-card-${i}"><div class="batch-card-head"><input style="width:18px;height:18px" type="checkbox" data-bselect="${i}" ${r.selected?'checked':''} ${r.saved?'disabled':''} aria-label="選取第${i+1}筆">${prev}<div class="batch-file"><b>第 ${i+1} 張發票</b>${r.serialNo?` <span class="muted small" title="發票編號（財務核對用）：匯入存入時就編好，之後不會變">編號 <b>${safeVal(r.serialNo)}</b></span>`:''}<div class="batch-msg">${safeVal(r.file.name)}</div><div class="batch-state ${r.error?'error':''}">${safeVal(r.saved?'✅ 已儲存':r.error||r.note||'待核對')}</div></div>${!r.saved?`<button class="batch-retry" type="button" data-retry="${i}" ${batchBusy?'disabled':''}>🔁 重新辨識</button>`:''}</div>
   <div class="batch-body" id="batch-body-${i}"><div class="batch-sec${whoFixed?' who-fixed':''}">${whoFixed?`<div class="who-chip" style="margin:0 0 6px;display:inline-block">申請人：${safeVal(r.values.applicant)}｜${safeVal(r.values.dept)}</div>`:''}
-   <div class="cgrid cg5">
+   <div class="cgrid cg6">
    ${makeField(i,'docType','憑證類型','selectDocType')}${makeField(i,'invoiceDate','發票日期 *','date')}${makeField(i,'invoiceNo',DocType.noLabel(batchRows[i].values.docType))}${makeField(i,'amount','含稅金額 *','number')}${makeField(i,'taxId','賣方統編')}${makeField(i,'vendor','廠商名稱 *')}
    </div>
    ${ceoOn?`<div class="muted small" style="margin:4px 0">申請人：<b>${safeVal(ceoApplicantName())}</b>（執行長）${r.values.dept?'｜費用歸「'+safeVal(r.values.dept)+'」':''}${r.ceoHint?'<span class="lookup-note">'+safeVal(r.ceoHint)+'</span>':''}</div>`:`<div class="cgrid">${makeField(i,'dept','申請部門 *','selectDept','who-field')}${makeField(i,'applicant','申請人 *','selectApplicant','who-field')}
