@@ -4220,9 +4220,11 @@ async function saveBatch(status, onlyIndices=null){
   const dateOK=/^\d{4}-\d{2}-\d{2}$/.test(v.invoiceDate||'')&&!Number.isNaN(new Date(v.invoiceDate+'T00:00:00').getTime());
   if(ceoOn){v.applicant=ceoApplicantName();const d0=ceoDeptFromAlloc(r.claim.items);if(d0)v.dept=d0}
   if(status==='draft'){   // 草稿：缺日期、號碼、廠商、金額、用途、費用類別都可以存，之後在草稿裡補
-   r.deptPlaceholder=false;if(ceoOn&&!v.dept){const dp=allowedDeptNames()[0];if(dp){v.dept=dp;r.deptPlaceholder=true}}
-   if(!v.dept)r.error='請先選申請部門（草稿至少要有部門）';
-   else if(!canSubmitAs(v.dept,v.applicant))r.error='此登入帳號僅可使用本人姓名與所屬部門';
+   r.deptPlaceholder=false;r.phDept='';if(ceoOn&&!v.dept){const dp=allowedDeptNames()[0];if(dp){v.dept=dp;r.deptPlaceholder=true}}
+   else if(!v.dept&&(authUser?.role==='admin'||isCeoUser())){const dp=allowedDeptNames()[0];if(dp){r.phDept=dp;r.deptPlaceholder=true}}   // 一般登錄頁、沒有預設部門的管理員／執行長：存草稿時部門先佔位（欄位不填），不用一張一張選
+   const dchk=v.dept||r.phDept;
+   if(!dchk)r.error='請先選申請部門（草稿至少要有部門）';
+   else if(!canSubmitAs(dchk,v.applicant))r.error='此登入帳號僅可使用本人姓名與所屬部門';
    else if(no&&(exists.has(key)||seen.has(key)))r.error='重複發票：與既有資料或本批次重複';
    else{r.error='';if(no)seen.add(key)}
    if(r.error)problems++;
@@ -4249,7 +4251,7 @@ async function saveBatch(status, onlyIndices=null){
  try{
   for(const r of candidates){
    const v=r.values;const stamp=new Date().toISOString();
-   const item=batchItemFor(r,status,ceoOn,stamp);if(r.deptPlaceholder)item.deptPlaceholder=true;
+   const item=batchItemFor(r,status,ceoOn,stamp);if(r.deptPlaceholder){item.deptPlaceholder=true;if(!item.dept&&r.phDept)item.dept=r.phDept}
    const prev=r.draftId?await get(r.draftId).catch(()=>null):null;
    if(prev&&['draft','rejected'].includes(prev.status)){item.id=prev.id;item.createdAt=prev.createdAt;item.history=Array.isArray(prev.history)?[...prev.history]:[];item.attachments=prev.attachments||item.attachments;if(prev.cloudFileId)item.cloudFileId=prev.cloudFileId}   // 更新原本那筆草稿
    prepareRouting(item);audit(item,status==='draft'?(prev?'批次草稿更新':'批次登錄草稿'):routingAction(item));
