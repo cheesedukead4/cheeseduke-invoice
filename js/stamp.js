@@ -71,9 +71,12 @@
       var cw = bx1 - bx0 + 1, ch = by1 - by0 + 1;
       var cfill = bx1 > bx0 ? (S2[(by1 + 1) * (W + 1) + bx1 + 1] - S2[by0 * (W + 1) + bx1 + 1] - S2[(by1 + 1) * (W + 1) + bx0] + S2[by0 * (W + 1) + bx0]) / (cw * ch) : 0, asp = ch / Math.max(1, cw);
       // 整塊的大小要合理：不超過照片的 35%、字夠密（墨水占比 ≥ 0.10，連到一大片手寫字的會稀疏）、長寬比不離譜、而且比種子大
-      if (bx1 > bx0 && cw * ch <= W * H * 0.35 && cfill >= 0.10 && asp >= 0.45 && asp <= 2.3 && cw >= seed.w && ch >= seed.h) b = { x0: bx0, y0: by0, x1: bx1 + 1, y1: by1 + 1 };
+      // 還要比「往外長」那一塊不稀疏太多：章旁邊有手寫字（例如章右邊一整排藍筆批註）連到章時，膨脹後的整塊會把手寫字一起包進來（變成又高又稀疏、讀的是手寫字不是章）；
+      // 這時整塊的墨水占比會掉到往外長那塊的 75% 以下 → 不採用整塊，用往外長那塊（使用者 2026-11-19：「收據辨識統編還不完全」，實測 4000×3000 原圖：整塊 237×352、占比 0.13，往外長那塊 192×148、占比 0.23 才是真正的章）
+      var growFill = sum(b.x0, b.y0, b.x1, b.y1) / Math.max(1, (b.x1 - b.x0) * (b.y1 - b.y0)), growBox = { x0: b.x0, y0: b.y0, x1: b.x1, y1: b.y1 }, alt = null;
+      if (bx1 > bx0 && cw * ch <= W * H * 0.35 && cfill >= 0.10 && cfill >= growFill * 0.75 && asp >= 0.45 && asp <= 2.3 && cw >= seed.w && ch >= seed.h) { b = { x0: bx0, y0: by0, x1: bx1 + 1, y1: by1 + 1 }; alt = growBox; }   // 採用整塊時，把「往外長」那塊留作備用（整塊讀不到統編時再試它）
       var bw2 = b.x1 - b.x0, bh2 = b.y1 - b.y0, inkN = sum(b.x0, b.y0, b.x1, b.y1);
-      out.push({ color: color, density: seed.den, fill: inkN / (bw2 * bh2), box: { x: Math.round(b.x0 / k), y: Math.round(b.y0 / k), w: Math.round(bw2 / k), h: Math.round(bh2 / k) } });
+      out.push({ color: color, density: seed.den, fill: inkN / (bw2 * bh2), box: { x: Math.round(b.x0 / k), y: Math.round(b.y0 / k), w: Math.round(bw2 / k), h: Math.round(bh2 / k) }, alt: alt ? { x: Math.round(alt.x0 / k), y: Math.round(alt.y0 / k), w: Math.round((alt.x1 - alt.x0) / k), h: Math.round((alt.y1 - alt.y0) / k) } : null });
     });
     // 章的樣子：夠大（寬至少是照片的 14%）、不是實心的小私章（墨水占比 ≤ 0.5）；候選依面積大到小
     return out.filter(function (c) { return c.box.w >= W0 * 0.14 && c.fill <= 0.5; }).sort(function (a, b) { return b.box.w * b.box.h - a.box.w * a.box.h; });
@@ -163,7 +166,8 @@
   // 回傳 {taxId, votes:{8碼:票數}, sure, box, color, tried}；沒讀到回傳 taxId ''
   async function readStamp(canvas, ocrDigits, taxOk, opt) {
     opt = opt || {};
-    var cands = find(canvas).slice(0, opt.maxCandidates || 2), tried = [], exclude = opt.exclude || [];
+    var base = (opt.finder || find)(canvas).slice(0, opt.maxCandidates || 2), cands = [], tried = [], exclude = opt.exclude || [];
+    base.forEach(function (c) { cands.push(c); if (c.alt) cands.push({ color: c.color, density: c.density, fill: c.fill, box: c.alt, alt: null }); });   // 整塊讀不到統編 → 再試「往外長」那塊（只有失敗時才多花時間）
     for (var ci = 0; ci < cands.length; ci++) {
       var cand = cands[ci], ink = inkImage(canvas, cand.box, cand.color), votes = {}, calls = 0;
       // 方法一：找出章裡「字最大的那幾行」（統編通常是章上最大的數字），擺平、單獨切出來，只認數字，微調角度各讀一次
