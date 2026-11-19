@@ -5189,4 +5189,15 @@ el('csvDraft').onclick=()=>saveCSV('draft');el('csvSubmit').onclick=()=>saveCSV(
  window.addEventListener('scroll',place,true);window.addEventListener('resize',place);
 })();
 </script>
+<script>
+// 日期欄位一律「年 4 碼／月 2 碼／日 2 碼」（使用者 2026-11-18：「發票年/月/日 4碼/2碼/2碼」）：
+// 瀏覽器的日期欄位預設年份可以打到 6 碼（打完 2026 還要自己按 / 或 → 才會跳到月），給一個 4 位數年份的上限（9999-12-31），年份就只能 4 碼、打滿 4 碼自動跳到月，月、日 2 碼也自動跳，
+// 所以可以直接連續打 20261115。畫面上重新產生的欄位（批次清單的每一張、對話框）也一併處理。值的格式一向是 YYYY-MM-DD（辨識、QR code、PDF、CSV 讀到的日期都已補成 4 碼年、2 碼月日）。
+(function(){
+ const fix=n=>{if(n&&n.nodeType===1&&n.matches&&n.matches('input[type=date]')&&!n.max)n.max='9999-12-31'};
+ const scan=r=>{fix(r);if(r&&r.querySelectorAll)r.querySelectorAll('input[type=date]').forEach(fix)};
+ scan(document);
+ new MutationObserver(ms=>ms.forEach(m=>m.addedNodes.forEach(scan))).observe(document.documentElement,{childList:true,subtree:true});
+})();
+</script>
 </body></html>
