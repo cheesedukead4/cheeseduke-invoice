@@ -371,6 +371,8 @@ main{padding-bottom:12px}
 </div>
 <datalist id="acctCodeList"></datalist><datalist id="acctNameList"></datalist><script src="config.js?v=ce0fe7cf"></script><script src="js/cloud.js?v=0ee0c57c"></script><script src="js/lazy-libs.js?v=8f101f03"></script><script src="js/image-zoom.js?v=c70fc93c"></script><script src="js/einvoice-qr.js?v=62f1615a"></script><script src="js/quick-judge.js?v=61bbe864"></script><script src="js/ceo-judge.js?v=765c0cf6"></script>
 <script src="js/card-detect.js?v=79cf21e8"></script>
+<script src="js/upright.js?v=003a6474"></script>
+<script src="js/stamp.js?v=f3220da5"></script>
 <script src="js/pdf-text.js?v=012b6baf"></script>
 <header><div><h1>公司簽呈與簽核系統</h1><div class="sub">網頁版 v7.0｜主畫面統一入口・表單／請款・雲端共用資料・Google 登入</div></div><div class="role"><span id="loggedSummary">尚未登入</span><span id="syncState" class="sub">雲端：—</span><button id="syncNowBtn" type="button">🔄 同步</button><button id="logoutBtn" type="button">登出</button><select id="role" class="hide"><option value="staff">申請人</option><option value="manager">部門主管</option><option value="executive">執行長</option><option value="finance">財務人員</option><option value="admin">系統管理者</option></select><input id="actorName" class="hide" readonly aria-label="操作人員姓名"></div></header>
 <nav id="tabs"><button type="button" id="menuToggle" aria-expanded="false">☰ 選單</button></nav>
@@ -1877,8 +1879,8 @@ function resetForm(){autoDraftReset();$('invoiceForm').reset();setFormStep(1);al
  try{const as=allowedDeptNames();if(authUser&&authUser.dept&&as.includes(authUser.dept))$('dept').value=authUser.dept}catch(e){}$('invoiceDate').value=claimToday();$('requestDate').value='';singlePassbookExisting=null;$('passbookFile').value='';singleClaimItems=[{description:'發票費用',amount:0,accountCode:'',accountName:'',allocations:[{dept:$('dept').value||'',ratio:100}]}];singleAmountLinked=true;displaySingleClaimItems();updateTransferMode();syncApplicantHints();syncVoucherMode();ceoResetState();window.lastSingleOCRVendor='';window.lastSingleOCRTax='';$('vendorLookupStatus').textContent='請輸入賣方統編以核對廠商名稱';$('vendorLookupStatus').className='lookup-note'}$('resetForm').onclick=autoDraftDiscardAndReset;resetForm();
 async function readFiles(){const fl=unsavedFiles();if(fl.length>5)throw Error('一次最多上傳 5 個附件');const allowed=['image/jpeg','image/png','image/webp','application/pdf'];for(const f of fl){if(!allowed.includes(f.type))throw Error('僅支援 JPG、PNG、WEBP、PDF');if(f.size>10*1024*1024)throw Error('單一附件不得超過 10MB')}return fl.map(f=>({name:f.name,type:f.type,size:f.size,blob:f}))}
 async function saveInvoiceCore(status,auto){if(!canPage('entry'))return auto?false:toast('沒有發票登錄權限');ceoEnsureDept();if(status==='pending'&&!reportFormValidity())return;
- // auto＝自動存草稿（不跳視窗、不清表單、不換頁）；執行長發票還沒選費用類別時部門是空的，草稿先用第一個部門佔位（標記 deptPlaceholder），之後正式存檔會用費用類別決定的部門
- const dp0=$('dept').value,dp=dp0||(auto&&entryMode==='ceo'?(allowedDeptNames()[0]||''):''),deptPlaceholder=!dp0&&!!dp;
+ // auto＝自動存草稿（不跳視窗、不清表單、不換頁）；執行長發票還沒選費用類別時部門是空的，草稿（自動存或手動存）先用第一個部門佔位（標記 deptPlaceholder），之後正式存檔會用費用類別決定的部門
+ const dp0=$('dept').value,dp=dp0||(status==='draft'&&entryMode==='ceo'?(allowedDeptNames()[0]||''):''),deptPlaceholder=!dp0&&!!dp;   // 草稿可以缺東西：還沒選費用類別（部門空白）也能存，部門先用第一個部門佔位
  try{if(entryMode==='ceo'&&!dp)throw Error(ceoJ.sel.category?'費用類別「'+ceoJ.sel.category+'」還沒有對照部門，請在請款項目選「費用分攤單位」（或請管理員到「資料庫 → 費用類別對照」補上部門）':'請先選「費用類別」（執行長發票的部門由費用類別決定）');if(!canSubmitAs(dp,$('applicant').value))throw Error('只能以本人姓名與所屬部門提出申請');const id=$('editId').value;const old=id?await get(id):null;if(old&&!canReadInvoice(old))throw Error('無法編輯其他人的發票');if(auto&&old&&old.status!=='draft')return false;if(old&&!['draft','rejected'].includes(old.status))throw Error('此筆發票目前無法編輯');const attachments=[...(old?.attachments||[]),...(await readFiles())];if(attachments.length>5)throw Error('單筆發票最多保留 5 個附件');const claim=collectSingleClaim(attachments);claim.passbook=await getSinglePassbook();claim.requestDate=status==='pending'?claimToday():'';const issues=claimIssues(claim,Number($('amount').value),status==='pending');if(issues.length){setFormStep(issues.some(m=>/請款項目|合計|分攤/.test(m))?2:issues.some(m=>/支付對象|存摺/.test(m))?3:1);if(issues.some(m=>/分攤/.test(m)))document.querySelector('#claimItemsBody .allocation-feedback.invalid')?.scrollIntoView({block:'center'});throw Error(issues.join('；'))}if(status==='pending'&&entryMode==='ceo'&&canCeoHistPanel()&&claim.ceo){const miss=CeoJudge.missing(claim.ceo,{needCategoryPick:ceoPickNeeded(),overrideSkip:ceoJ.overrideSkip,confirmed:ceoJ.confirmed,payment:claim.paymentMethod});if(miss.length){setFormStep(1);$('ceoRuleBox').scrollIntoView?.({block:'center'});throw Error('執行長發票還要確認：'+miss.join('、'))}
   const dups=CeoJudge.duplicates(current,{id:old?.id||'',taxId:$('taxId').value.trim(),vendor:$('vendor').value.trim(),amount:Number($('amount').value),invoiceDate:$('invoiceDate').value});
   if(dups.length&&!confirm('疑似重複：已有 '+dups.length+' 張同商家、同金額、日期相近的發票（'+dups.slice(0,3).map(d=>d.invoiceNo+'／'+d.invoiceDate).join('、')+'）。\n\n確定不是重複，仍要送出嗎？'))return}
@@ -3435,7 +3437,8 @@ async function applyQRToSingle(file){
  }).catch(()=>show(doneMsg));
  return true;
 }
-async function scan(file){if(!file||inProgress)return;const ok=/^image\/(jpeg|png|webp)$/.test(file.type)||file.type==='application/pdf';if(!ok){show('請使用 JPG、PNG、WEBP 或 PDF 檔案',true);return}if(file.size>10*1024*1024){show('單一檔案超過 10MB，請縮小後再試',true);return}inProgress=true;el('ocrStart').disabled=true;el('ocrReview').classList.add('hide');setPreview(file);show('準備辨識 '+file.name+'…');try{if(await applyQRToSingle(file))return;const target=await loadImage(file);const w=await getWorker();const enhanced=await improveImage(target);const result=await w.recognize(enhanced);let raw=result.data.text||'';let detected=extractInvoice(raw);if(!detected.invoiceNo||!detected.taxId||!detected.amount||!detected.vendor){show('正在進行第二輪英數字補強辨識…');await w.setParameters({tessedit_pageseg_mode:'11'});const secondary=await w.recognize(enhanced);await w.setParameters({tessedit_pageseg_mode:'3'});const alternative=extractInvoice(secondary.data.text||'');for(const key of ['invoiceDate','invoiceNo','taxId','amount','vendor'])if(detected[key]===undefined&&alternative[key]!==undefined)detected[key]=alternative[key];}{const pt=await pdfTextRead(file);if(pt){detected=pdfOverlay(detected,pt);raw=pdfRawText(pt)+'\n\n---\n\n'+raw;pdfFillSingle(pt.p)}}   // PDF 電子發票：文字層讀到的發票號碼、日期、金額、統編蓋掉文字辨識的結果
+async function scan(file){if(!file||inProgress)return;const ok=/^image\/(jpeg|png|webp)$/.test(file.type)||file.type==='application/pdf';if(!ok){show('請使用 JPG、PNG、WEBP 或 PDF 檔案',true);return}if(file.size>10*1024*1024){show('單一檔案超過 10MB，請縮小後再試',true);return}inProgress=true;el('ocrStart').disabled=true;el('ocrReview').classList.add('hide');setPreview(file);show('準備辨識 '+file.name+'…');try{if(await applyQRToSingle(file))return;const target=await loadImage(file);const w=await getWorker();const enhanced=await improveImage(target);const result=await w.recognize(enhanced);let raw=result.data.text||'';let detected=extractInvoice(raw);if(!detected.invoiceNo||!detected.taxId||!detected.amount||!detected.vendor){show('正在進行第二輪英數字補強辨識…');await w.setParameters({tessedit_pageseg_mode:'11'});const secondary=await w.recognize(enhanced);await w.setParameters({tessedit_pageseg_mode:'3'});const alternative=extractInvoice(secondary.data.text||'');for(const key of ['invoiceDate','invoiceNo','taxId','amount','vendor'])if(detected[key]===undefined&&alternative[key]!==undefined)detected[key]=alternative[key];}{const pt=await pdfTextRead(file);if(pt){detected=pdfOverlay(detected,pt);raw=pdfRawText(pt)+'\n\n---\n\n'+raw;pdfFillSingle(pt.p)}}
+{if(!(detected.taxId&&taxOk(detected.taxId))&&IMG_TYPES.test(file.type)){show('沒讀到賣方統編，正在看發票上有沒有蓋大章…');try{const st=await stampTax(file);if(st&&st.taxId){detected.taxId=st.taxId;detected.taxNote='賣方統編是從蓋的大章讀出來的'+(st.sure?'':'（沒讀得很清楚）')+'，請對照發票核對；手寫的金額讀不出來，請自行填寫';raw='【大章】'+JSON.stringify(st.votes)+'\n\n'+raw}}catch(e){console.warn('大章辨識失敗',e)}}}   // PDF 電子發票：文字層讀到的發票號碼、日期、金額、統編蓋掉文字辨識的結果
 window.lastSingleOCRVendor=detected.vendor||'';window.lastSingleOCRTax=detected.taxId||'';
 let vendorSource=detected.vendor?'OCR 自動判讀・待核對':'尚未辨識';
 if(detected.taxId){show('已辨識賣方統編 '+detected.taxId+'，正在查詢網路登記資料…');
@@ -3761,9 +3764,12 @@ async function recognizeOne(file,force=false){
   if(pdfT.p.amount&&!pdfT.p.amountSure)uncertain.push('amount');
   if(pdfT.p.sellerTaxId)uncertain=uncertain.filter(k=>k!=='taxId');
  }
+ let stamp=null;   // 收據：賣方統編沒讀到（或沒通過檢查碼）→ 看發票上有沒有蓋大章，從章上讀統編
+ if(!pdfT&&IMG_TYPES.test(file.type)){const tv0=String(decision.values.taxId||'').trim();if(!tv0||!taxOk(tv0)){try{stamp=await stampTax(file)}catch(e){console.warn('大章辨識失敗',e)}
+  if(stamp&&stamp.taxId){decision.values.taxId=stamp.taxId;if(stamp.sure)uncertain=uncertain.filter(k=>k!=='taxId');else if(!uncertain.includes('taxId'))uncertain.push('taxId')}}}
  const tv=String(decision.values.taxId||'').trim(),taxCheckFail=!!tv&&!taxOk(tv);
  if(taxCheckFail&&!uncertain.includes('taxId'))uncertain.push('taxId');   // 統編沒通過檢查碼＝一定有數字讀錯，要人核對
- return {data:decision.values,taxNote:tv?'':(combined.taxNote||''),taxCheckFail,raw:(pdfT?pdfRawText(pdfT)+'\n\n---\n\n':'')+raw.join('\n\n---\n\n'),rounds:rounds.length,uncertain,votes:decision.votes,conflicts:decision.conflicts,pdf:pdfT?pdfT.p:null};
+ return {data:decision.values,taxNote:tv?'':(combined.taxNote||''),taxCheckFail,raw:(pdfT?pdfRawText(pdfT)+'\n\n---\n\n':'')+raw.join('\n\n---\n\n'),rounds:rounds.length,uncertain,votes:decision.votes,conflicts:decision.conflicts,pdf:pdfT?pdfT.p:null,stamp};
 }
 async function retryBatchRow(i){
  const r=batchRows[i];if(batchBusy||!r||r.saved)return;
@@ -3794,7 +3800,13 @@ el('batchScan').addEventListener('click',async()=>{
  const progress=()=>batchProgress(`已完成 ${doneN}/${files.length} 張${running.size?'；辨識中：第 '+[...running].sort((a,b)=>a-b).map(x=>x+1).join('、')+' 張':''}（最多同時辨識 ${laneN} 張，請勿關閉網頁）`);
  const scanRow=async i=>{
   const r=batchRows[i];running.add(i);progress();
-  try{const result=await recognizeOne(r.file);r.viaQR=!!result.qr;r.viaPDF=!!result.pdf;r.raw=result.raw;Object.assign(r.values,result.data);
+  try{
+   try{const up=await uprightFile(r.file);   // 匯入後先轉正（橫的、倒的、歪的）
+    if(up.file!==r.file){const cid=cloudIdOfFile(r.file);if(cid)cloudIdByFile.set(cloudKey(up.file),cid);if(batchURLs[i])URL.revokeObjectURL(batchURLs[i]);r.file=up.file;batchURLs[i]=URL.createObjectURL(up.file);
+     r.uprightNote='已自動轉正（'+(up.turned?'順時針轉 '+up.turned+'°':'')+(up.tilt?(up.turned?'、':'')+'擺正 '+Math.abs(up.tilt).toFixed(1)+'°':'')+'）'}}
+   catch(e){console.warn('轉正失敗，用原圖',e)}
+   const result=await recognizeOne(r.file);r.viaQR=!!result.qr;r.viaPDF=!!result.pdf;r.raw=result.raw;
+   r.stampNote=result.stamp&&result.stamp.taxId?'🔏 賣方統編 '+result.stamp.taxId+' 是從蓋的大章讀出來的'+(result.stamp.sure?'':'（沒讀得很清楚）')+'，請對照發票核對；廠商名稱由統編查詢；手寫的金額讀不出來，請自行填寫':'';Object.assign(r.values,result.data);
   if(result.pdf&&result.pdf.description&&r.claim.items.length===1&&r.claim.items[0].description==='發票費用'){r.claim.items[0].description=result.pdf.description;r.claim.items[0].amount=moneyValue(r.values.amount);r.claimAutoAmount=true;{const t=pdfClaimText(result.pdf);if(!String(r.values.memo||'').includes(t))r.values.memo=(r.values.memo?r.values.memo+'\n':'')+t}}   // PDF 文字層的品名（只有品名）、金額（＝發票含稅總額）帶進請款項目（沒改過預設「發票費用」才帶入），品項明細與備註記在備註欄
   if(AUTO_FILL_CLAIM_ITEMS&&r.claimAutoAmount&&r.claim.items.length===1)r.claim.items[0].amount=moneyValue(r.values.amount);
   if(result.qr){applyQRToBatchRow(r,result.qr);if(AUTO_FILL_CLAIM_ITEMS){r.qrObj=result.qr;r.qrSnap=claimSnapshot(r.claim.items)}}r.ocrVendor=result.data.vendor||'';r.uncertain=result.uncertain;
@@ -3802,6 +3814,7 @@ el('batchScan').addEventListener('click',async()=>{
   else {r.registryVerified=false;r.vendorSource=(result.taxNote||'未讀到賣方統編')+'；'+(r.ocrVendor?'OCR 廠商名稱待核對':'請人工填入廠商名稱');}
   let n=batchKeys.filter(k=>r.values[k]!==undefined&&r.values[k]!=='').length;r.note=result.pdf?`📄 PDF 電子發票讀取 ${n}/5 欄（直接讀 PDF 裡的文字，不是文字辨識：發票號碼、日期、含稅金額不會讀錯）${result.pdf.sales&&result.pdf.tax?`；金額：未稅 ${result.pdf.sales}＋營業稅 ${result.pdf.tax}＝含稅 ${result.pdf.amount}（請款項目金額用含稅總額）`:''}${result.pdf.sellerTaxId?'':'；賣方統編不在 PDF 文字裡，改用文字辨識讀印章，請核對'}${result.pdf.notes.filter(x=>/對不起來/.test(x)).map(x=>'；⚠ '+x).join('')}；請核對`:result.qr?`發票 QR code 讀取 ${n}/5 欄（廠商名稱由統編查詢）；${r.qrNote}；請核對`:`⚠ 沒讀到發票 QR code，改用文字辨識 ${n}/5 欄（${result.rounds} 輪，比 QR code 容易讀錯）${r.uncertain?.length?'；⚠ 需核對（多輪結果不一致，或統編沒通過檢查碼、可能讀錯一個數字）：'+r.uncertain.map(k=>({invoiceDate:'日期',invoiceNo:'號碼',taxId:'統編',vendor:'廠商',amount:'金額'})[k]).join('、'):''}；請逐欄核對原圖`;}
   catch(err){r.error='辨識失敗：'+(err.message||String(err))+'；可手動填寫';r.selected=false}
+  if(!r.error){const extra=[r.uprightNote,r.stampNote].filter(Boolean);if(extra.length)r.note=extra.join('；')+'；'+(r.note||'')}
   if(!r.error&&cardDetectOn())await cardDetectRow(r);   // 執行長發票：偵測卡號（末 4 碼 7170＝公司卡 → N；其他卡 → Y 填卡號；沒有卡號 → Y 填現金）
   running.delete(i);doneN++;renderBatch();progress();
  };
@@ -3821,6 +3834,7 @@ el('batchScan').addEventListener('click',async()=>{
  batchBusy=false;el('batchScan').disabled=false;el('batchDraft').disabled=false;el('batchSubmit').disabled=false;
  {const nQR=batchRows.filter(r=>r.viaQR).length,nPDF=batchRows.filter(r=>r.viaPDF).length,ocrIdx=batchRows.map((r,i)=>r.viaQR||r.viaPDF||r.error?-1:i).filter(i=>i>=0);
   batchProgress(`已處理 ${batchRows.length} 張：QR code 讀到 ${nQR} 張`+(nPDF?`；PDF 電子發票直接讀文字 ${nPDF} 張（發票號碼、日期、金額不是辨識出來的，不會讀錯）`:'')+(ocrIdx.length?`；沒讀到 QR code、改用文字辨識 ${ocrIdx.length} 張（第 ${ocrIdx.map(i=>i+1).join('、')} 張，比較容易讀錯，請逐欄核對，或對準 QR code 重拍）`:'')+'；辨識不完整的發票請手動補上欄位，確認無誤再匯入。');}
+ await batchAutoDraft();   // 全部辨識完 → 自動存成草稿（一整包）
 });
 // ===== ☁ 雲端資料夾匯入（執行長發票頁）=====
 // 後端列出雲端資料夾（含底下兩層子資料夾）裡「還沒匯入過」的照片（有沒有匯入過＝有沒有發票紀錄的 cloudFileId 對得上；草稿也算，發票刪掉照片就會再出現）。
@@ -4011,6 +4025,42 @@ async function cardDetectRow(r){
   catch(e){console.warn('卡號辨識失敗',e)}
  };
 }
+// ===== 🔄 轉正（使用者 2026-11-18：「若有發票不是正的，你匯入後要先轉正」）與 🔏 大章（收據）=====
+// 轉正：批次辨識每張之前，先判斷照片是不是橫的、倒的、歪的（js/upright.js：用縮小的照片各方向試讀文字，讀得出最多字的就是正的），轉正後存成新的 JPEG 取代原圖（附件、預覽、辨識都用轉正後的）。
+// 大章：沒有 QR code、也沒讀到賣方統編的收據（例如「免用統一發票收據」），賣方資料只在蓋的大章裡 → 找章（藍／紅墨水、字很密的一塊）、只留章的顏色、擺平最大的那行數字讀統編（js/stamp.js）；廠商名稱靠統編查詢。
+// 金額：手寫的金額（阿拉伯數字、中文大寫）文字辨識讀不出來（實測 474 讀成 41、大寫讀成亂碼），不硬猜，留給人填。
+const IMG_TYPES=/^image\/(jpeg|png|webp)$/;
+async function withOcrWorker(fn){let ent=null,w=null;try{ent=await acquireOcrWorker();w=ent.w;return await fn(w)}finally{if(w){try{await w.setParameters({tessedit_pageseg_mode:'3',tessedit_char_whitelist:''})}catch(_){}}if(ent)releaseOcrWorker(ent)}}
+async function canvasOfFile(file){const src=await loadImage(file);if(src instanceof HTMLCanvasElement)return src;const bmp=await createImageBitmap(src);const c=document.createElement('canvas');c.width=bmp.width;c.height=bmp.height;c.getContext('2d').drawImage(bmp,0,0);if(bmp.close)bmp.close();return c}   // loadImage 對圖片檔直接回傳 File（PDF 才是畫好的 canvas）；createImageBitmap 會照 EXIF 方向轉正
+async function uprightFile(file){
+ const same={file,turned:0,tilt:0};
+ if(!window.ImageUpright||!IMG_TYPES.test(file.type))return same;
+ const cv=await canvasOfFile(file);let out=null;
+ try{
+  const res=await withOcrWorker(async w=>{
+   await w.setParameters({tessedit_pageseg_mode:'6',tessedit_char_whitelist:''});
+   const score=async c=>{const r=await w.recognize(c,{},{blocks:true});let n=0;(r.data.words||[]).forEach(x=>{if(x.confidence>=70)n+=(x.text.match(/[\u4e00-\u9fffA-Za-z0-9]/g)||[]).length});return n};
+   return await ImageUpright.makeUpright(cv,score);
+  });
+  if(res.turned||res.tilt){
+   const blob=await new Promise(ok=>res.canvas.toBlob(ok,'image/jpeg',0.92));
+   if(blob)out={file:new File([blob],file.name.replace(/\.(png|webp|jpe?g)$/i,'')+'.jpg',{type:'image/jpeg',lastModified:file.lastModified}),turned:res.turned,tilt:res.tilt};
+   if(res.canvas!==cv){res.canvas.width=res.canvas.height=0}
+  }
+ }finally{cv.width=cv.height=0}
+ return out||same;
+}
+async function stampTax(file){
+ if(!window.StampRead||!IMG_TYPES.test(file.type))return null;
+ const cv=await canvasOfFile(file);
+ try{
+  if(!StampRead.find(cv).length)return null;   // 照片上沒有章：不用花時間
+  return await withOcrWorker(async w=>{
+   const ocr=async(c,psm)=>{await w.setParameters({tessedit_pageseg_mode:psm||'7',tessedit_char_whitelist:'0123456789-'});return (await w.recognize(c)).data.text||''};
+   return await StampRead.readStamp(cv,ocr,taxOk,{exclude:[OWN_TAX_ID]});
+  });
+ }finally{cv.width=cv.height=0}
+}
 // ===== 📄 PDF 電子發票：直接讀 PDF 裡的文字（js/pdf-text.js）=====
 // 電子發票 PDF（例如 ematic 開的 B2B 電子發票證明聯）的字就在檔案裡，不用文字辨識：發票號碼、日期、含稅總額直接讀、不會讀錯（還用「銷售額＋營業稅＝總計」與中文大寫核對金額）。
 // 賣方統編若不在文字裡（只蓋在印章圖上），再用文字辨識讀印章；PDF 沒有文字（掃描檔）或讀不出發票號碼與總計 → 維持原本的文字辨識。
@@ -4042,6 +4092,43 @@ function pdfOverlay(data,pt){
  return data;
 }
 function normNo(s){return String(s||'').toUpperCase().replace(/[^A-Z0-9]/g,'')}
+// 使用者要求（2026-11-18）：「所有上傳完都先進行判讀，自動存入草稿一整包一起存，不要一張一張存」→ 批次辨識全部做完後，自動把整批存成草稿（不用逐張按、不跳確認視窗）。
+// 草稿不要求欄位齊全（沒讀到的欄位留空，之後在草稿裡補）；執行長發票還沒選費用類別時，部門先用第一個部門佔位（和單張自動存草稿一樣，標記 deptPlaceholder）。
+// 重複的發票（與既有資料或這批裡的另一張重複）、沒有部門可存的、辨識整張失敗的，不自動存，留在清單裡並寫明原因。
+async function batchAutoDraft(){
+ if(!canPage('entry')||batchBusy)return;
+ const cand=batchRows.map((r,i)=>[r,i]).filter(([r])=>r.selected&&!r.saved&&!r.error);
+ if(!cand.length)return;
+ const ceoOn=entryMode==='ceo'&&canCeoHistPanel(),exists=new Set(current.map(i=>normNo(i.invoiceNo)+'|'+String(i.taxId||'').trim())),seen=new Set(),skipped=[],failed=[];
+ batchBusy=true;el('batchDraft').disabled=true;el('batchSubmit').disabled=true;el('batchScan').disabled=true;
+ let ok=0,k=0;
+ try{
+  for(const [r,i] of cand){
+   k++;batchProgress('辨識完成，正在把這一批一起存成草稿… '+k+'/'+cand.length);
+   const v=r.values;
+   if(ceoOn){v.applicant=ceoApplicantName();const d0=ceoDeptFromAlloc(r.claim.items);if(d0)v.dept=d0}
+   let placeholder=false;if(!v.dept&&ceoOn){const d=allowedDeptNames()[0];if(d){v.dept=d;placeholder=true}}
+   const no=normNo(v.invoiceNo),key=no+'|'+String(v.taxId||'').trim();
+   if(!v.dept){r.note='⚠ 沒有申請部門，沒有自動存草稿（請選好部門再按「儲存勾選項目為草稿」）';skipped.push(i+1);continue}
+   if(!canSubmitAs(v.dept,v.applicant)){r.note='⚠ 此登入帳號只能用本人姓名與所屬部門，沒有自動存草稿';skipped.push(i+1);continue}
+   if(no&&(exists.has(key)||seen.has(key))){r.note='⚠ 重複發票（與既有資料或這一批的另一張重複），沒有自動存草稿';skipped.push(i+1);continue}
+   try{
+    const item=batchItemFor(r,'draft',ceoOn,new Date().toISOString());if(placeholder)item.deptPlaceholder=true;
+    prepareRouting(item);audit(item,'批次登錄草稿（辨識完自動存）');
+    await put(item);r.saved=true;r.submitted=false;r.selected=false;r.note='已自動存成草稿，請到「發票明細」的草稿確認、補齊後再送出簽核。'+(r.note?'　'+r.note:'');if(no)seen.add(key);ok++;
+   }catch(e){r.error='自動存草稿失敗：'+((e&&e.message)||e);failed.push(i+1)}
+   renderBatch();
+  }
+  await refresh();renderBatch();cloudInboxRefresh(true);
+  batchProgress('辨識完成：'+(ok?'已把 '+ok+' 張一起存成草稿（'+((skipped.length||failed.length)?'其餘見各張說明':'整批都存好了')+'），請到「發票明細」的草稿確認、補齊後再送出簽核。':'沒有自動存草稿的發票，請看各張說明。')+(skipped.length?'　沒有自動存：第 '+skipped.join('、')+' 張。':'')+(failed.length?'　存失敗：第 '+failed.join('、')+' 張。':''));
+ }finally{batchBusy=false;el('batchDraft').disabled=false;el('batchSubmit').disabled=false;el('batchScan').disabled=false}
+}
+// 組出一筆發票（批次登錄的一列 → 要存到雲端的發票資料）；手動「儲存勾選項目」與辨識完自動存草稿共用
+function batchItemFor(r,status,ceoOn,stamp){
+   const v=r.values;
+   const claim={requestDate:status==='pending'?claimToday():'',dueDate:v.dueDate||'',payee:v.payee,purpose:v.description||'',items:r.claim.items.map(({allocManual,_ledgerTimer,...x})=>({...x,allocations:(x.allocations||[]).map(a=>({dept:a.dept,ratio:a.ratio}))})),allocations:aggregateAllocations(r.claim.items),paymentMethod:v.payment||'匯款',transferHistory:v.transferHistory||'非首次匯款',feeDeduction:v.feeDeduction||'不扣匯費',voucherMissing:Number(v.voucherMissing)||0,voucherProvided:1,passbook:isFirstTransfer(v.payment,v.transferHistory)&&r.passbookFile?{name:r.passbookFile.name,type:r.passbookFile.type,size:r.passbookFile.size,blob:r.passbookFile}:null,...(ceoOn&&r.cj?{ceo:CeoJudge.toClaim(r.cj.sel,r.cj.judge)}:{})};const item={id:uid(),cloudFileId:cloudIdOfFile(r.file)||undefined,invoiceDate:v.invoiceDate||'',invoiceNo:String(v.invoiceNo||'').trim(),vendor:String(v.vendor||'').trim(),taxId:String(v.taxId||'').trim(),vendorSource:r.vendorSource||'人工核對',dept:v.dept,applicant:String(v.applicant||'').trim(),category:'其他費用',amount:Number(v.amount)||0,payment:claim.paymentMethod,description:String(v.description||'').trim(),memo:String(v.memo||'').trim(),claim,attachments:[{name:r.file.name,type:r.file.type,size:r.file.size,blob:r.file}],status,history:[],createdAt:now(),updatedAt:stamp,...(claim.voucherMissing>0?{voucher:{state:'pending',placeholder:false}}:{})};
+   return item;
+}
 async function saveBatch(status, onlyIndices=null){
  if(!canPage('entry')){batchProgress('沒有發票登錄權限');return}
  if(batchBusy){batchProgress('請等待辨識完成');return}
@@ -4054,6 +4141,15 @@ async function saveBatch(status, onlyIndices=null){
   const v=r.values;const no=normNo(v.invoiceNo),tax=String(v.taxId||'').trim(),key=no+'|'+tax;
   const dateOK=/^\d{4}-\d{2}-\d{2}$/.test(v.invoiceDate||'')&&!Number.isNaN(new Date(v.invoiceDate+'T00:00:00').getTime());
   if(ceoOn){v.applicant=ceoApplicantName();const d0=ceoDeptFromAlloc(r.claim.items);if(d0)v.dept=d0}
+  if(status==='draft'){   // 草稿：缺日期、號碼、廠商、金額、用途、費用類別都可以存，之後在草稿裡補
+   r.deptPlaceholder=false;if(ceoOn&&!v.dept){const dp=allowedDeptNames()[0];if(dp){v.dept=dp;r.deptPlaceholder=true}}
+   if(!v.dept)r.error='請先選申請部門（草稿至少要有部門）';
+   else if(!canSubmitAs(v.dept,v.applicant))r.error='此登入帳號僅可使用本人姓名與所屬部門';
+   else if(no&&(exists.has(key)||seen.has(key)))r.error='重複發票：與既有資料或本批次重複';
+   else{r.error='';if(no)seen.add(key)}
+   if(r.error)problems++;
+   continue;
+  }
   if(ceoOn&&!v.dept)r.error=(r.cj&&r.cj.sel.category)?'費用類別「'+r.cj.sel.category+'」還沒有對照部門，請在請款項目選「費用分攤單位」':'請先選「費用類別」（執行長發票的部門由費用類別決定）';
   else if(status==='pending'&&ceoOn&&!CeoJudge.payeeFor((r.cj||(r.cj=ceoCardJ())).sel.yn))r.error='請先選「請款別」（Y 要請款／N 不請款），支付對象會自動帶入';
   else if(status==='pending'&&(r.uncertain||[]).length)r.error='部分辨識結果不一致，請檢查原圖並手動確認有疑慮欄位（或先存草稿）';
@@ -4075,7 +4171,7 @@ async function saveBatch(status, onlyIndices=null){
  try{
   for(const r of candidates){
    const v=r.values;const stamp=new Date().toISOString();
-   const claim={requestDate:status==='pending'?claimToday():'',dueDate:v.dueDate||'',payee:v.payee,purpose:v.description||'',items:r.claim.items.map(({allocManual,_ledgerTimer,...x})=>({...x,allocations:(x.allocations||[]).map(a=>({dept:a.dept,ratio:a.ratio}))})),allocations:aggregateAllocations(r.claim.items),paymentMethod:v.payment||'匯款',transferHistory:v.transferHistory||'非首次匯款',feeDeduction:v.feeDeduction||'不扣匯費',voucherMissing:Number(v.voucherMissing)||0,voucherProvided:1,passbook:isFirstTransfer(v.payment,v.transferHistory)&&r.passbookFile?{name:r.passbookFile.name,type:r.passbookFile.type,size:r.passbookFile.size,blob:r.passbookFile}:null,...(ceoOn&&r.cj?{ceo:CeoJudge.toClaim(r.cj.sel,r.cj.judge)}:{})};const item={id:uid(),cloudFileId:cloudIdOfFile(r.file)||undefined,invoiceDate:v.invoiceDate,invoiceNo:String(v.invoiceNo).trim(),vendor:String(v.vendor).trim(),taxId:String(v.taxId||'').trim(),vendorSource:r.vendorSource||'人工核對',dept:v.dept,applicant:String(v.applicant).trim(),category:'其他費用',amount:Number(v.amount),payment:claim.paymentMethod,description:String(v.description).trim(),memo:String(v.memo||'').trim(),claim,attachments:[{name:r.file.name,type:r.file.type,size:r.file.size,blob:r.file}],status,history:[],createdAt:now(),updatedAt:stamp,...(claim.voucherMissing>0?{voucher:{state:'pending',placeholder:false}}:{})};
+   const item=batchItemFor(r,status,ceoOn,stamp);if(r.deptPlaceholder)item.deptPlaceholder=true;
    prepareRouting(item);audit(item,status==='draft'?'批次登錄草稿':routingAction(item));
    try{await put(item);r.saved=true;r.submitted=status==='pending';r.selected=false;r.note='已成功儲存';count++}catch(e){r.error='儲存失敗：'+e.message;break}
   }
