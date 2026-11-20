@@ -24,7 +24,12 @@
 .batch-card-head{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:16px;padding-bottom:12px;border-bottom:1px solid #E6D9B4}
 .batch-card-head .batch-preview{max-width:90px;max-height:92px}.batch-card-head .batch-file{flex:1;min-width:150px}
 .batch-card .formgrid .field label{font-weight:600}
-#cloudInbox .cloud-pick{margin-top:8px}#cloudInbox .cloud-pick-bar{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-bottom:6px}#cloudInbox .cloud-pick-list{max-height:300px;overflow:auto;border:1px solid #E3D6B0;border-radius:6px;padding:4px 8px;background:#fff}#cloudInbox .cloud-grp{margin:8px 0 2px;color:#5B4B38}#cloudInbox .cloud-row{display:flex;align-items:center;gap:8px;padding:3px 2px;font-weight:normal;border-bottom:1px dashed #F6EFDB;cursor:pointer}#cloudInbox .cloud-row input{width:auto;flex:0 0 auto}#cloudInbox .cloud-name{flex:1 1 auto;word-break:break-all}#cloudInbox .cloud-prev{padding:2px 8px;font-size:12px;flex:0 0 auto}#cloudInbox .cloud-pick-bar select{width:auto;max-width:100%;min-width:200px}#cloudInbox .cloud-pick-bar label{display:inline-flex;align-items:center;gap:4px;font-weight:normal}.batch-card textarea{min-height:74px}
+#cloudInbox .cloud-pick{margin-top:8px}#cloudInbox .cloud-pick-bar{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-bottom:6px}#cloudInbox .cloud-pick-list{max-height:300px;overflow:auto;border:1px solid #E3D6B0;border-radius:6px;padding:4px 8px;background:#fff}#cloudInbox .cloud-grp{margin:8px 0 2px;color:#5B4B38}#cloudInbox .cloud-row{display:flex;align-items:center;gap:8px;padding:3px 2px;font-weight:normal;border-bottom:1px dashed #F6EFDB;cursor:pointer}#cloudInbox .cloud-row input{width:auto;flex:0 0 auto}#cloudInbox .cloud-name{flex:1 1 auto;word-break:break-all}#cloudInbox .cloud-prev{padding:2px 8px;font-size:12px;flex:0 0 auto}
+.cloud-tag{flex:0 0 auto}
+.ptag{display:inline-block;margin-left:6px;padding:1px 7px;border-radius:10px;font-size:11px;line-height:1.5;white-space:nowrap;background:#EEE;color:#555;font-weight:normal}
+.ptag.ok{background:#E3F1E0;color:#2D6A2D}.ptag.guess{background:#FFF1D6;color:#8A5A00}.ptag.unsure{background:#EEE;color:#666}.ptag.wip{background:#E6EEF8;color:#2B5C99}
+#cloudPrescanLine:not(:empty){margin-top:4px}
+#cloudPrescanToggle{padding:1px 8px;font-size:12px;margin-left:6px}#cloudInbox .cloud-pick-bar select{width:auto;max-width:100%;min-width:200px}#cloudInbox .cloud-pick-bar label{display:inline-flex;align-items:center;gap:4px;font-weight:normal}.batch-card textarea{min-height:74px}
 .batch-card .batch-retry{margin-left:auto;white-space:nowrap}
 details.fold{border:1px solid #E3D6B0;border-radius:8px;padding:8px 12px;margin-top:10px;background:#FFFDF7}details.fold>summary{cursor:pointer;font-weight:600;color:var(--blue)}
 .ledger-cands{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-top:6px}.ledger-cands:empty{display:none}
@@ -3792,7 +3797,7 @@ function applyQRToBatchRow(r,qr){
  if(cl.itemsText&&cl.mode==='total'){const t='發票品項（QR code）：'+cl.itemsText;if(!String(r.values.memo||'').includes(t))r.values.memo=(r.values.memo?r.values.memo+'\n':'')+t}
  r.qrNote=cl.note;
 }
-async function recognizeOne(file,force=false){
+async function recognizeOneRaw(file,force=false){
  try{const qr=await scanQRCached(file);
   if(qr)return {data:{invoiceDate:qr.invoiceDate,invoiceNo:qr.invoiceNo,taxId:qr.sellerId,amount:qr.total},raw:'資料來源：發票 QR code（'+(qr.hasRight?'左＋右':'只讀到左邊')+'）\n隨機碼 '+qr.randomCode+'；銷售額 '+qr.sales+'；總計額 '+qr.total+'；品項 '+qr.items.length+'/'+(qr.declaredTotal||qr.items.length),rounds:0,uncertain:[],votes:{},conflicts:[],qr}}
  catch(e){console.warn('QR code 讀取失敗，改用文字辨識',e)}
@@ -3941,16 +3946,18 @@ function renderCloudInbox(){
  box.classList.remove('hide');
  const fm=cloudFolders();
  let h='☁ 雲端有 <b>'+c.files.length+'</b> 張新發票（'+fm.size+' 個資料夾）　'+btn('cloudInboxToggle',c.open?'收合清單':'選擇要匯入的發票','primary')+' '+btn('cloudInboxRefresh','重新檢查')+(c.linked?'<span class="muted small">　（已匯入過 '+c.linked+' 張，不再列出）</span>':'');
+ h+='<div class="muted small" id="cloudPrescanLine"></div>';   // 背景預先辨識的進度（就地更新，見 prescanUi）
  if(c.open){
   const cur=cloudCurFolder(),fs=fm.get(cur)||[];
   const opts=[...fm].map(([g,a])=>'<option value="'+esc(g)+'"'+(g===cur?' selected':'')+'>📁 '+esc(g)+'（'+a.length+' 張）</option>').join('');
   h+='<div class="cloud-pick"><div class="cloud-pick-bar"><label>要匯入哪個資料夾：<select id="cloudInboxFolder">'+opts+'</select></label> '+btn('cloudInboxAll','全選這個資料夾')+' '+btn('cloudInboxNone','全不選')+' <button type="button" id="cloudInboxImport" class="primary" disabled>匯入選取的（0 張）</button></div>'
    +'<div class="muted small">勾選後匯入到批次辨識，核對完才存草稿或送出；一次最多匯入 '+CLOUD_BATCH_MAX+' 張，超過會分次匯入；點「預覽」可先看照片</div><div id="cloudSplitNote" class="small" style="color:#9a5b00"></div><div class="cloud-pick-list">';
-  fs.forEach(f=>{h+='<label class="cloud-row"><input type="checkbox" data-cid="'+esc(f.id)+'"'+(c.sel.has(f.id)?' checked':'')+'> <span class="cloud-name">'+esc(f.name)+'</span> <span class="muted small">'+cloudKB(f.size)+(f.modified?'　'+esc(f.modified):'')+'</span> <button type="button" class="cloud-prev" data-cid="'+esc(f.id)+'">預覽</button></label>'});
+  fs.forEach(f=>{h+='<label class="cloud-row"><input type="checkbox" data-cid="'+esc(f.id)+'"'+(c.sel.has(f.id)?' checked':'')+'> <span class="cloud-name">'+esc(f.name)+'</span><span class="cloud-tag" data-cid="'+esc(f.id)+'">'+prescanTagHTML(f.id)+'</span> <span class="muted small">'+cloudKB(f.size)+(f.modified?'　'+esc(f.modified):'')+'</span> <button type="button" class="cloud-prev" data-cid="'+esc(f.id)+'">預覽</button></label>'});
   h+='</div></div>';
  }
  box.innerHTML=h;
  if(c.open)cloudInboxCount();
+ prescanUi();
 }
 async function cloudInboxRefresh(force){
  if(!cloudInboxOn()||cloudInbox.busy)return;
@@ -3960,10 +3967,11 @@ async function cloudInboxRefresh(force){
   const r=await InvCloud.call('inboxList',{});
   Object.assign(cloudInbox,{files:r.files||[],linked:r.linked||0,err:''});
   const ids=new Set(cloudInbox.files.map(f=>f.id));[...cloudInbox.sel].forEach(id=>{if(!ids.has(id))cloudInbox.sel.delete(id)});   // 已經匯入或被移走的就不再勾著
+  prescanPrune();
  }catch(e){
   // 後端還沒更新（unknown_action）或沒有權限（denied）：不打擾，不顯示橫幅
   cloudInbox.files=[];cloudInbox.err=(e&&(e.code==='unknown_action'||e.code==='denied'||e.code==='unauthorized'))?'':(e&&e.message)||'讀取失敗';
- }finally{cloudInbox.busy=false;cloudInbox.last=Date.now();renderCloudInbox()}
+ }finally{cloudInbox.busy=false;cloudInbox.last=Date.now();renderCloudInbox();prescanKick()}
 }
 function cloudB64ToFile(b64,name,type){const raw=atob(b64),u=new Uint8Array(raw.length);for(let i=0;i<raw.length;i++)u[i]=raw.charCodeAt(i);return new File([u],name,{type})}
 async function cloudInboxImport(){
@@ -3973,17 +3981,18 @@ async function cloudInboxImport(){
  if(batchRows.some(r=>!r.saved)&&!confirm('批次清單裡還有尚未儲存的發票，匯入會取代它們，是否繼續？'))return;
  c.busy=true;
  const got=new Array(list.length),failed=[];let done=0;
- const prog=()=>{c.progress='正在從雲端資料夾下載發票… '+done+'/'+list.length;renderCloudInbox()};prog();
+ const preN=list.filter(f=>{const pe=prescan.map.get(f.id);return pe&&(pe.file||pe.dl)}).length;   // 背景已經下載（或正在下載）的
+ const prog=()=>{c.progress='正在從雲端資料夾下載發票… '+done+'/'+list.length+(preN?'（其中 '+preN+' 張已預先下載）':'');renderCloudInbox()};prog();
  try{
   await runLimited(list,5,async(f,i)=>{
-   try{const r=await InvCloud.call('inboxGet',{id:f.id});got[i]={f,file:cloudB64ToFile(r.b64,r.name,r.type)}}
+   try{got[i]={f,file:await prescanFetch(f)}}
    catch(e){failed.push(f.name+'：'+((e&&e.message)||'下載失敗'))}
    done++;prog();
   });
   const ok=got.filter(Boolean);
   if(!ok.length){c.err='下載失敗：'+(failed[0]||'');return}
   const dt=new DataTransfer();
-  ok.forEach(g=>{dt.items.add(g.file);cloudIdByFile.set(cloudKey(g.file),g.f.id)});
+  ok.forEach(g=>{dt.items.add(g.file);cloudIdByFile.set(cloudKey(g.file),g.f.id);const pe=prescan.map.get(g.f.id);if(pe)pe.imported=true});   // 匯入的就不用再預先辨識（批次辨識會沿用已經做好的結果）
   el('files').files=dt.files;
   ok.forEach(g=>c.sel.delete(g.f.id));c.open=rest>0;   // 匯入成功的不再勾著；還有沒匯入的勾選（超過 30 張）→ 清單保持展開，等這批存好再按一次
   autoStartBatch(ok.length);   // 一律用批次（只有 1 張也一樣，這樣存的時候才記得到雲端檔案 ID）
@@ -3992,6 +4001,135 @@ async function cloudInboxImport(){
  }catch(e){c.err=(e&&e.message)||'匯入失敗'}
  finally{c.progress='';c.busy=false;c.last=0;renderCloudInbox()}
 }
+// ===== ⚡ 雲端預先辨識（背景）=====
+// 使用者 2026-11-20：「有機會在雲端未匯入之前就先矯正、判別（收據…）」「統一發票嗎」「做」。
+// 雲端資料夾列出新發票之後，這個頁面在背景先把「目前選的資料夾」前 30 張一張一張處理：下載 → 轉正（橫的、倒的、歪的）→ 辨識（QR code／PDF 文字／文字辨識＋大章）→ 判別是不是統一發票 → 偵測卡號。
+// 結果記在這個頁面裡（recognizeOne／uprightFile／cardDetectFile 的包裝函式：預先辨識過的檔案第一次呼叫就用記好的結果，正在做的就等它做完，不會重做）；按「匯入」時，已經下載、辨識好的直接用，匯入後批次清單幾乎馬上出現結果。
+// 判別：QR code／PDF 文字＝統一發票（確定）；讀到發票號碼＝可能是統一發票；有蓋大章、或有「收據」字樣＝可能是收據；其餘「不確定」（都是猜的，匯入後請在「憑證類型」確認）。
+// 只在電腦上跑（手機不跑）、頁面在前景、沒有在辨識匯入的發票、使用者沒在打字時才開始下一張；有「暫停」按鈕。這些結果只留在這台電腦的這個頁面，關掉頁面就沒了（不會存到雲端）。
+// ===PRESCAN-BEGIN
+const PRESCAN_MAX=CLOUD_BATCH_MAX,PRESCAN_LANES=2;
+const prescan={on:(()=>{try{return localStorage.getItem('cd.prescan.off')!=='1'}catch(_){return true}})(),map:new Map(),typedAt:0,loop:false};
+const prescanByKey=new Map();   // 檔案鍵（檔名｜大小｜修改時間）→ 預先辨識項目：匯入時放進 #files 的檔案不一定還是同一個物件，所以用鍵對
+const prescanKey=f=>f&&typeof f==='object'&&f.name!==undefined?f.name+'|'+f.size+'|'+(f.lastModified||0):'';
+const prescanEntryOf=f=>{const k=prescanKey(f);return k?prescanByKey.get(k)||null:null};
+function prescanBind(pe,file){const k=prescanKey(file);if(!k)return;prescanByKey.set(k,pe);if(!pe.keys.includes(k))pe.keys.push(k)}
+function prescanEntry(f){let pe=prescan.map.get(f.id);if(!pe){pe={id:f.id,name:f.name,size:f.size,state:'wait',file:null,dl:null,claimed:false,imported:false,fail:0,retryAt:0,tag:null,upright:false,keys:[],memo:{up:new Map(),rec:new Map(),card:new Map()}};prescan.map.set(f.id,pe)}return pe}
+const prescanClone=v=>{try{return typeof structuredClone==='function'?structuredClone(v):JSON.parse(JSON.stringify(v))}catch(_){try{return JSON.parse(JSON.stringify(v))}catch(__){return v}}};   // 記好的結果每次給一份複製（批次清單會改自己那份）
+function prescanOnce(pe,kind,file,run){const m=pe.memo[kind],k=prescanKey(file);let p=m.get(k);if(!p){p=Promise.resolve().then(run);m.set(k,p);p.catch(()=>{if(m.get(k)===p)m.delete(k)})}return p}   // 同一個檔案同一件事只做一次（做的時候又有人要＝等同一個結果）；失敗不記，下次重做
+async function recognizeOne(file,force=false){
+ const pe=force?null:prescanEntryOf(file);   // force＝手動「重新辨識」：一律重跑
+ return pe?prescanClone(await prescanOnce(pe,'rec',file,()=>recognizeOneRaw(file))):recognizeOneRaw(file,force);
+}
+async function uprightFile(file){
+ const pe=prescanEntryOf(file);if(!pe)return uprightFileRaw(file);
+ const m=await prescanOnce(pe,'up',file,async()=>{const u=await uprightFileRaw(file);if(u.file!==file)prescanBind(pe,u.file);return {raw:file,u}});
+ return {...m.u,file:m.u.file===m.raw?file:m.u.file};   // 沒轉正：回傳呼叫者自己的檔案（批次用「回傳的檔案是不是原檔」判斷有沒有轉正）
+}
+async function cardDetectFile(file){
+ const pe=prescanEntryOf(file);
+ return pe?prescanClone(await prescanOnce(pe,'card',file,()=>cardDetectFileRaw(file))):cardDetectFileRaw(file);
+}
+// 下載一個雲端檔案：預先辨識和「匯入」共用，同一張只下載一次（匯入時它正在下載就等它）
+function prescanFetch(f){
+ const pe=prescanEntry(f);
+ if(pe.file)return Promise.resolve(pe.file);
+ if(!pe.dl)pe.dl=InvCloud.call('inboxGet',{id:f.id}).then(r=>{const file=cloudB64ToFile(r.b64,r.name,r.type);cloudIdByFile.set(cloudKey(file),f.id);prescanBind(pe,file);pe.file=file;return file}).finally(()=>{pe.dl=null});
+ return pe.dl;
+}
+// 判別（都是猜的，除了 QR code／PDF）：回傳 {t:標籤文字,k:ok|guess|unsure}
+function prescanTag(res){
+ if(res&&res.qr)return {t:'統一發票（QR）',k:'ok'};
+ if(res&&res.pdf)return {t:'統一發票（PDF）',k:'ok'};
+ const no=String(res&&res.data&&res.data.invoiceNo||'').toUpperCase().replace(/[^A-Z0-9]/g,'');
+ if(/^[A-Z]{2}\d{8}$/.test(no))return {t:'可能是統一發票（讀到號碼）',k:'guess'};
+ if(res&&res.stamp&&res.stamp.taxId)return {t:'可能是收據（有大章）',k:'guess'};
+ const g=window.DocType?DocType.guess(res&&res.raw):'';
+ if(g)return {t:'可能是'+DocType.label(g)+'（有「'+(g==='proof'?'證明':'收據')+'」字樣）',k:'guess'};
+ return {t:'不確定',k:'unsure'};
+}
+function prescanDeviceOk(){
+ const nav=typeof navigator!=='undefined'?navigator:{};
+ const mobile=/Android|iPhone|iPad|iPod|Mobile/i.test(nav.userAgent||'')||(typeof matchMedia==='function'&&!matchMedia('(hover:hover) and (pointer:fine)').matches);
+ return !mobile&&(!nav.hardwareConcurrency||nav.hardwareConcurrency>=4)&&!(nav.deviceMemory&&nav.deviceMemory<=2);   // 手機、4 核以下、記憶體 2GB 以下不跑（會拖慢使用者手上的事）
+}
+function prescanCan(){return prescan.on&&prescanDeviceOk()&&cloudInboxOn()&&!document.hidden&&!batchBusy&&!cloudInbox.busy&&!cloudInbox.err&&cloudInbox.files.length>0}
+const prescanScope=()=>(cloudFolders().get(cloudCurFolder())||[]).slice(0,PRESCAN_MAX);
+// 下一張要做哪一張：使用者勾選的優先，再依清單順序；已完成、已匯入、正在做、失敗後還沒到重試時間的跳過
+function prescanNext(){
+ const fs=prescanScope(),now=Date.now();
+ const pick=a=>a.find(f=>{const pe=prescan.map.get(f.id);return !pe||(!pe.claimed&&!pe.imported&&pe.state!=='done'&&!(pe.state==='err'&&(pe.fail>=2||now<pe.retryAt)))});
+ return pick(fs.filter(f=>cloudInbox.sel.has(f.id)))||pick(fs)||null;
+}
+async function prescanRun(f){
+ const pe=prescanEntry(f);pe.claimed=true;
+ try{
+  pe.state='dl';prescanUi();
+  const file=await prescanFetch(f);
+  pe.state='up';prescanUi();
+  const up=await uprightFile(file);pe.upright=up.file!==file;
+  pe.state='rec';prescanUi();
+  const res=await recognizeOne(up.file);pe.tag=prescanTag(res);prescanUi();
+  if(cardDetectOn()){pe.state='card';prescanUi();await cardDetectFile(up.file)}
+  pe.state='done';pe.fail=0;
+ }catch(e){pe.fail++;pe.state='err';pe.retryAt=Date.now()+30000;console.warn('預先辨識失敗：'+f.name,e)}
+ finally{pe.claimed=false;prescanUi()}
+}
+async function prescanLoop(){
+ if(prescan.loop)return;prescan.loop=true;
+ try{
+  const lane=async()=>{
+   for(;;){
+    if(!prescanCan())return;
+    if(Date.now()-prescan.typedAt<2500){await new Promise(r=>setTimeout(r,800));continue}   // 使用者正在打字：先不要開始新的一張（QR code 掃描、文字辨識會占用電腦）
+    const f=prescanNext();if(!f)return;
+    await prescanRun(f);
+   }
+  };
+  await Promise.all(Array.from({length:PRESCAN_LANES},()=>lane()));
+ }finally{prescan.loop=false;prescanUi()}
+}
+function prescanKick(){if(!prescan.loop&&prescanCan()&&prescanNext())prescanLoop()}
+// 清單重新檢查後：已經不在清單的（匯入並存檔、被移走）把記好的結果丟掉
+function prescanPrune(){
+ const ids=new Set(cloudInbox.files.map(f=>f.id));
+ prescan.map.forEach((pe,id)=>{if(ids.has(id)||pe.dl||pe.claimed)return;prescan.map.delete(id);pe.keys.forEach(k=>{if(prescanByKey.get(k)===pe)prescanByKey.delete(k)})});
+}
+function prescanStats(){
+ const all=(cloudFolders().get(cloudCurFolder())||[]),fs=all.slice(0,PRESCAN_MAX);let done=0,err=0;const wip=[];
+ fs.forEach(f=>{const pe=prescan.map.get(f.id);if(!pe)return;if(pe.state==='done'||pe.imported)done++;else if(pe.state==='err'&&pe.fail>=2)err++;else if(pe.claimed)wip.push(pe)});
+ return {all:all.length,total:fs.length,done,err,wip};
+}
+const prescanStateWord={dl:'下載中…',up:'轉正中…',rec:'辨識中…',card:'偵測卡號…'};
+function prescanTagHTML(id){
+ const pe=prescan.map.get(id);if(!pe)return '';
+ let h='';
+ if(pe.tag)h+='<span class="ptag '+pe.tag.k+'">'+esc(pe.tag.t)+'</span>'+(pe.upright?'<span class="ptag ok">已轉正</span>':'');
+ if(pe.claimed&&prescanStateWord[pe.state])h+='<span class="ptag wip">'+prescanStateWord[pe.state]+'</span>';
+ else if(pe.state==='err'&&!pe.tag)h+='<span class="ptag unsure">預先辨識沒成功（匯入時會再試）</span>';
+ return h;
+}
+function prescanLineHTML(){
+ if(!prescanDeviceOk())return '';
+ const s=prescanStats();if(!s.total)return '';
+ const btn=' <button type="button" id="cloudPrescanToggle">'+(prescan.on?'暫停':'繼續')+'背景預先辨識</button>';
+ const cnt='已完成 <b>'+s.done+'</b>/'+s.total+' 張';
+ if(!prescan.on)return '⚡ 背景預先辨識已暫停（'+cnt+(s.wip.length?'；正在處理的 '+s.wip.length+' 張做完就停':'')+'）'+btn;
+ if(s.done+s.err>=s.total)return '⚡ 這個資料夾'+(s.all>s.total?'前 '+s.total+' 張':'的 '+s.total+' 張')+'已預先辨識'+(s.err?'（'+s.err+' 張沒成功，匯入時會再試）':'完成')+'：已轉正、已判別是不是統一發票，按「匯入」幾乎馬上就有結果；標籤是系統猜的，匯入後請在「憑證類型」確認'+btn;
+ return '⚡ 背景預先辨識中：'+cnt+(s.wip.length?'（正在處理：'+s.wip.map(p=>esc(p.name)).join('、')+'）':batchBusy?'（目前正在辨識匯入的發票，先暫停）':'')+'；已完成的匯入時直接用，不用再等'+btn;
+}
+// 進度行與每一列的標籤「就地更新」（不重畫整個清單，免得捲動位置跑掉、按到一半的按鈕被換掉）
+function prescanUi(){
+ if(typeof document==='undefined'||document.hidden)return;
+ const box=$('cloudInbox');if(!box)return;
+ const line=box.querySelector('#cloudPrescanLine');
+ if(line){const h=prescanLineHTML();if(line.dataset.h!==h){line.dataset.h=h;line.innerHTML=h}}
+ box.querySelectorAll('.cloud-tag[data-cid]').forEach(s=>{const h=prescanTagHTML(s.dataset.cid);if(s.dataset.h!==h){s.dataset.h=h;s.innerHTML=h}});
+}
+// ===PRESCAN-END
+document.addEventListener('keydown',()=>{prescan.typedAt=Date.now()},true);
+setInterval(()=>{prescanKick();prescanUi()},4000);   // 條件變了（回到前景、批次辨識完、打開頁面）就會自己接著做
+document.addEventListener('visibilitychange',()=>{if(!document.hidden)prescanKick()});
 // 預覽：下載這一張，用全螢幕蓋住畫面顯示（點一下或按 Esc 關閉）；PDF 開新分頁
 async function cloudPreview(id){
  if(!cloudInbox.files.some(x=>x.id===id))return;
@@ -4007,11 +4145,12 @@ async function cloudPreview(id){
  }catch(e){toast('預覽失敗：'+((e&&e.message)||''))}
 }
 document.addEventListener('click',e=>{
- const b=e.target.closest&&e.target.closest('#cloudInboxImport,#cloudInboxRefresh,#cloudInboxToggle,#cloudInboxAll,#cloudInboxNone,.cloud-prev');if(!b)return;
+ const b=e.target.closest&&e.target.closest('#cloudInboxImport,#cloudInboxRefresh,#cloudInboxToggle,#cloudInboxAll,#cloudInboxNone,#cloudPrescanToggle,.cloud-prev');if(!b)return;
  if(b.id==='cloudInboxImport')cloudInboxImport();
  else if(b.id==='cloudInboxRefresh')cloudInboxRefresh(true);
  else if(b.id==='cloudInboxToggle'){cloudInbox.open=!cloudInbox.open;renderCloudInbox()}
  else if(b.id==='cloudInboxAll'||b.id==='cloudInboxNone'){const all=b.id==='cloudInboxAll';cloudInbox.sel.clear();if(all)(cloudFolders().get(cloudCurFolder())||[]).forEach(f=>cloudInbox.sel.add(f.id));$('cloudInbox').querySelectorAll('input[data-cid]').forEach(i=>{i.checked=all});cloudInboxCount()}
+ else if(b.id==='cloudPrescanToggle'){prescan.on=!prescan.on;try{localStorage.setItem('cd.prescan.off',prescan.on?'0':'1')}catch(_){}prescanUi();prescanKick()}
  else if(b.classList.contains('cloud-prev'))cloudPreview(b.dataset.cid);
 });
 document.addEventListener('change',e=>{
@@ -4039,7 +4178,7 @@ function cardCrop(bmp,fx,fy,fw,fh,up,maxW,capW){
  const c=document.createElement('canvas');c.width=cw;c.height=ch;const g=c.getContext('2d');
  g.imageSmoothingQuality='high';g.fillStyle='#fff';g.fillRect(0,0,c.width,c.height);g.drawImage(bmp,Math.round(bmp.width*fx),Math.round(bmp.height*fy),sw,sh,0,0,c.width,c.height);return c;
 }
-async function cardDetectFile(file){
+async function cardDetectFileRaw(file){
  const bmp=await cardDrawable(file),texts=[];let ent=null,w=null;
  try{
   ent=await acquireOcrWorker();w=ent.w;
@@ -4104,7 +4243,7 @@ async function cardDetectRow(r){
 const IMG_TYPES=/^image\/(jpeg|png|webp)$/;
 async function withOcrWorker(fn){let ent=null,w=null;try{ent=await acquireOcrWorker();w=ent.w;return await fn(w)}finally{if(w){try{await w.setParameters({tessedit_pageseg_mode:'3',tessedit_char_whitelist:''})}catch(_){}}if(ent)releaseOcrWorker(ent)}}
 async function canvasOfFile(file){const src=await loadImage(file);if(src instanceof HTMLCanvasElement)return src;const bmp=await createImageBitmap(src);const c=document.createElement('canvas');c.width=bmp.width;c.height=bmp.height;c.getContext('2d').drawImage(bmp,0,0);if(bmp.close)bmp.close();return c}   // loadImage 對圖片檔直接回傳 File（PDF 才是畫好的 canvas）；createImageBitmap 會照 EXIF 方向轉正
-async function uprightFile(file){
+async function uprightFileRaw(file){
  const same={file,turned:0,tilt:0};
  if(!window.ImageUpright||!IMG_TYPES.test(file.type))return same;
  // 先掃發票 QR code：讀得到、而且朝向很明確（jsQR 給的角度）→ 照 QR code 轉正，不跑文字辨識（原本判斷方向要跑 1～4 次文字辨識，每次約 6～8 秒；實測兩張 3000×4000 的電子發票照片，轉正就佔 27 秒／張）。
