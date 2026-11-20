@@ -24,7 +24,8 @@
 .batch-card-head{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:16px;padding-bottom:12px;border-bottom:1px solid #E6D9B4}
 .batch-card-head .batch-preview{max-width:90px;max-height:92px}.batch-card-head .batch-file{flex:1;min-width:150px}
 .batch-card .formgrid .field label{font-weight:600}
-#cloudInbox .cloud-pick{margin-top:8px}#cloudInbox .cloud-pick-bar{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-bottom:6px}#cloudInbox .cloud-pick-list{max-height:300px;overflow:auto;border:1px solid #E3D6B0;border-radius:6px;padding:4px 8px;background:#fff}#cloudInbox .cloud-grp{margin:8px 0 2px;color:#5B4B38}#cloudInbox .cloud-row{display:flex;align-items:center;gap:8px;padding:3px 2px;font-weight:normal;border-bottom:1px dashed #F6EFDB;cursor:pointer}#cloudInbox .cloud-row input{width:auto;flex:0 0 auto}#cloudInbox .cloud-name{flex:1 1 auto;word-break:break-all}#cloudInbox .cloud-prev{padding:2px 8px;font-size:12px;flex:0 0 auto}#cloudInbox .cloud-pick-bar select{width:auto;max-width:100%;min-width:200px}#cloudInbox .cloud-pick-bar label{display:inline-flex;align-items:center;gap:4px;font-weight:normal}.batch-card textarea{min-height:74px}
+#cloudInbox .cloud-pick{margin-top:8px}#cloudInbox .cloud-pick-bar{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-bottom:6px}#cloudInbox .cloud-pick-list{max-height:300px;overflow:auto;border:1px solid #E3D6B0;border-radius:6px;padding:4px 8px;background:#fff}#cloudInbox .cloud-grp{margin:8px 0 2px;color:#5B4B38}#cloudInbox .cloud-row{display:flex;align-items:center;gap:8px;padding:3px 2px;font-weight:normal;border-bottom:1px dashed #F6EFDB;cursor:pointer}#cloudInbox .cloud-row input{width:auto;flex:0 0 auto}#cloudInbox .cloud-name{flex:1 1 auto;word-break:break-all}#cloudInbox .cloud-prev{padding:2px 8px;font-size:12px;flex:0 0 auto}
+.cloud-tag{flex:0 0 auto;font-size:11px;padding:1px 6px;border-radius:9px;background:#EEF4FB;color:#3a5f86;border:1px solid #C9DAEC;white-space:nowrap}#cloudInbox .cloud-pick-bar select{width:auto;max-width:100%;min-width:200px}#cloudInbox .cloud-pick-bar label{display:inline-flex;align-items:center;gap:4px;font-weight:normal}.batch-card textarea{min-height:74px}
 .batch-card .batch-retry{margin-left:auto;white-space:nowrap}
 details.fold{border:1px solid #E3D6B0;border-radius:8px;padding:8px 12px;margin-top:10px;background:#FFFDF7}details.fold>summary{cursor:pointer;font-weight:600;color:var(--blue)}
 .ledger-cands{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-top:6px}.ledger-cands:empty{display:none}
@@ -3801,7 +3802,8 @@ async function recognizeOne(file,force=false){
   const d=pdfOverlay({},pdfT);
   return {data:d,raw:pdfRawText(pdfT),rounds:0,uncertain:pdfT.p.amountSure?[]:['amount'],pdf:pdfT.p,taxNote:'',taxCheckFail:false,votes:{},conflicts:[]};
  }
- const source=await loadImage(file);
+ const cn=force?null:cloudReceiptNote(file);   // ☁ 收據／證明且雲端已經用 Google 先讀好文字：用那份文字，不跑本機三輪文字辨識（手動「重新辨識」＝force 一律照舊跑本機）
+ const source=cn?null:await loadImage(file);
  const variants=['soft','sharp','binary'];
  const rounds=[],raw=[],errors=[];
  // 三輪文字辨識同時跑：每一輪各自向引擎池借一個閒置的引擎（沒有閒置的就排隊）。原本一張照片要在同一個引擎上依序跑完 3 輪，批量小（1～3 張）時其他引擎閒著；現在最快縮短到約 1/3，辨識結果與順序不變（rounds 仍依第 1、2、3 輪排列）
@@ -3816,7 +3818,8 @@ async function recognizeOne(file,force=false){
   }catch(e){return {idx,mode,err:e}}
   finally{if(canvas){canvas.width=0;canvas.height=0}if(ent){try{await ent.w.setParameters({tessedit_pageseg_mode:'3'})}catch(_){}releaseOcrWorker(ent)}}
  };
- try{
+ if(cn){rounds.push({data:extractInvoice(cn.t),text:cn.t});raw.push('【雲端 Google 文字辨識（先讀好的備註）】\n'+cn.t)}
+ else try{
   const outs=await Promise.all(variants.map((_,i)=>runRound(i)));
   outs.forEach(o=>{if(o.err){errors.push(o.err);raw.push(`【${o.mode} 辨識錯誤】${o.err.message||o.err}`)}else{raw.push(`【第${o.idx+1}輪 ${o.mode}】\n${o.txt}`);rounds.push({data:extractInvoice(o.txt),text:o.txt})}});
  }finally{if(source instanceof HTMLCanvasElement){source.width=0;source.height=0}}
@@ -3832,11 +3835,12 @@ async function recognizeOne(file,force=false){
   if(pdfT.p.sellerTaxId)uncertain=uncertain.filter(k=>k!=='taxId');
  }
  let stamp=null;   // 收據：賣方統編沒讀到（或沒通過檢查碼）→ 看發票上有沒有蓋大章，從章上讀統編
- if(!pdfT&&IMG_TYPES.test(file.type)){const tv0=String(decision.values.taxId||'').trim();if(!tv0||!taxOk(tv0)){try{stamp=await stampTax(file)}catch(e){console.warn('大章辨識失敗',e)}
+ // ☁ 用雲端文字的收據一律看有沒有大章：Google 把小字也讀得很完整（例如收據本印刷廠的統編，也是通過檢查碼的 8 碼數字），只看文字會挑錯統編；有大章就以章上的統編為準（章上讀不到才用文字裡的）
+ if(!pdfT&&IMG_TYPES.test(file.type)){const tv0=String(decision.values.taxId||'').trim();if(cn||!tv0||!taxOk(tv0)){try{stamp=await stampTax(file)}catch(e){console.warn('大章辨識失敗',e)}
   if(stamp&&stamp.taxId){decision.values.taxId=stamp.taxId;if(stamp.sure)uncertain=uncertain.filter(k=>k!=='taxId');else if(!uncertain.includes('taxId'))uncertain.push('taxId')}}}
  const tv=String(decision.values.taxId||'').trim(),taxCheckFail=!!tv&&!taxOk(tv);
  if(taxCheckFail&&!uncertain.includes('taxId'))uncertain.push('taxId');   // 統編沒通過檢查碼＝一定有數字讀錯，要人核對
- return {data:decision.values,taxNote:tv?'':(combined.taxNote||''),taxCheckFail,raw:(pdfT?pdfRawText(pdfT)+'\n\n---\n\n':'')+raw.join('\n\n---\n\n'),rounds:rounds.length,uncertain,votes:decision.votes,conflicts:decision.conflicts,pdf:pdfT?pdfT.p:null,stamp};
+ return {data:decision.values,taxNote:tv?'':(combined.taxNote||''),taxCheckFail,raw:(pdfT?pdfRawText(pdfT)+'\n\n---\n\n':'')+raw.join('\n\n---\n\n'),rounds:rounds.length,uncertain,votes:decision.votes,conflicts:decision.conflicts,pdf:pdfT?pdfT.p:null,stamp,cloud:!!cn};
 }
 async function retryBatchRow(i){
  const r=batchRows[i];if(batchBusy||!r||r.saved)return;
@@ -3880,7 +3884,7 @@ el('batchScan').addEventListener('click',async()=>{
   if(result.qr){applyQRToBatchRow(r,result.qr);if(AUTO_FILL_CLAIM_ITEMS){r.qrObj=result.qr;r.qrSnap=claimSnapshot(r.claim.items)}}r.ocrVendor=result.data.vendor||'';r.uncertain=result.uncertain;
   if(validTax(r.values.taxId)){await verifyBatchSeller(i,result.data.vendor||'');if(r.registryVerified)r.uncertain=(r.uncertain||[]).filter(k=>k!=='vendor');}
   else {r.registryVerified=false;r.vendorSource=(result.taxNote||'未讀到賣方統編')+'；'+(r.ocrVendor?'OCR 廠商名稱待核對':'請人工填入廠商名稱');}
-  let n=batchKeys.filter(k=>r.values[k]!==undefined&&r.values[k]!=='').length;r.note=result.pdf?`📄 PDF 電子發票讀取 ${n}/5 欄（直接讀 PDF 裡的文字，不是文字辨識：發票號碼、日期、含稅金額不會讀錯）${result.pdf.sales&&result.pdf.tax?`；金額：未稅 ${result.pdf.sales}＋營業稅 ${result.pdf.tax}＝含稅 ${result.pdf.amount}（請款項目金額用含稅總額）`:''}${result.pdf.sellerTaxId?'':'；賣方統編不在 PDF 文字裡，改用文字辨識讀印章，請核對'}${result.pdf.notes.filter(x=>/對不起來/.test(x)).map(x=>'；⚠ '+x).join('')}；請核對`:result.qr?`發票 QR code 讀取 ${n}/5 欄（廠商名稱由統編查詢）；${r.qrNote}；請核對`:`⚠ 沒讀到發票 QR code，改用文字辨識 ${n}/5 欄（${result.rounds} 輪，比 QR code 容易讀錯）${r.uncertain?.length?'；⚠ 需核對（多輪結果不一致，或統編沒通過檢查碼、可能讀錯一個數字）：'+r.uncertain.map(k=>({invoiceDate:'日期',invoiceNo:'號碼',taxId:'統編',vendor:'廠商',amount:'金額'})[k]).join('、'):''}；請逐欄核對原圖`;}
+  let n=batchKeys.filter(k=>r.values[k]!==undefined&&r.values[k]!=='').length;r.note=result.pdf?`📄 PDF 電子發票讀取 ${n}/5 欄（直接讀 PDF 裡的文字，不是文字辨識：發票號碼、日期、含稅金額不會讀錯）${result.pdf.sales&&result.pdf.tax?`；金額：未稅 ${result.pdf.sales}＋營業稅 ${result.pdf.tax}＝含稅 ${result.pdf.amount}（請款項目金額用含稅總額）`:''}${result.pdf.sellerTaxId?'':'；賣方統編不在 PDF 文字裡，改用文字辨識讀印章，請核對'}${result.pdf.notes.filter(x=>/對不起來/.test(x)).map(x=>'；⚠ '+x).join('')}；請核對`:result.qr?`發票 QR code 讀取 ${n}/5 欄（廠商名稱由統編查詢）；${r.qrNote}；請核對`:`⚠ 沒讀到發票 QR code，改用文字辨識 ${n}/5 欄（${result.cloud?'雲端 Google 先讀好的文字，沒有本機多輪比對':result.rounds+' 輪'}，比 QR code 容易讀錯）${r.uncertain?.length?'；⚠ 需核對（多輪結果不一致，或統編沒通過檢查碼、可能讀錯一個數字）：'+r.uncertain.map(k=>({invoiceDate:'日期',invoiceNo:'號碼',taxId:'統編',vendor:'廠商',amount:'金額'})[k]).join('、'):''}；請逐欄核對原圖`;}
   catch(err){r.error='辨識失敗：'+(err.message||String(err))+'；可手動填寫';r.selected=false}
   if(!r.error){const extra=[r.uprightNote,r.docNote,r.stampNote].filter(Boolean);if(extra.length)r.note=extra.join('；')+'；'+(r.note||'')}
   if(!r.error&&cardDetectOn())await cardDetectRow(r);   // 執行長發票：偵測卡號（末 4 碼 7170＝公司卡 → N；其他卡 → Y 填卡號；沒有卡號 → Y 填現金）
@@ -3913,7 +3917,7 @@ el('batchScan').addEventListener('click',async()=>{
 // 使用者再要求：「可以選擇要匯入哪個資料夾的檔案；若超過 30 張分次匯入」→ 清單上方有「資料夾」下拉選單，一次只看／勾選一個資料夾的檔案；批次辨識一次最多 30 張，
 // 勾選超過 30 張時這次先匯入前 30 張、剩下的保持勾選，等這批核對、儲存之後再按一次匯入下一批。
 const CLOUD_BATCH_MAX=30;   // 和批次辨識的上限一致（batchScan：單次最多 30 張）
-const cloudInbox={files:[],linked:0,err:'',busy:false,last:0,progress:'',open:false,folder:null,sel:new Set()};
+const cloudInbox={files:[],linked:0,err:'',busy:false,last:0,progress:'',open:false,folder:null,sel:new Set(),ocr:null};
 const cloudRootName='（資料夾最上層）';
 const cloudFolders=()=>{   // 資料夾名稱 → 這個資料夾裡還沒匯入的照片；資料夾依名稱「自然排序」由大到小（2026年11月、2026年10月、2026年9月：數字照大小排，新的在前），最上層放最後
  const m=new Map();cloudInbox.files.forEach(f=>{const g=f.folder||cloudRootName;if(!m.has(g))m.set(g,[]);m.get(g).push(f)});
@@ -3925,6 +3929,33 @@ const cloudPicked=()=>{const f=cloudFolders().get(cloudCurFolder())||[];return f
 const cloudIdByFile=new Map();
 const cloudKey=f=>f.name+'|'+f.size;
 const cloudIdOfFile=f=>(f&&cloudIdByFile.get(cloudKey(f)))||'';
+// ===== ☁ 雲端備註（雲端用 Google 辨識先讀好的文字）=====
+// 使用者 2026-11-20：「我要你先在雲端讀完之後，匯入要比較及時，你讀完之後先寫上一些備註，讓匯入的時候再讀取更加快速」（選「先做 A」＝只用 Apps Script＋Google 辨識；同日又說「取消背景預先辨識」＝瀏覽器不在背景預先辨識）。
+// 後端排程把雲端資料夾裡的 JPG／PNG 丟給 Google 辨識、文字記成備註：清單帶回粗分類（「☁ 可能是收據」，只是猜的）；匯入下載（inboxGet）時帶回文字。
+// 這裡拿備註省掉本機最慢的兩件事：①收據／證明（沒有發票號碼可讀錯）的三輪文字辨識；②卡號偵測（雲端文字讀到公司卡的完整卡號，或收據／證明上根本沒有「信用卡」才直接用）。
+// 其餘照舊在本機做：QR code、轉正、大章（用雲端文字的收據一律看大章，章上的統編優先）、PDF、發票類（QR 讀不到的）的文字辨識。沒有備註、備註不適用、手動「重新辨識」、關掉（localStorage cd.cloudnote.off＝1）都照舊。
+// ===CLOUDNOTE-BEGIN
+const cloudNoteByCid=new Map();   // 雲端檔案代號 → 備註 {c,t,at}（匯入下載時後端帶回來的；照片被換掉的後端不會給）
+const cloudNoteOff=()=>{try{return localStorage.getItem('cd.cloudnote.off')==='1'}catch(_){return false}};
+function cloudNoteOf(file){if(cloudNoteOff())return null;const id=cloudIdOfFile(file),n=id&&cloudNoteByCid.get(id);return n&&n.t?n:null}   // 轉正後的新檔案也對得到（批次已把新檔案記成同一個雲端檔案代號）
+function cloudReceiptNote(file){const n=cloudNoteOf(file);if(!n||!window.DocType)return null;const g=DocType.guess(n.t);return g==='receipt'||g==='proof'?n:null}   // 收據、證明：沒有發票號碼可讀錯，雲端文字可以取代本機三輪文字辨識
+function cloudCardShortcut(file){
+ const n=cloudNoteOf(file);if(!n||!window.CardDetect)return null;
+ const j=CardDetect.judgeCard([n.t]);
+ if(j.kind==='company'&&j.sure)return {det:j,texts:[n.t],cloud:true};   // 雲端文字讀到的卡號（前 6 碼＋末 4 碼）和公司卡完全一樣：很確定
+ if(!j.credit&&cloudReceiptNote(file))return {det:j,texts:[n.t],cloud:true};   // 收據、證明上沒有「信用卡」字樣：不是刷卡單，當現金
+ return null;   // 其餘（有卡號但不是公司卡、讀不清楚、發票上沒寫信用卡…）：照舊在本機讀，不拿雲端文字下結論
+}
+const CLOUD_TAGS={inv:'可能是統一發票',rcpt:'可能是收據',proof:'可能是證明',unk:'不確定'};
+function cloudTagHTML(f){const c=f&&f.cloud&&f.cloud.c;return c&&Object.prototype.hasOwnProperty.call(CLOUD_TAGS,c)?'<span class="cloud-tag" title="雲端 Google 辨識先讀過這張，這是它猜的；匯入後請在「憑證類型」確認">☁ '+CLOUD_TAGS[c]+'</span>':''}
+function cloudOcrLine(o){   // 清單上方的一行：雲端已經先讀了幾張
+ if(!o||!o.on||!(o.total>0))return '';
+ const head='☁ 雲端 Google 已先讀 '+o.have+'/'+o.total+' 張（匯入時直接用，比較快；清單上的「☁ 可能是…」是它猜的）';
+ if(o.have>=o.total)return head;
+ if(!o.trig)return head+'。其餘的雲端還沒開始讀（定時辨識還沒啟用：要在 Apps Script 執行一次 installInboxOcrTrigger）；沒讀的匯入時照舊在這台電腦辨識';
+ return head+(o.last&&o.last.failed&&o.last.err?'。上次雲端辨識出錯：'+o.last.err:'；其餘的雲端每 10 分鐘讀一批，沒讀到的匯入時照舊在這台電腦辨識');
+}
+// ===CLOUDNOTE-END
 function cloudInboxOn(){const e=$('entry');return !!authUser&&canCeoHistPanel()&&!!e&&e.classList.contains('ceo-mode')&&!e.classList.contains('hide')}
 const cloudKB=n=>n>=1048576?(n/1048576).toFixed(1)+' MB':Math.max(1,Math.round(n/1024))+' KB';
 function cloudInboxCount(){
@@ -3941,12 +3972,13 @@ function renderCloudInbox(){
  box.classList.remove('hide');
  const fm=cloudFolders();
  let h='☁ 雲端有 <b>'+c.files.length+'</b> 張新發票（'+fm.size+' 個資料夾）　'+btn('cloudInboxToggle',c.open?'收合清單':'選擇要匯入的發票','primary')+' '+btn('cloudInboxRefresh','重新檢查')+(c.linked?'<span class="muted small">　（已匯入過 '+c.linked+' 張，不再列出）</span>':'');
+ {const ol=cloudOcrLine(c.ocr);if(ol)h+='<div class="muted small" id="cloudOcrLine">'+esc(ol)+'</div>'}
  if(c.open){
   const cur=cloudCurFolder(),fs=fm.get(cur)||[];
   const opts=[...fm].map(([g,a])=>'<option value="'+esc(g)+'"'+(g===cur?' selected':'')+'>📁 '+esc(g)+'（'+a.length+' 張）</option>').join('');
   h+='<div class="cloud-pick"><div class="cloud-pick-bar"><label>要匯入哪個資料夾：<select id="cloudInboxFolder">'+opts+'</select></label> '+btn('cloudInboxAll','全選這個資料夾')+' '+btn('cloudInboxNone','全不選')+' <button type="button" id="cloudInboxImport" class="primary" disabled>匯入選取的（0 張）</button></div>'
    +'<div class="muted small">勾選後匯入到批次辨識，核對完才存草稿或送出；一次最多匯入 '+CLOUD_BATCH_MAX+' 張，超過會分次匯入；點「預覽」可先看照片</div><div id="cloudSplitNote" class="small" style="color:#9a5b00"></div><div class="cloud-pick-list">';
-  fs.forEach(f=>{h+='<label class="cloud-row"><input type="checkbox" data-cid="'+esc(f.id)+'"'+(c.sel.has(f.id)?' checked':'')+'> <span class="cloud-name">'+esc(f.name)+'</span> <span class="muted small">'+cloudKB(f.size)+(f.modified?'　'+esc(f.modified):'')+'</span> <button type="button" class="cloud-prev" data-cid="'+esc(f.id)+'">預覽</button></label>'});
+  fs.forEach(f=>{h+='<label class="cloud-row"><input type="checkbox" data-cid="'+esc(f.id)+'"'+(c.sel.has(f.id)?' checked':'')+'> <span class="cloud-name">'+esc(f.name)+'</span>'+cloudTagHTML(f)+' <span class="muted small">'+cloudKB(f.size)+(f.modified?'　'+esc(f.modified):'')+'</span> <button type="button" class="cloud-prev" data-cid="'+esc(f.id)+'">預覽</button></label>'});
   h+='</div></div>';
  }
  box.innerHTML=h;
@@ -3958,7 +3990,7 @@ async function cloudInboxRefresh(force){
  cloudInbox.busy=true;
  try{
   const r=await InvCloud.call('inboxList',{});
-  Object.assign(cloudInbox,{files:r.files||[],linked:r.linked||0,err:''});
+  Object.assign(cloudInbox,{files:r.files||[],linked:r.linked||0,err:'',ocr:r.ocr||null});   // ocr＝雲端 Google 辨識的進度（後端還沒更新就沒有）
   const ids=new Set(cloudInbox.files.map(f=>f.id));[...cloudInbox.sel].forEach(id=>{if(!ids.has(id))cloudInbox.sel.delete(id)});   // 已經匯入或被移走的就不再勾著
  }catch(e){
   // 後端還沒更新（unknown_action）或沒有權限（denied）：不打擾，不顯示橫幅
@@ -3973,10 +4005,11 @@ async function cloudInboxImport(){
  if(batchRows.some(r=>!r.saved)&&!confirm('批次清單裡還有尚未儲存的發票，匯入會取代它們，是否繼續？'))return;
  c.busy=true;
  const got=new Array(list.length),failed=[];let done=0;
- const prog=()=>{c.progress='正在從雲端資料夾下載發票… '+done+'/'+list.length;renderCloudInbox()};prog();
+ const nCloud=list.filter(f=>f.cloud).length;   // 雲端已經用 Google 先讀好文字的
+ const prog=()=>{c.progress='正在從雲端資料夾下載發票… '+done+'/'+list.length+(nCloud?'（其中 '+nCloud+' 張雲端已先讀好，辨識會比較快）':'');renderCloudInbox()};prog();
  try{
   await runLimited(list,5,async(f,i)=>{
-   try{const r=await InvCloud.call('inboxGet',{id:f.id});got[i]={f,file:cloudB64ToFile(r.b64,r.name,r.type)}}
+   try{const r=await InvCloud.call('inboxGet',{id:f.id});got[i]={f,file:cloudB64ToFile(r.b64,r.name,r.type)};if(r.note&&r.note.t)cloudNoteByCid.set(f.id,r.note);else cloudNoteByCid.delete(f.id)}   // 備註（雲端 Google 先讀好的文字）跟著照片一起帶回來
    catch(e){failed.push(f.name+'：'+((e&&e.message)||'下載失敗'))}
    done++;prog();
   });
@@ -4040,6 +4073,7 @@ function cardCrop(bmp,fx,fy,fw,fh,up,maxW,capW){
  g.imageSmoothingQuality='high';g.fillStyle='#fff';g.fillRect(0,0,c.width,c.height);g.drawImage(bmp,Math.round(bmp.width*fx),Math.round(bmp.height*fy),sw,sh,0,0,c.width,c.height);return c;
 }
 async function cardDetectFile(file){
+ const cs=cloudCardShortcut(file);if(cs)return cs;   // ☁ 雲端 Google 先讀好的文字已經夠確定（公司卡的完整卡號；或收據／證明上根本沒有「信用卡」）：不用再切塊跑本機文字辨識（一張 10～40 秒）；不確定就照舊
  const bmp=await cardDrawable(file),texts=[];let ent=null,w=null;
  try{
   ent=await acquireOcrWorker();w=ent.w;
