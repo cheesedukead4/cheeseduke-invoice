@@ -423,7 +423,7 @@ dialog{border:1px solid var(--cd-gold-deep)}
 <button type="button" class="entry-choice" id="chooseSingle" aria-expanded="false"><span class="entry-icon">📷</span><strong>發票拍照／上傳</strong><span>一張自動單筆，多張自動批次</span></button>
 <button type="button" class="entry-choice" id="chooseCSV" aria-expanded="false"><span class="entry-icon">📊</span><strong>CSV 匯入</strong><span>匯入既有發票清單</span></button>
 </div></div>
-<div class="panel hide" id="uploadControls"><div class="field" style="max-width:720px"><label for="files" title="每檔 10 MB 內、批次最多 30 張；選一張＝單筆、選多張＝批次，選好就自動辨識。">📎 選取發票照片或 PDF</label><input type="file" id="files" multiple accept="image/jpeg,image/png,image/webp,application/pdf"><span class="muted small">每檔 10 MB 內、批次最多 30 張；選一張＝單筆、選多張＝批次，選好就自動辨識。</span></div><div class="hide"><button type="button" id="modeSingle">單筆登錄</button><button type="button" id="modeBatch">多張批次登錄</button><span id="modeHint"></span></div></div>
+<div class="panel hide" id="uploadControls"><div class="field" style="max-width:720px"><label for="files" title="每檔 10 MB 內、批次最多 300 張；選一張＝單筆、選多張＝批次，選好就自動辨識。">📎 選取發票照片或 PDF</label><input type="file" id="files" multiple accept="image/jpeg,image/png,image/webp,application/pdf"><span class="muted small">每檔 10 MB 內、批次最多 300 張；選一張＝單筆、選多張＝批次，選好就自動辨識。</span></div><div class="hide"><button type="button" id="modeSingle">單筆登錄</button><button type="button" id="modeBatch">多張批次登錄</button><span id="modeHint"></span></div></div>
 <div class="panel hide" id="csvImportPanel"><h2>📊 CSV 發票清單匯入</h2><div class="note">除了拍照 OCR，也可匯入既有發票清單。系統會自動辨識欄位、優先對照廠商統編資料庫、檢查重複紀錄；請確認後再儲存或送主管簽核。CSV 不包含影像附件，匯入後須另行補上原始憑證。</div>
 <details class="note csv-help"><summary><b>CSV 欄位說明</b>（先按「下載 CSV 範本」，欄位順序和發票登錄頁一樣）</summary><ul><li><b>一列＝一個請款項目</b>。同一個<b>發票號碼</b>的多列會合併成<b>同一張發票</b>：發票欄位（日期、統編、廠商、金額、部門、申請人…）寫在第一列就好，後面的列只要寫發票號碼、<b>項目說明、項目金額、分攤部門</b>。</li><li><b>項目說明／項目金額</b>：不寫就當一個項目（用途說明、發票金額）。各項目金額合計要等於含稅金額才能送出。</li><li><b>分攤部門</b>：每個項目各自分攤。例如 <code>管理部:60;生產組:40</code> 或 <code>管理部 60%、生產組 40%</code>；只寫部門名稱就均分；空白＝申請部門 100%。</li><li><b>執行長上傳模式</b>另有 <b>請款別（Y/N）、卡別、費用類別</b>：有填的以你填的為準，沒填的依「發票判斷標準」自動判斷；<b>費用類別 Y、N 都要有</b>，部門、用途、會計科目都由費用類別決定；<b>沒有申請部門、申請人欄</b>（申請人固定是執行長；部門由費用類別對照決定，費用類別沒有對照部門、或要分攤到多個部門時，才在項目「分攤部門」欄寫）；<b>支付對象、用途說明不用填</b>（支付對象：請款別 Y 自動填「王奕凱」，N 自動填「公司卡」；用途說明＝費用類別）；請款別 N 的卡別沒填就是「玉山卡」；費用類別沒填會依項目說明帶入（食品-研發 → 研發費用…）。付款方式可寫 <code>公司卡（已付）</code>（請款別 N 會自動帶入）。</li><li>舊版 CSV 範本（有「申請日期、待補憑證張數」的）仍然讀得進來；「申請日期」由系統自動帶入。</li></ul></details>
 <div class="toolbar"><div class="field" style="min-width:250px"><label for="csvFile">選擇 CSV 檔案（最多 1000 筆）</label><input id="csvFile" type="file" accept=".csv,text/csv,text/plain"></div><div class="field"><label for="csvEncoding">文字編碼</label><select id="csvEncoding"><option value="utf-8">UTF-8（推薦）</option><option value="big5">Big5（舊版 Excel）</option></select></div><button id="csvTemplate" type="button">下載 CSV 範本</button><button id="csvLoad" class="primary" type="button">讀取並預覽</button><button id="csvClear" type="button">清除匯入清單</button></div>
@@ -483,7 +483,7 @@ dialog{border:1px solid var(--cd-gold-deep)}
 <div class="claim-bar"><button type="button" id="addClaimItem">＋ 新增項目</button><button type="button" id="qjGroup" title="把同一品類的項目合併（例如咖啡、雞腿飯 → 食品），並標上用途">🔎 依品類整理</button><div class="claim-total"><span>請款合計 </span><strong id="claimTotal">NT$ 0</strong></div></div><div id="claimAmountWarning" class="claim-notice" aria-live="polite"></div></div></div></div>
 <div id="autoDraftNote" class="muted small" aria-live="polite" style="margin:6px 0 2px"></div><div class="sticky-actions"><button class="primary" type="submit" id="submitInvoice">送出簽核</button><button type="button" id="saveDraft">儲存草稿</button><button type="button" id="resetForm">清除</button></div></form></div></div>
 <div id="batchMode" class="hide"><div class="panel"><h2>📑 批次發票與一般請款單</h2>
-<div class="note">一次選擇最多 30 張發票照片或 PDF，每個檔案視為<strong>一筆發票</strong>，依序辨識日期、發票號碼、<strong>賣方統編</strong>、廠商名稱及含稅金額；每張會獨立嘗試線上查詢廠商名稱，查詢狀態顯示在各張表單中。請在每張發票的表單逐筆核對，可修改辨識結果並分別儲存或送簽。PDF 每個檔案目前僅辨識第一頁。</div>
+<div class="note">一次選擇最多 300 張發票照片或 PDF，每個檔案視為<strong>一筆發票</strong>，依序辨識日期、發票號碼、<strong>賣方統編</strong>、廠商名稱及含稅金額；每張會獨立嘗試線上查詢廠商名稱，查詢狀態顯示在各張表單中。請在每張發票的表單逐筆核對，可修改辨識結果並分別儲存或送簽。PDF 每個檔案目前僅辨識第一頁。</div>
 <div class="batch-tools"><div class="field" style="min-width:280px"><strong>使用上方統一上傳區選取多張發票</strong><span class="muted small">每張發票單獨建立一筆帳務紀錄</span><input id="batchFiles" type="file" multiple accept="image/jpeg,image/png,image/webp,application/pdf" hidden></div><button id="batchScan" class="primary" type="button" title="選好檔案後會自動開始；需要重新辨識時才按">🔎 重新批次辨識</button><button id="batchReset" type="button">清空批次清單</button></div>
 <div class="muted small">每張發票下方都會顯示與單張登錄一致的完整表單。各筆的發票基本資料及一般請款欄位均可獨立填寫，合計自動計算。</div>
 <div class="hide"><select id="batchDept"><option value=""></option></select><input id="batchApplicant"><select id="batchCategory"><option value=""></option></select><input id="batchDescription"></div>
@@ -3592,7 +3592,7 @@ function renderBatch(){
   ensureItemAllocations(r.claim.items,r.values.dept);
   const fixedMembers=(window.companyApplicantOptions?.(r.values.dept)||[]).filter(m=>!authUser||authUser.role==='admin'||m.name===authUser.name);
   const whoFixed=departments.length<=1&&!!r.values.dept&&!!r.values.applicant&&fixedMembers.length<=1;
-  const prev=r.file.type.startsWith('image/')?`<img class="batch-preview" src="${batchURLs[i]}" alt="第${i+1}張發票影像">`:'📄 PDF';
+  const prev=r.file.type.startsWith('image/')?`<img class="batch-preview" loading="lazy" decoding="async" src="${batchURLs[i]}" alt="第${i+1}張發票影像">`:'📄 PDF';
   return `<div class="batch-card" id="batch-card-${i}"><div class="batch-card-head"><input style="width:18px;height:18px" type="checkbox" data-bselect="${i}" ${r.selected?'checked':''} ${r.saved?'disabled':''} aria-label="選取第${i+1}筆">${prev}<div class="batch-file"><b>第 ${i+1} 張發票</b>${r.serialNo?` <span class="muted small" title="發票編號（財務核對用）：匯入存入時就編好，之後不會變">編號 <b>${safeVal(r.serialNo)}</b></span>`:''}<div class="batch-msg">${safeVal(r.file.name)}</div><div class="batch-state ${r.error?'error':''}">${safeVal(r.saved?'✅ 已儲存':r.error||r.note||'待核對')}</div></div>${!r.saved?`<button class="batch-retry" type="button" data-retry="${i}" ${batchBusy?'disabled':''}>🔁 重新辨識</button>`:''}</div>
   <div class="batch-body" id="batch-body-${i}"><div class="batch-sec${whoFixed?' who-fixed':''}">${whoFixed?`<div class="who-chip" style="margin:0 0 6px;display:inline-block">申請人：${safeVal(r.values.applicant)}｜${safeVal(r.values.dept)}</div>`:''}
    <div class="cgrid cg6">
@@ -3860,7 +3860,7 @@ el('batchScan').addEventListener('click',async()=>{
  if(batchBusy)return;
  const files=Array.from(el('files').files);
  if(!files.length){batchProgress('請先選取多張發票影像或 PDF');return}
- if(files.length>30){batchProgress('單次最多 30 張發票，請分批選取。');return}
+ if(files.length>300){batchProgress('單次最多 300 張發票，請分批選取。');return}   // 原本 30 張（2026-11-20 使用者要「雲端有多少照片一次匯入」→ 拿掉，改成 300＝雲端清單一次列出的上限）
  const allowed=['image/jpeg','image/png','image/webp','application/pdf'];
  const bad=files.find(f=>!allowed.includes(f.type)||f.size>10*1024*1024);
  if(bad){batchProgress('檔案格式不符或超過 10MB：'+bad.name);return}
@@ -3906,15 +3906,16 @@ el('batchScan').addEventListener('click',async()=>{
  }
  batchBusy=false;el('batchScan').disabled=false;el('batchDraft').disabled=false;el('batchSubmit').disabled=false;
  {const nQR=batchRows.filter(r=>r.viaQR).length,nPDF=batchRows.filter(r=>r.viaPDF).length,ocrIdx=batchRows.map((r,i)=>r.viaQR||r.viaPDF||r.error?-1:i).filter(i=>i>=0);
-  batchProgress(`已處理 ${batchRows.length} 張：QR code 讀到 ${nQR} 張`+(nPDF?`；PDF 電子發票直接讀文字 ${nPDF} 張（發票號碼、日期、金額不是辨識出來的，不會讀錯）`:'')+(ocrIdx.length?`；沒讀到 QR code、改用文字辨識 ${ocrIdx.length} 張（第 ${ocrIdx.map(i=>i+1).join('、')} 張，比較容易讀錯，請逐欄核對，或對準 QR code 重拍）`:'')+'；辨識不完整的發票請手動補上欄位。辨識完會自動把整批存成草稿（重複的會自動取消勾選），請稍等…');}
- // 「匯入檢查完就要有發票編號」（使用者 2026-11-19）：先向後端預留編號，顯示在每張旁邊（存草稿時認領）
- if(batchCancelDuplicates().length)renderBatch();   // 重複的先取消（不預留編號、不上傳、不存草稿），畫面上的勾選與說明馬上更新
- const nSerial=await batchReserveSerials(),serialMsg=nSerial?`　已替 ${nSerial} 張發票編好發票編號（標題旁邊「編號 ○○○」），可以先寫在紙本發票上；存草稿時沿用這個號碼。`:'';
- // 辨識完自動整頁存草稿（使用者 2026-11-20：「全部執行完成整頁進行儲存草稿 但我在開啟時要跟儲存前畫面一樣 若有重覆的自動取消不匯入」；11/19 的「不要自動轉草稿」改回來）；存完的草稿下次打開整批還原
- await batchAutoDraft();
- {const dupRows=batchRows.map((r,i)=>r.dupCancelled?i+1:0).filter(Boolean);let msg=el('batchProgress').textContent.replace('辨識完會自動把整批存成草稿（重複的會自動取消勾選），請稍等…','沒有可以自動存成草稿的發票，請看各張說明。');   // 全部都被取消（重複）時 batchAutoDraft 沒有做事，進度行還停在「請稍等」
-  if(dupRows.length&&!/重複的第/.test(msg))msg+='　重複的第 '+dupRows.join('、')+' 張已自動取消勾選、不匯入。';
-  if(serialMsg)msg+=serialMsg;batchProgress(msg)}
+  batchProgress(`已處理 ${batchRows.length} 張：QR code 讀到 ${nQR} 張`+(nPDF?`；PDF 電子發票直接讀文字 ${nPDF} 張（發票號碼、日期、金額不是辨識出來的，不會讀錯）`:'')+(ocrIdx.length?`；沒讀到 QR code、改用文字辨識 ${ocrIdx.length} 張（第 ${ocrIdx.map(i=>i+1).join('、')} 張，比較容易讀錯，請逐欄核對，或對準 QR code 重拍）`:'')+'；辨識不完整的發票請手動補上欄位。【還沒有存檔】核對每一張之後，按下面的「儲存勾選項目為草稿」或「勾選項目送出簽核」才會存（辨識完不會自動存成草稿）。');}
+ // 「匯入檢查完就要有發票編號」（使用者 2026-11-19）：先向後端預留編號，顯示在每張旁邊（存檔時認領）
+ // 重複的先取消勾選（使用者 2026-11-20：「若有重覆的自動取消不匯入」）：不預留編號、不存；畫面上的勾選與說明馬上更新
+ const dupRows=batchCancelDuplicates();if(dupRows.length)renderBatch();
+ const nSerial=await batchReserveSerials();
+ // 辨識完不自動存草稿（使用者 2026-11-20：「幫我改成不存草稿但雲端有多少照片一次匯入」；同日稍早的「辨識完整頁自動存草稿」撤回）：留在清單讓人核對，按「儲存勾選項目為草稿」或「勾選項目送出簽核」才存。batchAutoDraft 函式保留但不再呼叫。
+ {let msg=el('batchProgress').textContent;
+  if(dupRows.length)msg+='　重複的第 '+dupRows.join('、')+' 張已自動取消勾選、不匯入（說明在各張上）。';
+  if(nSerial)msg+=`　已替 ${nSerial} 張發票編好發票編號（標題旁邊「編號 ○○○」），可以先寫在紙本發票上；存檔時沿用這個號碼，沒存的號碼會空著。`;
+  batchProgress(msg)}
 });
 // ===== ☁ 雲端資料夾匯入（執行長發票頁）=====
 // 後端列出雲端資料夾（含底下兩層子資料夾）裡「還沒匯入過」的照片（有沒有匯入過＝有沒有發票紀錄的 cloudFileId 對得上；草稿也算，發票刪掉照片就會再出現）。
@@ -3922,7 +3923,8 @@ el('batchScan').addEventListener('click',async()=>{
 // → 你核對後再存草稿或送出；存的時候把雲端檔案 ID 記在發票上，之後就不會再列出。清單展開與勾選的狀態在每 2 分鐘自動更新時會保留。
 // 使用者再要求：「可以選擇要匯入哪個資料夾的檔案；若超過 30 張分次匯入」→ 清單上方有「資料夾」下拉選單，一次只看／勾選一個資料夾的檔案；批次辨識一次最多 30 張，
 // 勾選超過 30 張時這次先匯入前 30 張、剩下的保持勾選，等這批核對、儲存之後再按一次匯入下一批。
-const CLOUD_BATCH_MAX=30;   // 和批次辨識的上限一致（batchScan：單次最多 30 張）
+// **2026-11-20 使用者又說「幫我改成不存草稿但雲端有多少照片一次匯入」→ 上限拿掉（改成 300 張＝後端一次列出的上限，雲端有多少張就一次匯入多少張）**，橫幅上加「⚡ 全部匯入」（所有資料夾的新發票一次下載、一次辨識）；辨識完也不再自動存草稿。
+const CLOUD_BATCH_MAX=300;   // 和批次辨識的上限一致（batchScan：單次最多 300 張）；後端 inboxList 一次最多列 300 張（CLOUD_INBOX_MAX_），所以實際上雲端有多少就匯入多少
 const cloudInbox={files:[],linked:0,err:'',busy:false,last:0,progress:'',open:false,folder:null,sel:new Set(),ocr:null};
 const cloudRootName='（資料夾最上層）';
 const cloudFolders=()=>{   // 資料夾名稱 → 這個資料夾裡還沒匯入的照片；資料夾依名稱「自然排序」由大到小（2026年11月、2026年10月、2026年9月：數字照大小排，新的在前），最上層放最後
@@ -3977,7 +3979,7 @@ function renderCloudInbox(){
  if(!c.files.length){box.classList.add('hide');box.innerHTML='';return}   // 沒有新發票就不佔畫面
  box.classList.remove('hide');
  const fm=cloudFolders();
- let h='☁ 雲端有 <b>'+c.files.length+'</b> 張新發票（'+fm.size+' 個資料夾）　'+btn('cloudInboxToggle',c.open?'收合清單':'選擇要匯入的發票','primary')+' '+btn('cloudInboxRefresh','重新檢查')+(c.linked?'<span class="muted small">　（已匯入過 '+c.linked+' 張，不再列出）</span>':'');
+ let h='☁ 雲端有 <b>'+c.files.length+'</b> 張新發票（'+fm.size+' 個資料夾）　'+btn('cloudInboxImportAll','⚡ 全部匯入（'+c.files.length+' 張）','primary')+' '+btn('cloudInboxToggle',c.open?'收合清單':'選擇要匯入的發票')+' '+btn('cloudInboxRefresh','重新檢查')+(c.linked?'<span class="muted small">　（已匯入過 '+c.linked+' 張，不再列出）</span>':'');
  {const ol=cloudOcrLine(c.ocr);if(ol)h+='<div class="muted small" id="cloudOcrLine">'+esc(ol)+'</div>'}
  if(c.open){
   const cur=cloudCurFolder(),fs=fm.get(cur)||[];
@@ -4004,11 +4006,13 @@ async function cloudInboxRefresh(force){
  }finally{cloudInbox.busy=false;cloudInbox.last=Date.now();renderCloudInbox()}
 }
 function cloudB64ToFile(b64,name,type){const raw=atob(b64),u=new Uint8Array(raw.length);for(let i=0;i<raw.length;i++)u[i]=raw.charCodeAt(i);return new File([u],name,{type})}
-async function cloudInboxImport(){
- const c=cloudInbox,picked=cloudPicked(),list=picked.slice(0,CLOUD_BATCH_MAX),rest=picked.length-list.length;   // 只匯入目前資料夾勾選的；超過 30 張先匯入前 30 張
+async function cloudInboxImport(all){
+ const every=all===true,c=cloudInbox,picked=every?c.files.slice():cloudPicked(),list=picked.slice(0,CLOUD_BATCH_MAX),rest=picked.length-list.length;   // 平常只匯入目前資料夾勾選的；「全部匯入」＝所有資料夾的新發票一次全部（超過 300 張才先匯入前 300 張）
  if(c.busy||!list.length)return;
  if(batchBusy){toast('目前正在辨識，請等這一批完成再匯入');return}
- if(batchRows.some(r=>!r.saved&&!r.draftId&&!r.dupCancelled)&&!confirm('批次清單裡還有沒存成草稿的發票，匯入會取代它們（已存成草稿的不會消失，下次打開會還原），是否繼續？'))return;
+ const unsaved=batchRows.some(r=>!r.saved&&!r.draftId&&!r.dupCancelled);   // 清單裡還有沒存的：匯入新的一批會取代它們
+ if(every){if(!confirm('雲端共有 '+list.length+' 張新發票（'+cloudFolders().size+' 個資料夾），要全部一次匯入嗎？\n\n張數多的時候下載與辨識要花一段時間，請不要關閉網頁；辨識完不會自動存草稿，由你核對後再存。'+(unsaved?'\n\n⚠ 批次清單裡還有沒存成草稿的發票，匯入會取代它們（已存成草稿的不會消失）。':'')))return}
+ else if(unsaved&&!confirm('批次清單裡還有沒存成草稿的發票，匯入會取代它們（已存成草稿的不會消失，下次打開會還原），是否繼續？'))return;
  c.busy=true;
  const got=new Array(list.length),failed=[];let done=0;
  const nCloud=list.filter(f=>f.cloud).length;   // 雲端已經用 Google 先讀好文字的
@@ -4024,9 +4028,9 @@ async function cloudInboxImport(){
   const dt=new DataTransfer();
   ok.forEach(g=>{dt.items.add(g.file);cloudIdByFile.set(cloudKey(g.file),g.f.id)});
   el('files').files=dt.files;
-  ok.forEach(g=>c.sel.delete(g.f.id));c.open=rest>0;   // 匯入成功的不再勾著；還有沒匯入的勾選（超過 30 張）→ 清單保持展開，等這批存好再按一次
+  ok.forEach(g=>c.sel.delete(g.f.id));c.open=rest>0&&!every;   // 匯入成功的不再勾著；還有沒匯入的勾選（超過上限）→ 清單保持展開，等這批存好再按一次
   autoStartBatch(ok.length);   // 一律用批次（只有 1 張也一樣，這樣存的時候才記得到雲端檔案 ID）
-  if(rest>0)toast('已匯入前 '+ok.length+' 張；還有 '+rest+' 張仍勾著——請先核對、儲存這批，再按一次「匯入」匯入下一批（每批最多 '+CLOUD_BATCH_MAX+' 張）');
+  if(rest>0)toast('已匯入前 '+ok.length+' 張；雲端還有 '+rest+' 張沒匯入（一次最多 '+CLOUD_BATCH_MAX+' 張）——請先核對、儲存這批，再按一次匯入下一批');
   if(failed.length)toast('有 '+failed.length+' 張下載失敗：'+failed.slice(0,3).join('；'));
  }catch(e){c.err=(e&&e.message)||'匯入失敗'}
  finally{c.progress='';c.busy=false;c.last=0;renderCloudInbox()}
@@ -4046,8 +4050,9 @@ async function cloudPreview(id){
  }catch(e){toast('預覽失敗：'+((e&&e.message)||''))}
 }
 document.addEventListener('click',e=>{
- const b=e.target.closest&&e.target.closest('#cloudInboxImport,#cloudInboxRefresh,#cloudInboxToggle,#cloudInboxAll,#cloudInboxNone,.cloud-prev');if(!b)return;
+ const b=e.target.closest&&e.target.closest('#cloudInboxImport,#cloudInboxImportAll,#cloudInboxRefresh,#cloudInboxToggle,#cloudInboxAll,#cloudInboxNone,.cloud-prev');if(!b)return;
  if(b.id==='cloudInboxImport')cloudInboxImport();
+ else if(b.id==='cloudInboxImportAll')cloudInboxImport(true);
  else if(b.id==='cloudInboxRefresh')cloudInboxRefresh(true);
  else if(b.id==='cloudInboxToggle'){cloudInbox.open=!cloudInbox.open;renderCloudInbox()}
  else if(b.id==='cloudInboxAll'||b.id==='cloudInboxNone'){const all=b.id==='cloudInboxAll';cloudInbox.sel.clear();if(all)(cloudFolders().get(cloudCurFolder())||[]).forEach(f=>cloudInbox.sel.add(f.id));$('cloudInbox').querySelectorAll('input[data-cid]').forEach(i=>{i.checked=all});cloudInboxCount()}
@@ -4216,6 +4221,7 @@ function normNo(s){return String(s||'').toUpperCase().replace(/[^A-Z0-9]/g,'')}
 // ①下次打開（執行長發票／發票登錄頁）整批還原：每張草稿把「這一列在畫面上的一切」（欄位、請款項目與分攤、費用類別／請款別／卡別判斷、說明文字、預覽用的附件照片）存成快照 batchSnap 放在草稿裡，打開頁面時用這些草稿重建批次清單；
 // ②重複（發票號碼＋統編和已存的發票、或這一批裡前面那張相同）的自動取消勾選、不存草稿、不匯入，留在清單上寫明是和哪一張重複。
 // 草稿不要求欄位齊全（沒讀到的欄位留空，之後在草稿裡補）；執行長發票還沒選費用類別時，部門先用第一個部門佔位（和單張自動存草稿一樣，標記 deptPlaceholder）。
+// **同日稍晚使用者又說「幫我改成不存草稿但雲端有多少照片一次匯入」→ 辨識完不再自動存草稿（batchScan 不再呼叫 batchAutoDraft，函式保留）**；重複自動取消、預留發票編號照舊；「下次打開還原」只對「自己按『儲存勾選項目為草稿』存過的草稿」有效（草稿帶快照）；另外拿掉 30 張上限、加「全部匯入」（見雲端資料夾匯入那一段）。
 // ===BATCHDRAFT-BEGIN
 const BATCH_SNAP_V=1;
 const DRAFT_NOTE_AUTO='已自動存成草稿。可以直接在這裡修改，改完按上面的「儲存勾選項目為草稿」更新，或「勾選項目送出簽核」。';
