@@ -25,6 +25,7 @@
 .batch-card-head .batch-preview{max-width:90px;max-height:92px}.batch-card-head .batch-file{flex:1;min-width:150px}
 .batch-card .formgrid .field label{font-weight:600}
 #cloudInbox .cloud-pick{margin-top:8px}#cloudInbox .cloud-pick-bar{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-bottom:6px}#cloudInbox .cloud-pick-list{max-height:300px;overflow:auto;border:1px solid #E3D6B0;border-radius:6px;padding:4px 8px;background:#fff}#cloudInbox .cloud-grp{margin:8px 0 2px;color:#5B4B38}#cloudInbox .cloud-row{display:flex;align-items:center;gap:8px;padding:3px 2px;font-weight:normal;border-bottom:1px dashed #F6EFDB;cursor:pointer}#cloudInbox .cloud-row input{width:auto;flex:0 0 auto}#cloudInbox .cloud-name{flex:1 1 auto;word-break:break-all}#cloudInbox .cloud-prev{padding:2px 8px;font-size:12px;flex:0 0 auto}
+.batch-card{scroll-margin-top:12px}
 .cloud-tag{flex:0 0 auto;font-size:11px;padding:1px 6px;border-radius:9px;background:#EEF4FB;color:#3a5f86;border:1px solid #C9DAEC;white-space:nowrap}#cloudInbox .cloud-pick-bar select{width:auto;max-width:100%;min-width:200px}#cloudInbox .cloud-pick-bar label{display:inline-flex;align-items:center;gap:4px;font-weight:normal}.batch-card textarea{min-height:74px}
 .batch-card .batch-retry{margin-left:auto;white-space:nowrap}
 details.fold{border:1px solid #E3D6B0;border-radius:8px;padding:8px 12px;margin-top:10px;background:#FFFDF7}details.fold>summary{cursor:pointer;font-weight:600;color:var(--blue)}
@@ -613,6 +614,7 @@ dialog{border:1px solid var(--cd-gold-deep)}
 <div class="actions"><button class="primary" id="memoSubmit" type="button">送出簽核</button><button id="memoSaveDraft" type="button">儲存草稿</button><button type="button" id="memoFormCancel">取消</button></div></dialog>
 <dialog id="memoDetail" style="width:min(820px,96vw);max-width:min(820px,96vw)"><div class="flex"><h2 style="margin:0" id="memoDetailTitle">簽呈</h2><div class="spacer"></div><button type="button" id="memoDetailClose">關閉</button></div><div id="memoDetailBody" style="margin-top:12px"></div></dialog>
 <dialog id="detailDialog"><div class="flex"><h2 style="margin:0">發票明細及歷程</h2><div class="spacer"></div><button onclick="document.getElementById('detailDialog').close()">關閉</button></div><div id="detailBody" style="margin-top:16px"></div></dialog>
+<dialog id="batchDoneDialog" style="width:min(520px,94vw);max-width:min(520px,94vw);height:fit-content;max-height:90vh"><h2 style="margin:0 0 10px">✅ 匯入與辨識全部完成</h2><div id="batchDoneBody"></div><div class="actions" style="margin-top:14px"><button class="primary" id="batchDoneGo" type="button">開始確認</button><button id="batchDoneClose" type="button">先關閉</button></div></dialog>
 <script>
 'use strict';const DB='invoice_cloud_cache_v1', STORE='invoices', OSTORE='organization', ASTORE='accounts', USTORE='users', LSTORE='ledger_account_history';let database;let current=[];let detailURLs=[];const $=id=>document.getElementById(id);const fmt=v=>new Intl.NumberFormat('zh-TW',{maximumFractionDigits:2}).format(Number(v)||0);const datestr=()=>new Date().toISOString().slice(0,10);const esc=s=>String(s??'').replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));const names={draft:'草稿',pending:'待主管簽核',executive_pending:'待執行長簽核',approved:'待財務覆核',finance_ok:'已覆核／待付款',rejected:'已退回',paid:'已付款'};const roleNames={staff:'員工',manager:'部門主管',executive:'執行長',finance:'財務人員',admin:'系統管理者'};
 
@@ -3723,6 +3725,47 @@ window.ceoBatchClassify=function(){
  if(changed)renderBatch();
 };
 function batchProgress(msg){el('batchProgress').textContent=msg}
+// ===== 全部做完跳出訊息（使用者 2026-11-20：「所有匯入及辨識皆完成、可以開始確認所有發票內容時，跳出訊息讓使用者知道」）=====
+// 批次（含雲端匯入）全部下載、辨識、取消重複、預留編號都做完，跳出對話框：共幾張、QR／文字辨識各幾張、哪幾張有疑慮要特別核對、哪幾張重複已取消、哪幾張辨識失敗；按「開始確認」捲到第一張要核對的。
+// 分頁在背景（使用者去做別的事）時，另外把分頁標題前面加「✅ 辨識完成｜」，回到分頁就還原。對話框是網頁裡的，不需要瀏覽器的通知權限。
+// ===BATCHDONE-BEGIN
+function batchDoneSummary(rows){
+ const idx=f=>rows.map((r,i)=>f(r)?i+1:0).filter(Boolean);
+ const dup=idx(r=>r.dupCancelled),err=idx(r=>r.error&&!r.dupCancelled),ok=rows.filter(r=>!r.dupCancelled&&!r.error);
+ const qr=ok.filter(r=>r.viaQR).length,pdf=ok.filter(r=>r.viaPDF&&!r.viaQR).length;
+ return {total:rows.length,ready:ok.length,qr,pdf,ocr:ok.length-qr-pdf,care:idx(r=>!r.dupCancelled&&!r.error&&(r.uncertain||[]).length>0),dup,err};
+}
+const batchNums=a=>a.length>8?a.slice(0,8).join('、')+'…（共 '+a.length+' 張）':a.join('、');
+function batchDoneHTML(s,esc){
+ const li=t=>'<li>'+esc(t)+'</li>';
+ return '<p style="margin:0 0 8px"><b>共 '+s.total+' 張都處理完了</b>'+(s.ready?'，可以開始確認發票內容了。':'，但沒有可以確認的發票（看下面說明）。')+'</p><ul style="margin:0 0 8px;padding-left:20px">'
+  +(s.ready?li('要確認的 '+s.ready+' 張：QR code 讀到 '+s.qr+' 張'+(s.pdf?'、PDF 電子發票 '+s.pdf+' 張':'')+'、文字辨識 '+s.ocr+' 張'+(s.ocr?'（比較容易讀錯，請逐欄核對）':'')):'')
+  +(s.care.length?li('有疑慮、要特別核對：第 '+batchNums(s.care)+' 張（辨識結果不一致，或統編沒通過檢查碼）'):'')
+  +(s.dup.length?li('重複，已自動取消勾選、不匯入：第 '+batchNums(s.dup)+' 張'):'')
+  +(s.err.length?li('辨識失敗：第 '+batchNums(s.err)+' 張（可以按該張的「重新辨識」，或自己填寫）'):'')
+  +'</ul><p class="muted small" style="margin:0">【還沒有存檔】核對完請按「儲存勾選項目為草稿」或「勾選項目送出簽核」才會存。</p>';
+}
+// 第一張要核對的是哪一張（0 起算）：有疑慮的優先，其次第一張能確認的，都沒有就第一張
+function batchFirstToCheck(rows){
+ const a=rows.findIndex(r=>r.selected&&!r.error&&!r.dupCancelled&&(r.uncertain||[]).length>0);if(a>=0)return a;
+ const b=rows.findIndex(r=>r.selected&&!r.error&&!r.dupCancelled);if(b>=0)return b;
+ const c=rows.findIndex(r=>!r.error&&!r.dupCancelled);return c>=0?c:0;
+}
+// ===BATCHDONE-END
+function batchNotifyDone(){
+ const dlg=el('batchDoneDialog');if(!dlg||!batchRows.length)return;
+ el('batchDoneBody').innerHTML=batchDoneHTML(batchDoneSummary(batchRows),esc);
+ el('batchDoneGo').style.display=batchDoneSummary(batchRows).ready?'':'none';   // 沒有可確認的就只留「先關閉」
+ try{if(!dlg.open)dlg.showModal()}catch(e){}
+ if(document.hidden&&!window.__doneTitle){const t0=document.title;window.__doneTitle=t0;document.title='✅ 辨識完成｜'+t0;const clr=()=>{if(!document.hidden){document.title=window.__doneTitle||t0;window.__doneTitle=null;document.removeEventListener('visibilitychange',clr)}};document.addEventListener('visibilitychange',clr)}   // 分頁在背景：標題提醒
+}
+el('batchDoneClose').addEventListener('click',()=>el('batchDoneDialog').close());
+el('batchDoneGo').addEventListener('click',()=>{
+ el('batchDoneDialog').close();
+ try{if($('entry').classList.contains('hide')||$('batchMode').classList.contains('hide')){tab(entryMode==='ceo'?'ceoentry':'entry');setEntryMode('batch')}}catch(e){}   // 使用者可能已經切去別的頁
+ const card=el('batch-card-'+batchFirstToCheck(batchRows))||el('batchTable');
+ if(card&&card.scrollIntoView)card.scrollIntoView({block:'start',behavior:'smooth'});
+});
 // ===== 匯入檢查完就先有發票編號（使用者 2026-11-19：「我要在匯入的時候就有編號了，因為匯入的時候檢查完就會在發票寫上編號」）=====
 // 編號要先寫在紙本發票上，所以辨識完、還沒存檔就要有號碼：向雲端後端「預留」N 個編號（serialReserve），每張發票記在 r.serialNo／r.serialYm、顯示在標題旁；
 // 之後按「儲存勾選項目為草稿」或「送出簽核」，存檔時帶 serialClaim 認領這個號碼（後端確認預留過、沒被用掉才採用）。沒存的預留號碼會空著（可能已經寫在紙本上，不重用）。
@@ -3916,6 +3959,7 @@ el('batchScan').addEventListener('click',async()=>{
   if(dupRows.length)msg+='　重複的第 '+dupRows.join('、')+' 張已自動取消勾選、不匯入（說明在各張上）。';
   if(nSerial)msg+=`　已替 ${nSerial} 張發票編好發票編號（標題旁邊「編號 ○○○」），可以先寫在紙本發票上；存檔時沿用這個號碼，沒存的號碼會空著。`;
   batchProgress(msg)}
+ batchNotifyDone();   // 全部匯入、辨識、預留編號都做完：跳出訊息讓使用者知道可以開始確認（使用者 2026-11-20）
 });
 // ===== ☁ 雲端資料夾匯入（執行長發票頁）=====
 // 後端列出雲端資料夾（含底下兩層子資料夾）裡「還沒匯入過」的照片（有沒有匯入過＝有沒有發票紀錄的 cloudFileId 對得上；草稿也算，發票刪掉照片就會再出現）。
