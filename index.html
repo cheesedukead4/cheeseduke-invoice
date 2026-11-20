@@ -28,7 +28,7 @@
 .batch-card{scroll-margin-top:12px}
 .batch-card.dup-card{border-left:4px solid #f0a8a0}
 .dup-badge{display:inline-block;margin-left:6px;padding:1px 9px;border-radius:10px;font-size:12px;font-weight:bold;background:#fde8e6;color:#b42318;border:1px solid #f0a8a0;white-space:nowrap}
-.dup-badge.dup-draft,.dup-badge.dup-rejected,.dup-badge.dup-batch{background:#fff1d6;color:#8a5a00;border-color:#e8c880}
+.dup-badge.dup-batch{background:#fff1d6;color:#8a5a00;border-color:#e8c880}
 .cloud-tag{flex:0 0 auto;font-size:11px;padding:1px 6px;border-radius:9px;background:#EEF4FB;color:#3a5f86;border:1px solid #C9DAEC;white-space:nowrap}#cloudInbox .cloud-pick-bar select{width:auto;max-width:100%;min-width:200px}#cloudInbox .cloud-pick-bar label{display:inline-flex;align-items:center;gap:4px;font-weight:normal}.batch-card textarea{min-height:74px}
 .batch-card .batch-retry{margin-left:auto;white-space:nowrap}
 details.fold{border:1px solid #E3D6B0;border-radius:8px;padding:8px 12px;margin-top:10px;background:#FFFDF7}details.fold>summary{cursor:pointer;font-weight:600;color:var(--blue)}
@@ -3735,7 +3735,7 @@ function batchProgress(msg){el('batchProgress').textContent=msg}
 // ===BATCHDONE-BEGIN
 function batchDoneSummary(rows){
  const idx=f=>rows.map((r,i)=>f(r)?i+1:0).filter(Boolean);
- const paid=idx(r=>r.dupCancelled&&r.dupKind==='paid'),dup=idx(r=>r.dupCancelled&&r.dupKind!=='paid'),err=idx(r=>r.error&&!r.dupCancelled),ok=rows.filter(r=>!r.dupCancelled&&!r.error);   // paid＝系統裡已有同發票號碼而且已經送出簽核（「已請款」）；dup＝其他重複（同批前面那張、系統裡的草稿或退件）
+ const paid=idx(r=>r.dupCancelled&&r.dupKind==='paid'),dup=idx(r=>r.dupCancelled&&r.dupKind!=='paid'),err=idx(r=>r.error&&!r.dupCancelled),ok=rows.filter(r=>!r.dupCancelled&&!r.error);   // paid＝系統裡已有同發票號碼（一律「已請款」，不管對方是草稿、退件還是已送出）；dup＝同批前面那張
  const qr=ok.filter(r=>r.viaQR).length,pdf=ok.filter(r=>r.viaPDF&&!r.viaQR).length;
  return {total:rows.length,ready:ok.length,qr,pdf,ocr:ok.length-qr-pdf,care:idx(r=>!r.dupCancelled&&!r.error&&(r.uncertain||[]).length>0),paid,dup,err};
 }
@@ -3745,8 +3745,8 @@ function batchDoneHTML(s,esc){
  return '<p style="margin:0 0 8px"><b>共 '+s.total+' 張都處理完了</b>'+(s.ready?'，可以開始確認發票內容了。':'，但沒有可以確認的發票（看下面說明）。')+'</p><ul style="margin:0 0 8px;padding-left:20px">'
   +(s.ready?li('要確認的 '+s.ready+' 張：QR code 讀到 '+s.qr+' 張'+(s.pdf?'、PDF 電子發票 '+s.pdf+' 張':'')+'、文字辨識 '+s.ocr+' 張'+(s.ocr?'（比較容易讀錯，請逐欄核對）':'')):'')
   +(s.care.length?li('有疑慮、要特別核對：第 '+batchNums(s.care)+' 張（辨識結果不一致，或統編沒通過檢查碼）'):'')
-  +((s.paid||[]).length?li('已請款（系統裡已有相同發票號碼、而且已經送出簽核）：第 '+batchNums(s.paid)+' 張，已自動取消勾選、不匯入'):'')
-  +(s.dup.length?li('重複（這一批前面那張、或系統裡已有同號碼的草稿），已自動取消勾選、不匯入：第 '+batchNums(s.dup)+' 張'):'')
+  +((s.paid||[]).length?li('已請款（系統裡已有相同發票號碼的發票）：第 '+batchNums(s.paid)+' 張，已自動取消勾選、不匯入'):'')
+  +(s.dup.length?li('重複（這一批前面已經有同號碼的那張），已自動取消勾選、不匯入：第 '+batchNums(s.dup)+' 張'):'')
   +(s.err.length?li('辨識失敗：第 '+batchNums(s.err)+' 張（可以按該張的「重新辨識」，或自己填寫）'):'')
   +'</ul><p class="muted small" style="margin:0">【還沒有存檔】核對完請按「儲存勾選項目為草稿」或「勾選項目送出簽核」才會存。</p>';
 }
@@ -4313,14 +4313,14 @@ function batchRowFromDraft(d,file,passbookFile){
  if(s.qjQR)r.qjQR=s.qjQR;
  return r;
 }
-// ===== 重複＝相同發票號碼；系統裡已經送出簽核的顯示「已請款」（使用者 2026-11-20：「若發票辨識到有相同發票號碼的，就要顯示『已請款』」）=====
+// ===== 重複＝相同發票號碼；系統裡已經有的一律顯示「已請款」（使用者 2026-11-20：「若發票辨識到有相同發票號碼的，就要顯示『已請款』」；我問「對方只是草稿也叫已請款嗎」→「一律叫已請款」）=====
 // 比對只看發票號碼（去掉符號、英文字母轉大寫）；兩邊都有統編而且不一樣＝不同賣家（極少見的號碼撞號），不算重複。沒有發票號碼（收據、證明）不比對。
-// 對方已經送出簽核（待主管／待執行長／待財務／已覆核／已付款）＝「已請款」；對方只是草稿或被退回＝還沒請款，標「已有草稿」「已退件」；同一批前面那張＝「同批重複」。
+// 系統裡已經有同號碼的發票（不管它是草稿、被退回、還是已送出簽核）＝一律標「已請款」，說明裡仍寫出對方現在的狀態；同一批前面那張（系統裡還沒有）＝「同批重複」。
 const SUBMITTED_STATUSES=['pending','executive_pending','approved','finance_ok','paid'];
-const DUP_BADGE={paid:'已請款',draft:'已有草稿',rejected:'已退件',batch:'同批重複'};
+const DUP_BADGE={paid:'已請款',batch:'同批重複'};
 const dupNorm=s=>String(s==null?'':s).toUpperCase().replace(/[^A-Z0-9]/g,'');
-const dupKindOf=ex=>!ex?'batch':SUBMITTED_STATUSES.includes(ex.status)?'paid':ex.status==='rejected'?'rejected':'draft';
-// 在 pool（已存的發票，或這一批前面幾張）裡找和 v 同發票號碼的；找到好幾張時，已請款的優先
+const dupKindOf=ex=>ex?'paid':'batch';   // 系統裡已經有＝已請款（一律，不看狀態）
+// 在 pool（已存的發票，或這一批前面幾張）裡找和 v 同發票號碼的；找到好幾張時，已送出簽核的優先（說明裡寫對方的狀態）
 function findDuplicate(v,pool){
  const no=dupNorm(v&&v.invoiceNo);if(!no)return null;const tax=String((v&&v.taxId)||'').trim();
  const hit=(pool||[]).filter(i=>i&&dupNorm(i.invoiceNo)===no&&(!tax||!String(i.taxId||'').trim()||String(i.taxId).trim()===tax));
@@ -4331,16 +4331,12 @@ function dupNoteText(v,ex,statusNames){
  const kind=dupKindOf(ex),exTxt=ex?(ex.invoiceNo||v.invoiceNo)+'（'+((statusNames&&statusNames[ex.status])||ex.status||'')+(ex.invoiceDate?'，'+ex.invoiceDate:'')+'）':'';
  const tail='，已自動取消勾選、不匯入。如果其實不是同一張（例如發票號碼讀錯），請改正發票號碼後再勾回來。';
  if(kind==='paid')return '⚠ 已請款：系統裡已經有這張發票 '+exTxt+tail;
- if(kind==='draft')return '⚠ 重複發票：系統裡已經有同發票號碼的草稿 '+exTxt+'（還沒請款）'+tail;
- if(kind==='rejected')return '⚠ 重複發票：系統裡已經有同發票號碼、被退回的發票 '+exTxt+'（還沒請款）'+tail;
  return '⚠ 重複發票：這一批裡前面已經有一張相同的發票號碼 '+v.invoiceNo+tail;
 }
 // 手動「儲存勾選項目」時發現重複的錯誤訊息
 function dupErrorText(ex,v){
  const kind=dupKindOf(ex);
  if(kind==='paid')return '已請款：系統裡已經有這張發票 '+(ex.invoiceNo||(v&&v.invoiceNo)||'')+'，不能重複請款（如果發票號碼讀錯，請改正）';
- if(kind==='draft')return '重複發票：系統裡已經有同發票號碼的草稿 '+(ex.invoiceNo||'')+'（還沒請款）';
- if(kind==='rejected')return '重複發票：系統裡已經有同發票號碼、被退回的發票 '+(ex.invoiceNo||'')+'（還沒請款）';
  return '重複發票：與本批次前面的一張相同';
 }
 // 這一列是哪一種重複（畫面上標題旁邊顯示的標記）
