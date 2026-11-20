@@ -1168,7 +1168,7 @@ async function verifySingleSeller(force=false){
 $('taxId').addEventListener('change',()=>verifySingleSeller());
 $('verifySellerTax').addEventListener('click',()=>verifySingleSeller(true));
 const uid=()=>crypto.randomUUID?crypto.randomUUID():Date.now()+'_'+Math.random().toString(36).slice(2);const now=()=>new Date().toLocaleString('zh-TW',{hour12:false});function audit(item,action,reason=''){item.history??=[];item.history.push({at:now(),actor:(($('actorName').value||'').trim()||roleNames[$('role').value])+'（'+roleNames[$('role').value]+'）',action,reason})}function badge(status){return `<span class="chip ${['pending','approved','rejected','draft','paid'].includes(status)?status:''}">${names[status]||status}</span>`}function toast(s){alert(s)}function can(...roles){return !!authUser&&roles.includes(authUser.role)}
-function tab(id){if(!authUser)return;if(id==='form:invoice')id=groupFirstPage('invoice');else if(id==='mod:system')id=groupFirstPage('system');else if(id==='mod:finance')id=groupFirstPage('finance');if(id==='batch'){id='entry';setEntryMode('batch')}if(!canPage(id))return toast('此帳號未獲授權使用這個頁面');curPage=id;document.body.dataset.view=(id==='entry'||id==='ceoentry')?'entry':'';if(id==='dbadmin')renderDbAdmin();if(id==='entry'||id==='ceoentry')applyEntryMode(id==='ceoentry'?'ceo':'normal');const viewId=id==='ceoentry'?'entry':isFormPage(id)?'memoPage':id;if(id==='organization')renderOrg();if(id==='accounts')renderAccounts();if(id==='flows')loadFlows();document.querySelectorAll('.view').forEach(el=>el.classList.toggle('hide',el.id!==viewId));document.querySelectorAll('.tab').forEach(el=>el.classList.toggle('active',el.dataset.tab===id));if(isFormPage(id)&&window.memoShow)memoShow(id);applyNav();render();if((id==='home'||isFormPage(id))&&window.memoRefresh)memoRefresh()}document.querySelectorAll('.tab').forEach(el=>el.onclick=()=>tab(el.dataset.tab));
+function tab(id){if(!authUser)return;if(id==='form:invoice')id=groupFirstPage('invoice');else if(id==='mod:system')id=groupFirstPage('system');else if(id==='mod:finance')id=groupFirstPage('finance');if(id==='batch'){id='entry';setEntryMode('batch')}if(!canPage(id))return toast('此帳號未獲授權使用這個頁面');curPage=id;document.body.dataset.view=(id==='entry'||id==='ceoentry')?'entry':'';if(id==='dbadmin')renderDbAdmin();if(id==='entry'||id==='ceoentry')applyEntryMode(id==='ceoentry'?'ceo':'normal');const viewId=id==='ceoentry'?'entry':isFormPage(id)?'memoPage':id;if(id==='organization')renderOrg();if(id==='accounts')renderAccounts();if(id==='flows')loadFlows();document.querySelectorAll('.view').forEach(el=>el.classList.toggle('hide',el.id!==viewId));document.querySelectorAll('.tab').forEach(el=>el.classList.toggle('active',el.dataset.tab===id));if(isFormPage(id)&&window.memoShow)memoShow(id);applyNav();render();if((id==='home'||isFormPage(id))&&window.memoRefresh)memoRefresh();if((id==='entry'||id==='ceoentry')&&window.restoreBatchDrafts)restoreBatchDrafts()}document.querySelectorAll('.tab').forEach(el=>el.onclick=()=>tab(el.dataset.tab));
 async function migrateCEOManagedPending(){
  if(!orgCEO)return 0;
  const records=await all();let updated=0;
@@ -1896,7 +1896,7 @@ async function autoDraftDiscardAndReset(){const id=autoDraft.id;
 // 電腦（或另一支手機）上：雲端有自己還沒送出的草稿，在發票登錄頁最上面提醒、一鍵接著編輯
 function renderDraftBanner(){const box=document.getElementById('draftBanner');if(!box)return;
  if(!authUser||!(canPage('entry')||canPage('ceoentry'))){box.classList.add('hide');return}
- const cur=$('editId')?$('editId').value:'',mine=(current||[]).filter(i=>i.status==='draft'&&i.applicant===authUser.name&&i.id!==cur&&Date.now()-new Date(i.updatedAt).getTime()<7*864e5).sort((a,b)=>String(b.updatedAt).localeCompare(String(a.updatedAt)));
+ const cur=$('editId')?$('editId').value:'',mine=(current||[]).filter(i=>i.status==='draft'&&i.applicant===authUser.name&&i.id!==cur&&!(window.batchDraftIds&&window.batchDraftIds().has(i.id))&&Date.now()-new Date(i.updatedAt).getTime()<7*864e5)   // 正在批次清單裡顯示的草稿不算（它們就在下面的批次畫面裡）.sort((a,b)=>String(b.updatedAt).localeCompare(String(a.updatedAt)));
  if(!mine.length){box.classList.add('hide');return}
  const t=mine[0],when=new Date(t.updatedAt),hm=isNaN(when)?'':(when.getMonth()+1)+'/'+when.getDate()+' '+String(when.getHours()).padStart(2,'0')+':'+String(when.getMinutes()).padStart(2,'0');
  box.innerHTML='☁ 雲端上有 <b>'+mine.length+'</b> 張還沒送出的草稿。最新一張：<b>'+esc(t.invoiceNo||'（還沒填發票號碼）')+'</b>'+(t.vendor?'／'+esc(t.vendor):'')+(Number(t.amount)>0?'／NT$ '+fmt(t.amount):'')+'（'+esc(t.editedOn||'')+(t.editedOn&&hm?' ':'')+esc(hm)+'）　<button type="button" class="primary" data-draftedit="'+esc(t.id)+'">繼續編輯</button>'+(mine.length>1?' <button type="button" data-draftlist="1">看全部草稿</button>':'');
@@ -1919,7 +1919,7 @@ async function saveInvoiceCore(status,auto){if(!canPage('entry'))return auto?fal
  if(missing>0){if(!invNo)invNo='待補-'+claimToday().replace(/-/g,'')+'-'+Math.random().toString(36).slice(2,6).toUpperCase();if(!vendorName)vendorName=claim.payee||'（待補憑證）'}else if(/^待補-/.test(invNo))throw Error('請填入真正的發票號碼，或勾選「目前還沒有發票／憑證」');
  const voucherObj=missing>0?{state:'pending',placeholder:/^待補-/.test(invNo)}:(old?.voucher&&old.voucher.state!=='pending'?old.voucher:null);
  let item={id:old?.id||uid(),invoiceDate:$('invoiceDate').value,invoiceNo:invNo,docType,vendor:vendorName,taxId:$('taxId').value.trim(),vendorSource:$('vendorLookupStatus').textContent,dept:dp,applicant:$('applicant').value.trim(),category:old?.category||'其他費用',amount:Number($('amount').value),payment:claim.paymentMethod,description:claim.purpose,memo:entryMode==='ceo'?'':$('memo').value.trim(),claim,attachments,status,history:old?.history||[],createdAt:old?.createdAt||now(),updatedAt:new Date().toISOString(),editedOn:deviceLabel(),...(deptPlaceholder?{deptPlaceholder:true}:{}),...(voucherObj?{voucher:voucherObj}:{})};if(status==='pending'&&(!item.invoiceNo||!item.vendor||!(item.amount>0)||!item.dept||!item.applicant))throw Error('請填完整發票基本資料');prepareRouting(item);if(!(auto&&old))audit(item,status==='draft'?(auto?'自動儲存草稿':'儲存草稿'):routingAction(item));await put(item);if(auto){afterAutoDraft(item,!old,attachments.length);return true}resetForm();if(window.clearRecognitionPanel)window.clearRecognitionPanel();await refresh();if(entryMode==='ceo'&&canPage('ceoentry'))ceoSetView('mine');else if(canPage('list'))tab('list');toast(status==='draft'?'草稿儲存成功':item.skipManagerApproval?'已送交執行長簽核':'已送交部門主管簽核')}catch(e){if(auto){autoDraftFail(e);return false}toast(e.message)}}$('invoiceForm').onsubmit=e=>{e.preventDefault();saveInvoice('pending')};$('saveDraft').onclick=()=>saveInvoice('draft');
-async function editItem(id){let i=await get(id);if(!canPage('entry')||!canReadInvoice(i)||!['draft','rejected'].includes(i.status))return toast('此筆無法編輯');autoDraftReset();tab(i.claim&&i.claim.ceo&&canPage('ceoentry')?'ceoentry':canPage('entry')?'entry':'ceoentry'); // 執行長上傳的單（有判斷結果）回到執行長上傳頁編輯；先切頁，再填欄位（切到執行長頁會清掉預定付款日與備註）
+async function editItem(id){let i=await get(id);if(!canPage('entry')||!canReadInvoice(i)||!['draft','rejected'].includes(i.status))return toast('此筆無法編輯');if(window.skipBatchRestore)skipBatchRestore();autoDraftReset();tab(i.claim&&i.claim.ceo&&canPage('ceoentry')?'ceoentry':canPage('entry')?'entry':'ceoentry'); // 執行長上傳的單（有判斷結果）回到執行長上傳頁編輯；先切頁，再填欄位（切到執行長頁會清掉預定付款日與備註）
  for(const k of ['invoiceDate','invoiceNo','vendor','taxId','dept','amount','memo'])$(k).value=i[k]??'';$('docType').value=DocType.norm(i.docType);docTypeSync();$('editId').value=id;$('editId').dataset.existingFiles=String((i.attachments||[]).length);loadSingleClaim(i.claim,i);syncApplicantHints();$('applicant').value=i.applicant||'';syncApplicantSubmitLabel();updateWhoChip();$('entryTitle').textContent='編輯發票與請款單：'+i.invoiceNo;$('files').value='';setEntryMode('single');setFormStep(1);if(i.deptPlaceholder)$('dept').value='';renderDraftBanner();setTimeout(()=>{autoDraft.sig=autoDraftSig();autoDraft.lastSig=autoDraft.sig},800)} // 只是打開草稿不算有修改：先記下現在的內容當基準，使用者真的改了才自動存（不然只是打開就會把「來源」改成這台裝置）
 const DELETABLE=['draft','rejected'];
 function ownsInvoice(i){return !!i&&!!authUser&&((canPage('entry')&&i.applicant===authUser.name&&(i.dept===authUser.dept||isCeoUser()))||(isCeoUser()&&i.applicant===authUser.name))}
@@ -3502,7 +3502,7 @@ el('cameraInput').addEventListener('change',async e=>{const file=e.target.files?
 function autoStartBatch(count){
  setEntryMode('batch');
  if(batchBusy){batchProgress('目前正在辨識，請等這一批完成後再選擇檔案。');return}
- if(batchRows.some(r=>!r.saved)&&!confirm('批次清單裡還有尚未儲存的發票，重新辨識會取代它們，是否繼續？')){batchProgress('已選擇 '+count+' 張，尚未開始辨識；要開始請按「重新批次辨識」。');return}
+ if(batchRows.some(r=>!r.saved&&!r.draftId&&!r.dupCancelled)&&!confirm('批次清單裡還有沒存成草稿的發票，重新辨識會取代它們（已存成草稿的不會消失，下次打開會還原），是否繼續？')){batchProgress('已選擇 '+count+' 張，尚未開始辨識；要開始請按「重新批次辨識」。');return}
  batchProgress('已選擇 '+count+' 張，自動開始辨識…');
  el('batchScan').click();
 }
@@ -3728,7 +3728,7 @@ function batchProgress(msg){el('batchProgress').textContent=msg}
 // 之後按「儲存勾選項目為草稿」或「送出簽核」，存檔時帶 serialClaim 認領這個號碼（後端確認預留過、沒被用掉才採用）。沒存的預留號碼會空著（可能已經寫在紙本上，不重用）。
 // 後端還沒更新（unknown_action）或連不上：不擋，編號改成存檔時才編。
 async function batchReserveSerials(){
- const need=batchRows.filter(r=>!r.saved&&!r.serialNo&&!r.error);if(!need.length)return 0;
+ const need=batchRows.filter(r=>!r.saved&&!r.serialNo&&!r.error&&!r.dupCancelled);if(!need.length)return 0;   // 重複取消的不預留編號
  let got=0;
  try{
   for(let k=0;k<need.length;k+=50){
@@ -3738,7 +3738,7 @@ async function batchReserveSerials(){
  }catch(e){console.warn('預留發票編號失敗（存檔時再編）：',e&&e.message)}
  renderBatch();return got;
 }
-function resetBatch(){if(batchBusy)return;disposeBatchURLs();batchRows=[];el('batchFiles').value='';el('files').value='';renderBatch();batchProgress('批次清單已清空，原有已儲存發票不受影響。')}
+function resetBatch(){if(batchBusy)return;const nd=batchRows.filter(r=>r.draftId&&!r.saved).length;disposeBatchURLs();batchRows=[];el('batchFiles').value='';el('files').value='';renderBatch();renderDraftBanner();batchProgress('批次清單已清空，原有已儲存發票不受影響。'+(nd?'已存成草稿的 '+nd+' 張還在「發票明細」，下次打開這一頁會再整批還原；不要的請到「發票明細」刪除草稿。':''))}
 el('batchReset').addEventListener('click',resetBatch);
 $('batchTable').addEventListener('click',e=>{const cb=e.target.closest('[data-cand-code]');if(!cb)return;const td=cb.closest('td'),n=td&&td.querySelector('[data-bci]');if(!n)return;const r=batchRows[+n.dataset.bci],line=r&&r.claim.items[+n.dataset.bline];if(line)applyLedgerCandidate(line,cb,td)});
 // 對同一張影像使用不同的增強方式；先快速辨識，僅缺欄位才增加 OCR 次數。
@@ -3852,7 +3852,7 @@ async function retryBatchRow(i){
   for(const k of batchKeys)if(!r.manualFields?.has(k)&&res.data[k]!==undefined&&res.data[k]!=='')r.values[k]=res.data[k];r.ocrVendor=res.data.vendor||r.ocrVendor;r.uncertain=res.uncertain;if(AUTO_FILL_CLAIM_ITEMS&&r.claimAutoAmount&&r.claim.items.length===1)r.claim.items[0].amount=moneyValue(r.values.amount);
   if(validTax(r.values.taxId)){await verifyBatchSeller(i,res.data.vendor||'');if(r.registryVerified)r.uncertain=(r.uncertain||[]).filter(k=>k!=='vendor');}
   else {r.vendorSource=r.values.vendor?'OCR 自動判讀・待確認':'賣方統編／名稱需人工確認';r.registryVerified=false;}
-  r.note=`重新辨識 ${countFields(r.values)}/5 欄${r.uncertain?.length?'；欄位有不同辨識結果，需核對：'+r.uncertain.map(k=>({invoiceDate:'日期',invoiceNo:'號碼',taxId:'統編',vendor:'廠商',amount:'金額'})[k]).join('、'):''}`;r.selected=true;
+  r.note=`重新辨識 ${countFields(r.values)}/5 欄${r.uncertain?.length?'；欄位有不同辨識結果，需核對：'+r.uncertain.map(k=>({invoiceDate:'日期',invoiceNo:'號碼',taxId:'統編',vendor:'廠商',amount:'金額'})[k]).join('、'):''}`;r.selected=true;r.noteBase=undefined;r.dupCancelled=false;   // noteBase：重新辨識後的說明要當新的「辨識說明」存進草稿快照
  }catch(e){r.error='重試失敗：'+(e.message||e);r.selected=false}
  finally{batchBusy=false;el('batchScan').disabled=false;el('batchDraft').disabled=false;el('batchSubmit').disabled=false;renderBatch();batchProgress(`第 ${i+1} 張已完成重新辨識。未辨識欄位請人工補填，再確認後匯入。`);batchReserveSerials()}   // 這張原本辨識失敗沒有編號的，現在補預留
 }
@@ -3866,6 +3866,7 @@ el('batchScan').addEventListener('click',async()=>{
  if(bad){batchProgress('檔案格式不符或超過 10MB：'+bad.name);return}
  batchBusy=true;el('batchScan').disabled=true;el('batchDraft').disabled=true;el('batchSubmit').disabled=true;
  disposeBatchURLs();batchRows=files.map(f=>({file:f,values:{docType:'invoice',invoiceDate:'',invoiceNo:'',vendor:'',taxId:'',amount:'',dept:authUser?.dept||'',applicant:authUser?.name||'',requestDate:'',dueDate:'',payee:'',payment:'匯款',transferHistory:'非首次匯款',feeDeduction:'不扣匯費',voucherMissing:0,description:'',memo:''},claim:{items:[{description:'發票費用',amount:0,allocations:[{dept:authUser?.dept||'',ratio:100}]}],allocations:[{dept:authUser?.dept||'',ratio:100}]},claimAutoAmount:true,passbookFile:null,selected:true,error:'',note:'等待辨識',raw:'',ocrVendor:'',vendorSource:'待辨識',saved:false,manualFields:new Set(),uncertain:[]}));
+ {const bid=Date.now();batchRows.forEach(r=>r.bid=bid)}   // 這一批的編號（還原時依批次與順序排）
  batchURLs=files.map(f=>f.type.startsWith('image/')?URL.createObjectURL(f):'');renderBatch();
  ocrCapLimit=0;let doneN=0;const running=new Set(),laneN=ocrPoolMax()+1;
  const progress=()=>batchProgress(`已完成 ${doneN}/${files.length} 張${running.size?'；辨識中：第 '+[...running].sort((a,b)=>a-b).map(x=>x+1).join('、')+' 張':''}（最多同時辨識 ${laneN} 張，請勿關閉網頁）`);
@@ -3905,10 +3906,15 @@ el('batchScan').addEventListener('click',async()=>{
  }
  batchBusy=false;el('batchScan').disabled=false;el('batchDraft').disabled=false;el('batchSubmit').disabled=false;
  {const nQR=batchRows.filter(r=>r.viaQR).length,nPDF=batchRows.filter(r=>r.viaPDF).length,ocrIdx=batchRows.map((r,i)=>r.viaQR||r.viaPDF||r.error?-1:i).filter(i=>i>=0);
-  batchProgress(`已處理 ${batchRows.length} 張：QR code 讀到 ${nQR} 張`+(nPDF?`；PDF 電子發票直接讀文字 ${nPDF} 張（發票號碼、日期、金額不是辨識出來的，不會讀錯）`:'')+(ocrIdx.length?`；沒讀到 QR code、改用文字辨識 ${ocrIdx.length} 張（第 ${ocrIdx.map(i=>i+1).join('、')} 張，比較容易讀錯，請逐欄核對，或對準 QR code 重拍）`:'')+'；辨識不完整的發票請手動補上欄位。【還沒有存檔】核對每一張之後，按下面的「儲存勾選項目為草稿」或「勾選項目送出簽核」才會存（辨識完不會自動存成草稿）。');}
- // 辨識完不再自動存成草稿（使用者 2026-11-19：「不要自動轉草稿」；11/18 原本要求「辨識完自動存草稿一整包」，現在撤回）：留在這個清單讓人核對，按「儲存勾選項目為草稿」或「勾選項目送出簽核」才存。batchAutoDraft 函式保留但不再呼叫。
- // 但「匯入檢查完就要有發票編號」（同日使用者補充）：不存檔，改向後端預留編號，顯示在每張旁邊（存檔時認領）
- const nSerial=await batchReserveSerials();if(nSerial)batchProgress(el('batchProgress').textContent+`　已替 ${nSerial} 張發票編好發票編號（標題旁邊「編號 ○○○」），可以先寫在紙本發票上；存檔時沿用這個號碼，沒存的號碼會空著。`);
+  batchProgress(`已處理 ${batchRows.length} 張：QR code 讀到 ${nQR} 張`+(nPDF?`；PDF 電子發票直接讀文字 ${nPDF} 張（發票號碼、日期、金額不是辨識出來的，不會讀錯）`:'')+(ocrIdx.length?`；沒讀到 QR code、改用文字辨識 ${ocrIdx.length} 張（第 ${ocrIdx.map(i=>i+1).join('、')} 張，比較容易讀錯，請逐欄核對，或對準 QR code 重拍）`:'')+'；辨識不完整的發票請手動補上欄位。辨識完會自動把整批存成草稿（重複的會自動取消勾選），請稍等…');}
+ // 「匯入檢查完就要有發票編號」（使用者 2026-11-19）：先向後端預留編號，顯示在每張旁邊（存草稿時認領）
+ if(batchCancelDuplicates().length)renderBatch();   // 重複的先取消（不預留編號、不上傳、不存草稿），畫面上的勾選與說明馬上更新
+ const nSerial=await batchReserveSerials(),serialMsg=nSerial?`　已替 ${nSerial} 張發票編好發票編號（標題旁邊「編號 ○○○」），可以先寫在紙本發票上；存草稿時沿用這個號碼。`:'';
+ // 辨識完自動整頁存草稿（使用者 2026-11-20：「全部執行完成整頁進行儲存草稿 但我在開啟時要跟儲存前畫面一樣 若有重覆的自動取消不匯入」；11/19 的「不要自動轉草稿」改回來）；存完的草稿下次打開整批還原
+ await batchAutoDraft();
+ {const dupRows=batchRows.map((r,i)=>r.dupCancelled?i+1:0).filter(Boolean);let msg=el('batchProgress').textContent.replace('辨識完會自動把整批存成草稿（重複的會自動取消勾選），請稍等…','沒有可以自動存成草稿的發票，請看各張說明。');   // 全部都被取消（重複）時 batchAutoDraft 沒有做事，進度行還停在「請稍等」
+  if(dupRows.length&&!/重複的第/.test(msg))msg+='　重複的第 '+dupRows.join('、')+' 張已自動取消勾選、不匯入。';
+  if(serialMsg)msg+=serialMsg;batchProgress(msg)}
 });
 // ===== ☁ 雲端資料夾匯入（執行長發票頁）=====
 // 後端列出雲端資料夾（含底下兩層子資料夾）裡「還沒匯入過」的照片（有沒有匯入過＝有沒有發票紀錄的 cloudFileId 對得上；草稿也算，發票刪掉照片就會再出現）。
@@ -4002,7 +4008,7 @@ async function cloudInboxImport(){
  const c=cloudInbox,picked=cloudPicked(),list=picked.slice(0,CLOUD_BATCH_MAX),rest=picked.length-list.length;   // 只匯入目前資料夾勾選的；超過 30 張先匯入前 30 張
  if(c.busy||!list.length)return;
  if(batchBusy){toast('目前正在辨識，請等這一批完成再匯入');return}
- if(batchRows.some(r=>!r.saved)&&!confirm('批次清單裡還有尚未儲存的發票，匯入會取代它們，是否繼續？'))return;
+ if(batchRows.some(r=>!r.saved&&!r.draftId&&!r.dupCancelled)&&!confirm('批次清單裡還有沒存成草稿的發票，匯入會取代它們（已存成草稿的不會消失，下次打開會還原），是否繼續？'))return;
  c.busy=true;
  const got=new Array(list.length),failed=[];let done=0;
  const nCloud=list.filter(f=>f.cloud).length;   // 雲端已經用 Google 先讀好文字的
@@ -4204,17 +4210,79 @@ function pdfOverlay(data,pt){
  return data;
 }
 function normNo(s){return String(s||'').toUpperCase().replace(/[^A-Z0-9]/g,'')}
+// ===== 批次草稿：辨識完自動整頁存草稿、下次打開整頁還原 =====
 // 使用者要求（2026-11-18）：「所有上傳完都先進行判讀，自動存入草稿一整包一起存，不要一張一張存」→ 批次辨識全部做完後，自動把整批存成草稿（不用逐張按、不跳確認視窗）。
+// 11/19 使用者說「不要自動轉草稿」→ 撤回；**11/20 使用者又說「全部執行完成整頁進行儲存草稿 但我在開啟時要跟儲存前畫面一樣 若有重覆的自動取消不匯入」（並選「下次打開整批還原」「取消勾選並留著說明」）→ 恢復自動存草稿**，並加兩件事：
+// ①下次打開（執行長發票／發票登錄頁）整批還原：每張草稿把「這一列在畫面上的一切」（欄位、請款項目與分攤、費用類別／請款別／卡別判斷、說明文字、預覽用的附件照片）存成快照 batchSnap 放在草稿裡，打開頁面時用這些草稿重建批次清單；
+// ②重複（發票號碼＋統編和已存的發票、或這一批裡前面那張相同）的自動取消勾選、不存草稿、不匯入，留在清單上寫明是和哪一張重複。
 // 草稿不要求欄位齊全（沒讀到的欄位留空，之後在草稿裡補）；執行長發票還沒選費用類別時，部門先用第一個部門佔位（和單張自動存草稿一樣，標記 deptPlaceholder）。
-// 重複的發票（與既有資料或這批裡的另一張重複）、沒有部門可存的、辨識整張失敗的，不自動存，留在清單裡並寫明原因。
+// ===BATCHDRAFT-BEGIN
+const BATCH_SNAP_V=1;
+const DRAFT_NOTE_AUTO='已自動存成草稿。可以直接在這裡修改，改完按上面的「儲存勾選項目為草稿」更新，或「勾選項目送出簽核」。';
+const DRAFT_NOTE_SAVED='已存成草稿（可以繼續修改，改完再按「儲存勾選項目為草稿」更新，或「勾選項目送出簽核」）';
+const DRAFT_NOTE_RESTORED='已從上次存的批次草稿還原（欄位和判斷都和存檔前一樣）；可以繼續修改，改完再按「儲存勾選項目為草稿」更新，或「勾選項目送出簽核」。';
+const stripDraftNote=n=>String(n==null?'':n).replace(DRAFT_NOTE_AUTO,'').replace(DRAFT_NOTE_SAVED,'').replace(DRAFT_NOTE_RESTORED,'').replace(/^[\s　]+/,'');
+const jsonCopy=o=>JSON.parse(JSON.stringify(o===undefined?null:o));
+const SNAP_TEXT_KEYS=['uprightNote','docNote','stampNote','qrNote','vendorSource','ocrVendor','ceoHint','phDept'];
+const SNAP_FLAG_KEYS=['registryVerified','registryConflict','ceoCatDept','ceoAuto','ceoDeptManual','purposeAuto','viaQR','viaPDF','deptPlaceholder'];
+// 一列批次 → 存進草稿的快照（畫面上看得到的一切；照片本身是草稿的附件，不放在快照裡）。o＝{mode:'ceo'|'normal', by:存的人, ord:這一列在清單裡的順序}
+function batchSnapOf(r,o){
+ if(r.noteBase===undefined)r.noteBase=stripDraftNote(r.note);   // 辨識完當下的說明（之後存草稿會在前面加「已存成草稿…」，不能一起存進去）
+ const s={v:BATCH_SNAP_V,mode:o.mode,by:o.by||'',ord:o.ord||0,bid:r.bid||0,
+  values:jsonCopy(r.values),claim:jsonCopy({items:((r.claim&&r.claim.items)||[]).map(({_ledgerTimer,...x})=>x),allocations:(r.claim&&r.claim.allocations)||[]}),
+  claimAutoAmount:!!r.claimAutoAmount,cj:r.cj?jsonCopy(r.cj):null,manual:[...(r.manualFields||[])],uncertain:jsonCopy(r.uncertain||[]),noteBase:String(r.noteBase||'').slice(0,1500)};
+ if(r.serialNo)s.serialNo=String(r.serialNo);if(r.serialYm)s.serialYm=String(r.serialYm);
+ SNAP_TEXT_KEYS.forEach(k=>{if(r[k])s[k]=String(r[k]).slice(0,800)});
+ SNAP_FLAG_KEYS.forEach(k=>{if(r[k])s[k]=true});
+ if(o.mode!=='ceo'&&r.raw)s.raw=String(r.raw).slice(0,1500);   // OCR 原文只有一般發票登錄頁看得到（執行長發票頁不顯示），不放進去省空間
+ if(r.qjQR){try{const q=JSON.stringify(r.qjQR);if(q.length<3000)s.qjQR=JSON.parse(q)}catch(_){}}   // 「依發票明細整理」按鈕要用；太大就不存
+ return s;
+}
+// 哪些草稿要還原：自己存的、同一個頁面（執行長發票／發票登錄）、有快照、版本對得上、有附件照片；依批次與順序排好
+function restorableDrafts(list,o){
+ return (list||[]).filter(i=>i&&i.status==='draft'&&i.batchSnap&&i.batchSnap.v===BATCH_SNAP_V&&i.batchSnap.mode===o.mode&&i.batchSnap.by===o.by&&Array.isArray(i.attachments)&&i.attachments.length&&i.batchSnap.values&&i.batchSnap.claim&&Array.isArray(i.batchSnap.claim.items))
+  .sort((a,b)=>(a.batchSnap.bid||0)-(b.batchSnap.bid||0)||(a.batchSnap.ord||0)-(b.batchSnap.ord||0));
+}
+// 草稿 → 批次清單的一列（照片、存摺影本由呼叫的人先下載好）；勾選、草稿編號、發票編號都接回去，改完按「儲存勾選項目為草稿」就是更新同一筆
+function batchRowFromDraft(d,file,passbookFile){
+ const s=d.batchSnap;
+ const r={file,values:jsonCopy(s.values),claim:{items:jsonCopy(s.claim.items),allocations:jsonCopy(s.claim.allocations||[])},claimAutoAmount:!!s.claimAutoAmount,passbookFile:passbookFile||null,selected:true,error:'',
+  note:DRAFT_NOTE_RESTORED+(s.noteBase?'　'+s.noteBase:''),noteBase:s.noteBase||'',raw:s.raw||'',saved:false,submitted:false,
+  manualFields:new Set(s.manual||[]),uncertain:s.uncertain||[],draftId:d.id,serialNo:d.serialNo||s.serialNo||'',serialYm:d.serialYm||s.serialYm||'',bid:s.bid||0};
+ if(s.cj)r.cj=jsonCopy(s.cj);
+ SNAP_TEXT_KEYS.forEach(k=>{if(s[k])r[k]=s[k]});
+ SNAP_FLAG_KEYS.forEach(k=>{if(s[k])r[k]=true});
+ if(s.qjQR)r.qjQR=s.qjQR;
+ return r;
+}
+// 重複說明：ex＝已存的那張發票（沒有＝這一批裡前面已經有同號碼的）；statusNames＝狀態中文名
+function dupNoteText(v,ex,statusNames){
+ return '⚠ 重複發票：'+(ex?'已經有發票 '+(ex.invoiceNo||v.invoiceNo)+'（'+((statusNames&&statusNames[ex.status])||ex.status||'')+(ex.invoiceDate?'，'+ex.invoiceDate:'')+'）':'這一批裡前面已經有一張相同的發票號碼 '+v.invoiceNo)+'，已自動取消勾選、不匯入（沒有存草稿）。如果其實不是重複（例如發票號碼讀錯），請改正發票號碼後再勾回來，按「儲存勾選項目為草稿」。';
+}
+// ===BATCHDRAFT-END
+// 重複的先取消勾選（在預留發票編號與存草稿之前做，重複的就不會白白占一個編號、也不會上傳照片）：回傳被取消的是第幾張
+function batchCancelDuplicates(){
+ const existsMap=new Map(current.map(i=>[normNo(i.invoiceNo)+'|'+String(i.taxId||'').trim(),i])),seen=new Set(),dups=[];
+ batchRows.forEach((r,i)=>{
+  if(!r.selected||r.saved||r.error||r.draftId)return;
+  const v=r.values,no=normNo(v.invoiceNo),key=no+'|'+String(v.taxId||'').trim();if(!no)return;   // 沒有發票號碼（收據、證明）不比對
+  if(existsMap.has(key)||seen.has(key)){r.selected=false;r.dupCancelled=true;r.note=dupNoteText(v,existsMap.get(key)||null,names)+(r.note?'　'+r.note:'');dups.push(i+1)}
+  else seen.add(key);
+ });
+ return dups;
+}
 async function batchAutoDraft(){
  if(!canPage('entry')||batchBusy)return;
  const cand=batchRows.map((r,i)=>[r,i]).filter(([r])=>r.selected&&!r.saved&&!r.error&&!r.draftId);
  if(!cand.length)return;
- const ceoOn=entryMode==='ceo'&&canCeoHistPanel(),exists=new Set(current.map(i=>normNo(i.invoiceNo)+'|'+String(i.taxId||'').trim())),seen=new Set(),skipped=[],failed=[];
+ const ceoOn=entryMode==='ceo'&&canCeoHistPanel(),existsMap=new Map(current.map(i=>[normNo(i.invoiceNo)+'|'+String(i.taxId||'').trim(),i])),exists=new Set(existsMap.keys()),seen=new Set(),skipped=[],failed=[],dups=[];
  batchBusy=true;el('batchDraft').disabled=true;el('batchSubmit').disabled=true;el('batchScan').disabled=true;
  let ok=0,k=0;
  try{
+  // 先把每張照片同時上傳（一次 4 張；上傳結果記起來，下面存草稿時不用再傳一次），整批存起來比一張一張傳快很多
+  const seen0=new Set(),willSave=cand.filter(([r])=>{const v=r.values,no=normNo(v.invoiceNo),key=no+'|'+String(v.taxId||'').trim();if(no&&(exists.has(key)||seen0.has(key)))return false;if(no)seen0.add(key);return true});   // 重複的不用上傳
+  batchProgress('辨識完成，正在上傳照片… 0/'+willSave.length);let up=0;
+  await runLimited(willSave,4,async([r])=>{try{await uploadFile({name:r.file.name,type:r.file.type,size:r.file.size,blob:r.file})}catch(e){}up++;batchProgress('辨識完成，正在上傳照片… '+up+'/'+willSave.length)});
   for(const [r,i] of cand){
    k++;batchProgress('辨識完成，正在把這一批一起存成草稿… '+k+'/'+cand.length);
    const v=r.values;
@@ -4223,22 +4291,24 @@ async function batchAutoDraft(){
    const no=normNo(v.invoiceNo),key=no+'|'+String(v.taxId||'').trim();
    if(!v.dept){r.note='⚠ 沒有申請部門，沒有自動存草稿（請選好部門再按「儲存勾選項目為草稿」）';skipped.push(i+1);continue}
    if(!canSubmitAs(v.dept,v.applicant)){r.note='⚠ 此登入帳號只能用本人姓名與所屬部門，沒有自動存草稿';skipped.push(i+1);continue}
-   if(no&&(exists.has(key)||seen.has(key))){r.note='⚠ 重複發票（與既有資料或這一批的另一張重複），沒有自動存草稿';skipped.push(i+1);continue}
+   if(no&&(exists.has(key)||seen.has(key))){   // 重複：自動取消勾選、不存草稿、不匯入；留在清單上寫明和哪一張重複（使用者可以自己勾回來）
+    r.selected=false;r.dupCancelled=true;r.note=dupNoteText(v,exists.has(key)?existsMap.get(key):null,names)+(r.note?'　'+r.note:'');dups.push(i+1);continue}
    try{
     const item=batchItemFor(r,'draft',ceoOn,new Date().toISOString());if(placeholder)item.deptPlaceholder=true;
+    let near='';if(ceoOn&&window.CeoJudge){const d=CeoJudge.duplicates(current,{taxId:v.taxId,vendor:v.vendor,amount:Number(v.amount),invoiceDate:v.invoiceDate});if(d.length)near='⚠ 疑似與 '+d[0].invoiceNo+'（'+d[0].invoiceDate+'）重複（同商家、同金額、日期相近），已存成草稿，請確認是不是同一張；'}   // 疑似重複只提醒（沒有發票號碼可比、號碼不同的），不自動取消
     prepareRouting(item);audit(item,'批次登錄草稿（辨識完自動存）');
-    const sv=await put(item);r.draftId=item.id;r.serialNo=(sv&&sv.serialNo)||r.serialNo||'';r.saved=false;r.submitted=false;r.selected=true;r.note='已自動存成草稿。可以直接在這裡修改，改完按上面的「儲存勾選項目為草稿」更新，或「勾選項目送出簽核」。'+(r.note?'　'+r.note:'');if(no)seen.add(key);ok++;
+    const sv=await put(item);r.draftId=item.id;r.serialNo=(sv&&sv.serialNo)||r.serialNo||'';r.saved=false;r.submitted=false;r.selected=true;r.note=near+DRAFT_NOTE_AUTO+(r.noteBase?'　'+r.noteBase:'');if(no)seen.add(key);ok++;
    }catch(e){r.error='自動存草稿失敗：'+((e&&e.message)||e);failed.push(i+1)}
    renderBatch();
   }
   await refresh();renderBatch();cloudInboxRefresh(true);
-  batchProgress('辨識完成：'+(ok?'已把 '+ok+' 張一起存成草稿（'+((skipped.length||failed.length)?'其餘見各張說明':'整批都存好了')+'），可以直接在下面一張一張改（或整批一起改），改完按「儲存勾選項目為草稿」更新，或「勾選項目送出簽核」；不用一張一張打開草稿。':'沒有自動存草稿的發票，請看各張說明。')+(skipped.length?'　沒有自動存：第 '+skipped.join('、')+' 張。':'')+(failed.length?'　存失敗：第 '+failed.join('、')+' 張。':''));
+  batchProgress('辨識完成：'+(ok?'已把 '+ok+' 張一起存成草稿（'+((skipped.length||failed.length||dups.length)?'其餘見各張說明':'整批都存好了')+'），下次打開這一頁會整批還原成現在這個畫面；可以直接在下面一張一張改（或整批一起改），改完按「儲存勾選項目為草稿」更新，或「勾選項目送出簽核」；不用一張一張打開草稿。':'沒有自動存草稿的發票，請看各張說明。')+(dups.length?'　重複的第 '+dups.join('、')+' 張已自動取消勾選、不匯入。':'')+(skipped.length?'　沒有自動存：第 '+skipped.join('、')+' 張。':'')+(failed.length?'　存失敗：第 '+failed.join('、')+' 張。':''));
  }finally{batchBusy=false;el('batchDraft').disabled=false;el('batchSubmit').disabled=false;el('batchScan').disabled=false}
 }
 // 組出一筆發票（批次登錄的一列 → 要存到雲端的發票資料）；手動「儲存勾選項目」與辨識完自動存草稿共用
 function batchItemFor(r,status,ceoOn,stamp){
    const v=r.values;
-   const claim={requestDate:status==='pending'?claimToday():'',dueDate:v.dueDate||'',payee:v.payee,purpose:v.description||'',items:r.claim.items.map(({allocManual,_ledgerTimer,...x})=>({...x,allocations:(x.allocations||[]).map(a=>({dept:a.dept,ratio:a.ratio}))})),allocations:aggregateAllocations(r.claim.items),paymentMethod:v.payment||'匯款',transferHistory:v.transferHistory||'非首次匯款',feeDeduction:v.feeDeduction||'不扣匯費',voucherMissing:Number(v.voucherMissing)||0,voucherProvided:1,passbook:isFirstTransfer(v.payment,v.transferHistory)&&r.passbookFile?{name:r.passbookFile.name,type:r.passbookFile.type,size:r.passbookFile.size,blob:r.passbookFile}:null,...(ceoOn&&r.cj?{ceo:CeoJudge.toClaim(r.cj.sel,r.cj.judge)}:{})};const item={id:uid(),cloudFileId:cloudIdOfFile(r.file)||undefined,invoiceDate:v.invoiceDate||'',docType:DocType.norm(v.docType),invoiceNo:(String(v.invoiceNo||'').trim()||(DocType.norm(v.docType)!=='invoice'?DocType.genNo(v.docType,v.invoiceDate):'')),vendor:String(v.vendor||'').trim(),taxId:String(v.taxId||'').trim(),vendorSource:r.vendorSource||'人工核對',dept:v.dept,applicant:String(v.applicant||'').trim(),category:'其他費用',amount:Number(v.amount)||0,payment:claim.paymentMethod,description:String(v.description||'').trim(),memo:String(v.memo||'').trim(),claim,attachments:[{name:r.file.name,type:r.file.type,size:r.file.size,blob:r.file}],status,history:[],createdAt:now(),updatedAt:stamp,serialOnSave:true,...(r.serialNo?{serialClaim:{no:r.serialNo,ym:r.serialYm||''}}:{}),...(claim.voucherMissing>0?{voucher:{state:'pending',placeholder:false}}:{})};   // serialOnSave：匯入存入的當下（草稿也是）就編發票編號；serialClaim：認領匯入檢查完預留的編號
+   const claim={requestDate:status==='pending'?claimToday():'',dueDate:v.dueDate||'',payee:v.payee,purpose:v.description||'',items:r.claim.items.map(({allocManual,_ledgerTimer,...x})=>({...x,allocations:(x.allocations||[]).map(a=>({dept:a.dept,ratio:a.ratio}))})),allocations:aggregateAllocations(r.claim.items),paymentMethod:v.payment||'匯款',transferHistory:v.transferHistory||'非首次匯款',feeDeduction:v.feeDeduction||'不扣匯費',voucherMissing:Number(v.voucherMissing)||0,voucherProvided:1,passbook:isFirstTransfer(v.payment,v.transferHistory)&&r.passbookFile?{name:r.passbookFile.name,type:r.passbookFile.type,size:r.passbookFile.size,blob:r.passbookFile}:null,...(ceoOn&&r.cj?{ceo:CeoJudge.toClaim(r.cj.sel,r.cj.judge)}:{})};const item={id:uid(),cloudFileId:cloudIdOfFile(r.file)||undefined,invoiceDate:v.invoiceDate||'',docType:DocType.norm(v.docType),invoiceNo:(String(v.invoiceNo||'').trim()||(DocType.norm(v.docType)!=='invoice'?DocType.genNo(v.docType,v.invoiceDate):'')),vendor:String(v.vendor||'').trim(),taxId:String(v.taxId||'').trim(),vendorSource:r.vendorSource||'人工核對',dept:v.dept,applicant:String(v.applicant||'').trim(),category:'其他費用',amount:Number(v.amount)||0,payment:claim.paymentMethod,description:String(v.description||'').trim(),memo:String(v.memo||'').trim(),claim,attachments:[{name:r.file.name,type:r.file.type,size:r.file.size,blob:r.file}],status,history:[],createdAt:now(),updatedAt:stamp,serialOnSave:true,...(r.serialNo?{serialClaim:{no:r.serialNo,ym:r.serialYm||''}}:{}),...(claim.voucherMissing>0?{voucher:{state:'pending',placeholder:false}}:{}),...(status==='draft'?{batchSnap:batchSnapOf(r,{mode:ceoOn?'ceo':'normal',by:(authUser&&authUser.name)||'',ord:Math.max(0,batchRows.indexOf(r))})}:{})};   // batchSnap：草稿才存「這一列畫面上的一切」，下次打開整批還原（送出簽核的不存）；serialOnSave：匯入存入的當下（草稿也是）就編發票編號；serialClaim：認領匯入檢查完預留的編號
    return item;
 }
 async function saveBatch(status, onlyIndices=null){
@@ -4291,7 +4361,7 @@ async function saveBatch(status, onlyIndices=null){
    prepareRouting(item);audit(item,status==='draft'?(prev?'批次草稿更新':'批次登錄草稿'):routingAction(item));
    try{const sv=await put(item);r.draftId=item.id;const oldNo=r.serialNo;r.serialNo=(sv&&sv.serialNo)||r.serialNo||'';r.serialYm=(sv&&sv.serialYm)||r.serialYm||'';
     const warn=(oldNo&&r.serialNo&&oldNo!==r.serialNo)?'⚠ 預留的編號 '+oldNo+' 已不能用，這張改編成 '+r.serialNo+'，紙本上的編號請更正':'';
-    if(status==='draft'){r.saved=false;r.submitted=false;r.selected=true;r.note='已存成草稿（可以繼續修改，改完再按「儲存勾選項目為草稿」更新，或「勾選項目送出簽核」）'}
+    if(status==='draft'){r.saved=false;r.submitted=false;r.selected=true;r.dupCancelled=false;r.note=DRAFT_NOTE_SAVED+(r.noteBase?'　'+r.noteBase:'')}
     else{r.saved=true;r.submitted=true;r.selected=false;r.note='已成功儲存'}if(warn)r.note+='　'+warn;count++}catch(e){r.error='儲存失敗：'+e.message;break}
   }
   let removedN=0;
@@ -4304,6 +4374,38 @@ async function saveBatch(status, onlyIndices=null){
   await refresh();renderBatch();cloudInboxRefresh(true);batchProgress(`成功儲存 ${count}/${candidates.length} 筆${count<candidates.length?'；其餘請檢查錯誤後重試':''}。${removedN?'已送出簽核的 '+removedN+' 筆已從這個清單移除。':''}${canPage('list')?'請至「發票明細」確認。':''}`);
  }finally{batchBusy=false;el('batchDraft').disabled=false;el('batchSubmit').disabled=false}
 }
+// ===== 下次打開整批還原（使用者 2026-11-20：「我在開啟時要跟儲存前畫面一樣」）=====
+// 登入後第一次進「執行長發票」（或「發票登錄」）頁，批次清單是空的，就用自己存的批次草稿（有 batchSnap 的）重建：每一列的欄位、請款項目與分攤、費用類別／請款別／卡別判斷、說明、發票編號、照片預覽都和存檔前一樣；
+// 勾選全部勾著、接回草稿編號，改完按「儲存勾選項目為草稿」就是更新同一筆。只還原一次（之後使用者自己清空、匯入新的一批，就不再自動還原）；在「發票明細」點「編輯」打開單張草稿時不還原（那是要改單張）。
+const batchRestore={done:{},busy:false};
+async function restoreBatchDrafts(){
+ const mode=entryMode==='ceo'?'ceo':'normal';
+ if(batchRestore.busy||batchRestore.done[mode]||batchBusy||batchRows.length||!authUser||!canPage('entry'))return;
+ const list=restorableDrafts(current,{mode,by:authUser.name});
+ batchRestore.done[mode]=true;
+ if(!list.length)return;
+ batchRestore.busy=true;
+ try{
+  setEntryMode('batch');
+  let done=0;const rows=new Array(list.length),bad=[];
+  batchProgress('正在還原上次存成草稿的批次… 0/'+list.length);
+  await runLimited(list,4,async(d,i)=>{
+   try{
+    const att=d.attachments[0],blob=await attachmentBlob(att,d.id),file=new File([blob],att.name||'發票',{type:att.type||blob.type||'image/jpeg'});
+    let pbf=null;const pb=d.claim&&d.claim.passbook;if(pb&&pb.blobId){try{const b2=await attachmentBlob(pb,d.id);pbf=new File([b2],pb.name||'存摺影本',{type:pb.type||b2.type||'image/jpeg'})}catch(e){}}
+    rows[i]=batchRowFromDraft(d,file,pbf);
+   }catch(e){console.warn('還原批次草稿失敗：'+d.id,e);bad.push(d.invoiceNo||d.id)}
+   done++;batchProgress('正在還原上次存成草稿的批次… '+done+'/'+list.length);
+  });
+  if(batchBusy||batchRows.length)return;   // 還原的途中使用者已經匯入、辨識了新的一批：不蓋掉
+  disposeBatchURLs();batchRows=rows.filter(Boolean);batchURLs=batchRows.map(r=>r.file.type.startsWith('image/')?URL.createObjectURL(r.file):'');
+  setEntryMode('batch');renderBatch();renderDraftBanner();
+  batchProgress((batchRows.length?'已還原上次存成草稿的 '+batchRows.length+' 張，畫面和存檔前一樣；可以繼續核對、修改，改完按「儲存勾選項目為草稿」更新，或「勾選項目送出簽核」。':'上次的批次草稿都還原失敗，草稿還在「發票明細」。')+(bad.length?'　有 '+bad.length+' 張還原失敗（草稿還在「發票明細」）：'+bad.slice(0,3).join('、')+(bad.length>3?'…':'')+'。':''));
+ }finally{batchRestore.busy=false}
+}
+window.restoreBatchDrafts=restoreBatchDrafts;
+window.batchDraftIds=()=>new Set(batchRows.map(r=>r.draftId).filter(Boolean));   // 提醒條「雲端上有 N 張還沒送出的草稿」不重複算批次清單裡已經在顯示的
+window.skipBatchRestore=()=>{batchRestore.done.ceo=batchRestore.done.normal=true};   // 在「發票明細」點「編輯」要改單張草稿時，不要跳去還原整批
 el('batchDraft').addEventListener('click',()=>saveBatch('draft'));
 el('batchSubmit').addEventListener('click',()=>saveBatch('pending'));
 })();
