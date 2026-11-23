@@ -400,7 +400,7 @@ dialog{border:1px solid var(--cd-gold-deep)}
     <div class="auth-warn"><b>資料安全：</b>簽呈、發票、金額與存摺影本存在公司的 Google 雲端硬碟，系統會依你的角色與部門過濾可見範圍，並檢查簽核順序。請勿在公用電腦登入，離開座位請先登出。</div>
   </div>
 </div>
-<datalist id="acctCodeList"></datalist><datalist id="acctNameList"></datalist><script src="config.js?v=ce0fe7cf"></script><script src="js/cloud.js?v=a46fa01e"></script><script src="js/lazy-libs.js?v=8f101f03"></script><script src="js/image-zoom.js?v=c70fc93c"></script><script src="js/einvoice-qr.js?v=53401bde"></script><script src="js/quick-judge.js?v=61bbe864"></script><script src="js/ceo-judge.js?v=765c0cf6"></script>
+<datalist id="acctCodeList"></datalist><datalist id="acctNameList"></datalist><script src="config.js?v=ce0fe7cf"></script><script src="js/cloud.js?v=3b324df8"></script><script src="js/lazy-libs.js?v=8f101f03"></script><script src="js/image-zoom.js?v=c70fc93c"></script><script src="js/einvoice-qr.js?v=53401bde"></script><script src="js/quick-judge.js?v=61bbe864"></script><script src="js/ceo-judge.js?v=765c0cf6"></script>
 <script src="js/card-detect.js?v=79cf21e8"></script>
 <script src="js/doc-type.js?v=9ddce6b6"></script>
 <script src="js/upright.js?v=ee3ee62e"></script>
@@ -742,12 +742,16 @@ const accountSearchKey=u=>accNorm([u.name,u.id,u.empNo,departmentLabel(u.dept||'
 // ===DEVICEADMIN-BEGIN
 // 公務機模式（使用者 2026-11-23：「若生產組他是用公務機，那我們要怎麼去增加員工的部分？」「可能要增加公務機模式」「把生產部同仁的名字都加進去」）：
 // 公務機先用一個公司 Gmail（公務機帳號）登入一次，只會顯示「選姓名」畫面；同事選自己的名字、輸入 PIN 碼就用自己的身分提出申請、看自己的單（員工身分，不能簽核）。
-// 這裡是管理員的設定：①指定哪個 Gmail 是公務機帳號 ②選一個部門，把同仁一次加進公務機名單並自動產生 PIN（有 Gmail 的同事只設 PIN、不另外建人；沒有 Gmail 的建「公務機專用」人員）。PIN 只在產生的當下顯示一次。
-const DEV_STATE={dept:'',inited:'',sel:new Set()};
-function genPin(used){   // 4 位數字，避開 0000、1111、1234、4321 這類好猜的，同一批不重複
- for(let t=0;t<500;t++){const a=new Uint32Array(1);crypto.getRandomValues(a);const p=String(a[0]%10000).padStart(4,'0');
-  if(/^(\d)\1{3}$/.test(p)||'01234567890'.includes(p)||'09876543210'.includes(p)||used.has(p))continue;used.add(p);return p}
- const p=String(1000+used.size*7%9000);used.add(p);return p}
+// 這裡是管理員的設定：①指定哪個 Gmail 是公務機帳號 ②選一個部門，把同仁一次加進公務機名單（有 Gmail 的同事只設 PIN、不另外建人；沒有 Gmail 的建「公務機專用」人員）。
+// 使用者 2026-11-23：「PIN 碼幫我改成填寫他們的生日，然後在 PIN 碼的地方括號生日」（格式選「只填月日，4 碼，例如 0315」）→ PIN 碼＝同仁的生日月日，管理員逐人填生日（或一次貼上「工號 生日」），不再隨機產生；同仁登入畫面寫「PIN 碼（生日）」。
+const DEV_STATE={dept:'',inited:'',sel:new Set(),bday:{}};   // bday：工號 → 管理員填的生日（還沒送出）
+// 生日（月日 4 碼）當 PIN：接受 0315、3/15、03-15、3月15日；月日要真的存在（2/29 可以）；不合格回傳空字串
+function birthdayPin(raw){
+ let t=String(raw==null?'':raw).trim().replace(/[０-９]/g,c=>String.fromCharCode(c.charCodeAt(0)-65248)),mm,dd;
+ let m=/^(\d{1,2})\s*[\/\-.月]\s*(\d{1,2})\s*日?$/.exec(t);
+ if(m){mm=+m[1];dd=+m[2]}else if(/^\d{4}$/.test(t)){mm=+t.slice(0,2);dd=+t.slice(2)}else return '';
+ if(mm<1||mm>12||dd<1||dd>new Date(2000,mm,0).getDate())return '';
+ return String(mm).padStart(2,'0')+String(dd).padStart(2,'0')}
 const devEmpSort=(a,b)=>String(a.empNo||'').localeCompare(String(b.empNo||''),'en',{numeric:true})||String(a.name||'').localeCompare(String(b.name||''));
 function deviceBoxHtml(all,deptNames,st,roles){
  roles=roles||{};
@@ -757,53 +761,60 @@ function deviceBoxHtml(all,deptNames,st,roles){
  const deptOpts=sel=>deptNames.map(n=>'<option value="'+esc(n)+'"'+(n===sel?' selected':'')+'>'+esc(n)+'</option>').join('');
  const accts=all.filter(u=>u.deviceDept);
  const rows=members.map(u=>{const can=!!u.empNo&&u.enabled!==false;
-  return '<tr><td><input type="checkbox" data-dev-sel="'+esc(u.empNo||'')+'" '+(can?'':'disabled ')+(can&&st.sel.has(u.empNo)?'checked':'')+' aria-label="選取 '+esc(u.name)+'"></td><td>'+esc(u.empNo||'—')+'</td><td><b>'+esc(u.name)+'</b></td><td>'+(u.device?'公務機專用（沒有 Gmail）':'有 Gmail')+'</td><td>'+esc(roles[u.role]||u.role||'')+'</td><td>'+(u.hasPin?'已設定'+(u.locked?'（🔒 輸入錯誤太多次，鎖住中）':''):'未設定')+'</td><td class="muted small">'+(can?'':(u.enabled===false?'已停用':'沒有工號，請先到下面的人員清單補上工號'))+'</td></tr>'}).join('');
+  return '<tr><td><input type="checkbox" data-dev-sel="'+esc(u.empNo||'')+'" '+(can?'':'disabled ')+(can&&st.sel.has(u.empNo)?'checked':'')+' aria-label="選取 '+esc(u.name)+'"></td><td>'+esc(u.empNo||'—')+'</td><td><b>'+esc(u.name)+'</b></td><td>'+(u.device?'公務機專用（沒有 Gmail）':'有 Gmail')+'</td><td>'+esc(roles[u.role]||u.role||'')+'</td><td>'+(u.hasPin?'已設定'+(u.locked?'（🔒 輸入錯誤太多次，鎖住中）':''):'未設定')+'</td><td>'+(can?'<input class="dev-bday" data-dev-bday="'+esc(u.empNo)+'" inputmode="numeric" maxlength="6" placeholder="例 0315" value="'+esc((st.bday&&st.bday[u.empNo])||'')+'" aria-label="'+esc(u.name)+' 的生日（PIN 碼）" style="width:84px">':'<span class="muted small">'+(u.enabled===false?'已停用':'沒有工號，請先到下面的人員清單補上工號')+'</span>')+'</td></tr>'}).join('');
  const nPin=members.filter(u=>u.hasPin).length;
  return '<details class="fold" id="deviceFold" open><summary>🖥 公務機（選姓名＋PIN 碼）</summary>'+
-  '<p class="muted small" style="margin:10px 0 6px">給共用手機（公務機）用：<b>公務機先用一個公司 Gmail 登入一次</b>（設為「公務機帳號」），之後同事在上面<b>點自己的名字、輸入 PIN 碼</b>就能用自己的身分提出發票請款與各種表單、看自己的申請。公務機上登入的人一律是<b>員工身分，不能簽核</b>；閒置 5 分鐘、送出申請後、按「換人」都會自動登出。同事自己的 Gmail 帳號照舊能用。</p>'+
+  '<p class="muted small" style="margin:10px 0 6px">給共用手機（公務機）用：<b>公務機先用一個公司 Gmail 登入一次</b>（設為「公務機帳號」），之後同事在上面<b>點自己的名字、輸入 PIN 碼（生日）</b>就能用自己的身分提出發票請款與各種表單、看自己的申請。公務機上登入的人一律是<b>員工身分，不能簽核</b>；閒置 5 分鐘、送出申請後、按「換人」都會自動登出。同事自己的 Gmail 帳號照舊能用。</p>'+
   '<h4 style="margin:12px 0 6px">① 公務機帳號（這支手機要登入的 Gmail）</h4>'+
   (accts.length?'<div class="tablewrap"><table class="account-table"><thead><tr><th>Gmail</th><th>姓名</th><th>列出哪個部門的同事</th><th></th></tr></thead><tbody>'+accts.map(u=>'<tr><td>'+esc(u.id)+'</td><td>'+esc(u.name)+'</td><td><b>'+esc(u.deviceDept)+'</b></td><td><button type="button" class="danger" data-dev-acct-del="'+esc(u.id)+'">取消公務機帳號</button></td></tr>').join('')+'</tbody></table></div>':'<p class="muted small">還沒有公務機帳號。</p>')+
   '<div class="toolbar" style="margin-top:6px"><input id="devAcctEmail" type="email" maxlength="120" placeholder="公務機要登入的 Gmail（例如 production@gmail.com）" style="min-width:260px"><select id="devAcctDept" aria-label="列出哪個部門">'+deptOpts(dept)+'</select><button type="button" id="devAcctBtn">設為公務機帳號</button></div>'+
   '<p class="muted small" style="margin:2px 0 0">這個 Gmail 沒在名單裡會自動新增（員工、只有發票登錄）；它登入後<b>不能直接使用系統</b>，只會看到選姓名畫面。</p>'+
   '<h4 style="margin:14px 0 6px">② 把部門同仁加進公務機名單</h4>'+
   '<div class="toolbar"><label>部門</label><select id="devDeptSel" data-dev-dept>'+deptOpts(dept)+'</select><button type="button" data-dev-all>全選</button><button type="button" data-dev-none>全不選</button><span class="muted small">共 '+members.length+' 人，其中 '+nPin+' 人已設定 PIN</span></div>'+
-  (members.length?'<div class="tablewrap"><table class="account-table"><thead><tr><th></th><th>工號</th><th>姓名</th><th>帳號</th><th>角色</th><th>PIN 碼</th><th></th></tr></thead><tbody>'+rows+'</tbody></table></div>':'<p class="muted">這個部門目前沒有人員。</p>')+
-  '<div class="actions" style="margin:8px 0 2px"><button type="button" class="primary" id="devAddBtn">＋ 加入公務機名單（沒有 PIN 的人自動產生）</button><button type="button" id="devResetBtn">🔑 重設選取者的 PIN</button><button type="button" class="danger" id="devRemoveBtn">移出公務機名單</button></div>'+
-  '<p class="muted small" style="margin:2px 0 0">PIN 碼是系統隨機產生的 4 位數字，<b>只在產生的當下顯示一次</b>（可以列印發給同仁）；同仁之後可以在公務機上自己改。連續輸錯 5 次會鎖 10 分鐘，重設 PIN 會解鎖。有 Gmail 的同事只會多一個 PIN，帳號資料不動；「移出」也只是拿掉 PIN。</p>'+
+  (members.length?'<div class="tablewrap"><table class="account-table"><thead><tr><th></th><th>工號</th><th>姓名</th><th>帳號</th><th>角色</th><th>PIN 碼</th><th>生日（PIN 碼）</th></tr></thead><tbody>'+rows+'</tbody></table></div>':'<p class="muted">這個部門目前沒有人員。</p>')+
+  '<details style="margin:6px 0"><summary class="muted small">一次貼上多人的生日（每行一位：工號 生日）</summary><textarea id="devBdayPaste" rows="4" style="width:100%;max-width:420px" placeholder="P0657 0315&#10;P0659 7/9&#10;P0664 12-25"></textarea><div><button type="button" id="devBdayApply">套用貼上的生日</button></div></details>'+
+  '<div class="actions" style="margin:8px 0 2px"><button type="button" class="primary" id="devAddBtn">＋ 加入公務機名單（PIN 碼＝上面填的生日）</button><button type="button" id="devResetBtn">🔑 用填的生日重設選取者的 PIN</button><button type="button" class="danger" id="devRemoveBtn">移出公務機名單</button></div>'+
+  '<p class="muted small" style="margin:2px 0 0"><b>PIN 碼就是同仁的生日（月日 4 碼，例如 3 月 15 日＝0315）</b>：在上面每個人的「生日（PIN 碼）」欄填好（也可以一次貼上），再按「加入公務機名單」。同仁之後可以在公務機上自己改成別的數字。連續輸錯 5 次會鎖 10 分鐘，重設會解鎖。有 Gmail 的同事只會多一個 PIN，帳號資料不動；「移出」也只是拿掉 PIN。<b>生日月日只有 365 種，同事之間容易猜到，請用在不敏感的公務機；要更安全請同仁改成自己的數字。</b></p>'+
   '<h4 style="margin:14px 0 6px">③ 沒有 Gmail 的同仁（公務機專用）</h4>'+
-  '<div class="toolbar"><input id="devOnlyNo" maxlength="20" placeholder="工號" style="max-width:120px"><input id="devOnlyName" maxlength="40" placeholder="姓名" style="max-width:160px"><select id="devOnlyDept" aria-label="部門">'+deptOpts(dept)+'</select><button type="button" id="devOnlyBtn">新增（PIN 自動產生）</button></div>'+
+  '<div class="toolbar"><input id="devOnlyNo" maxlength="20" placeholder="工號" style="max-width:120px"><input id="devOnlyName" maxlength="40" placeholder="姓名" style="max-width:160px"><select id="devOnlyDept" aria-label="部門">'+deptOpts(dept)+'</select><input id="devOnlyBday" inputmode="numeric" maxlength="6" placeholder="生日（PIN）例 0315" style="max-width:150px"><button type="button" id="devOnlyBtn">新增</button></div>'+
   '<p class="muted small" style="margin:2px 0 0">新增後會出現在上面②的名單裡；「移出公務機名單」會把這種人整個刪掉。</p></details>'}
-function devPinsHtml(results){return '<table class="account-table"><thead><tr><th>部門</th><th>工號</th><th>姓名</th><th>PIN 碼</th></tr></thead><tbody>'+results.map(r=>'<tr><td>'+esc(r.u.dept||'')+'</td><td>'+esc(r.u.empNo)+'</td><td>'+esc(r.u.name)+'</td><td style="font-size:20px;letter-spacing:3px"><b>'+esc(r.pin)+'</b></td></tr>').join('')+'</tbody></table>'}
-function devShowPins(results,title){
- let d=$('devPinDialog');
- if(!d){d=document.createElement('dialog');d.id='devPinDialog';d.style.cssText='max-width:560px;width:92vw;height:fit-content;border:1px solid #C9A050;border-radius:12px;padding:16px';document.body.appendChild(d);
-  d.addEventListener('click',e=>{if(e.target.id==='devPinClose')d.close();else if(e.target.id==='devPinPrint'){const w=window.open('','_blank');if(!w)return toast('瀏覽器擋掉了列印視窗，請允許彈出視窗後再按一次');w.document.write('<html><head><meta charset="utf-8"><title>公務機 PIN 碼</title><style>body{font-family:sans-serif;padding:20px}table{border-collapse:collapse;width:100%}td,th{border:1px solid #999;padding:8px 10px;text-align:left}</style></head><body><h2>'+esc(d.dataset.title)+'</h2><p>公務機：點自己的名字，輸入下面的 PIN 碼。請自行保管，不要告訴別人。</p>'+d.querySelector('table').outerHTML+'</body></html>');w.document.close();w.focus();w.print()}})}
- d.dataset.title=title;
- d.innerHTML='<h3 style="margin:0 0 6px">'+esc(title)+'</h3><div class="warn" style="margin:6px 0">⚠ PIN 碼<b>只顯示這一次</b>，關掉就看不到了（只能重設）。請現在列印或抄下來發給同仁。</div>'+devPinsHtml(results)+'<div class="actions" style="margin-top:10px"><button type="button" class="primary" id="devPinPrint">🖨 列印</button><button type="button" id="devPinClose">我記下了，關閉</button></div>';
- d.showModal()}
+const BDAY_HINT='月日 4 碼，例如 3 月 15 日填 0315';
 let devBusy=false;
 async function devApply(mode){
  if(devBusy)return;const all=accountAll,st=DEV_STATE;
  const picked=[...st.sel].map(no=>all.find(u=>u.empNo===no)).filter(Boolean);
  const targets=mode==='add'?picked.filter(u=>!u.hasPin):picked.filter(u=>u.hasPin);
- if(!targets.length)return toast(mode==='add'?'選取的人都已經有 PIN 了（要換 PIN 請按「重設選取者的 PIN」），或還沒勾選':mode==='reset'?'選取的人都還沒有 PIN（請按「加入公務機名單」），或還沒勾選':'請先勾選要移出的人（要已經有 PIN 才在名單裡）');
- if(mode==='reset'&&!confirm('重設 '+targets.length+' 個人的 PIN 碼？\n他們現在在公務機上的登入會失效，舊的 PIN 不能再用。'))return;
+ if(!targets.length)return toast(mode==='add'?'選取的人都已經有 PIN 了（要用新的生日重設請按「重設」），或還沒勾選':mode==='reset'?'選取的人都還沒有 PIN（請按「加入公務機名單」），或還沒勾選':'請先勾選要移出的人（要已經有 PIN 才在名單裡）');
+ let pins={};
+ if(mode!=='remove'){
+  const bad=[];targets.forEach(u=>{const p=birthdayPin(st.bday[u.empNo]);if(p)pins[u.empNo]=p;else bad.push(u.name)});
+  if(bad.length)return toast('還沒填生日（或格式不對）：'+bad.join('、')+'（'+BDAY_HINT+'）。都填好再按一次。');
+ }
+ if(mode==='reset'&&!confirm('用填的生日重設 '+targets.length+' 個人的 PIN 碼？\n他們現在在公務機上的登入會失效，舊的 PIN 不能再用。'))return;
  if(mode==='remove'&&!confirm('把 '+targets.length+' 個人移出公務機名單？\n'+targets.map(u=>u.name+(u.device?'（沒有 Gmail，會整個刪除）':'')).join('、')+'\n\n有 Gmail 的同事只是拿掉 PIN，帳號不動。'))return;
- devBusy=true;const used=new Set(),results=[],fails=[];
+ devBusy=true;const done=[],fails=[];
  for(const u of targets){
   try{
    if(mode==='remove')await InvCloud.call('deviceUserDelete',{empNo:u.empNo});
-   else{const pin=genPin(used);await InvCloud.call('deviceUserSave',{empNo:u.empNo,name:u.name,dept:u.dept,pin});results.push({u,pin})}
+   else await InvCloud.call('deviceUserSave',{empNo:u.empNo,name:u.name,dept:u.dept,pin:pins[u.empNo]});
+   done.push(u);delete st.bday[u.empNo]
   }catch(e){fails.push(u.name+'：'+((e&&e.message)||e))}}
  devBusy=false;st.inited='';
  try{await renderAccounts()}catch(_){}
- if(results.length)devShowPins(results,'「'+(st.dept||'')+'」公務機 PIN 碼（'+results.length+' 人）');
- toast((mode==='remove'?'已移出 ':'已設定 PIN：')+(mode==='remove'?targets.length-fails.length:results.length)+' 人'+(fails.length?'；失敗 '+fails.length+' 人：'+fails.join('；'):''))}
+ toast((mode==='remove'?'已移出 ':'已設定 PIN 碼（＝生日）：')+done.length+' 人'+(done.length&&mode!=='remove'?'：'+done.map(u=>u.name).join('、'):'')+(fails.length?'；失敗 '+fails.length+' 人：'+fails.join('；'):''))}
+// 一次貼上「工號 生日」，每行一位（分隔可以是空白、逗號、Tab）
+function devBdayPaste(text){
+ const st=DEV_STATE,ok=[],bad=[];
+ String(text||'').split(/\n+/).map(l=>l.trim()).filter(Boolean).forEach(l=>{
+  const m=/^(\S+?)[\s,，\t]+(.+)$/.exec(l),no=m&&m[1],p=m&&birthdayPin(m[2]),u=no&&accountAll.find(x=>String(x.empNo||'').toLowerCase()===no.toLowerCase());
+  if(u&&p){st.bday[u.empNo]=p;ok.push(u.name)}else bad.push(l)});
+ return {ok,bad}}
 async function devOnlyAdd(){
- const no=$('devOnlyNo').value.trim(),name=$('devOnlyName').value.trim(),dept=$('devOnlyDept').value;
+ const no=$('devOnlyNo').value.trim(),name=$('devOnlyName').value.trim(),dept=$('devOnlyDept').value,pin=birthdayPin($('devOnlyBday')&&$('devOnlyBday').value);
  if(!no||!name)return toast('請填工號與姓名');
+ if(!pin)return toast('請填生日（'+BDAY_HINT+'），它就是這位同仁的 PIN 碼');
  if(devBusy)return;devBusy=true;
- try{const pin=genPin(new Set());await InvCloud.call('deviceUserSave',{empNo:no,name,dept,pin});DEV_STATE.inited='';DEV_STATE.dept=dept;await renderAccounts();devShowPins([{u:{dept,empNo:no,name},pin}],'「'+dept+'」公務機 PIN 碼（'+name+'）')}
+ try{await InvCloud.call('deviceUserSave',{empNo:no,name,dept,pin});DEV_STATE.inited='';DEV_STATE.dept=dept;await renderAccounts();toast('已新增 '+name+'（PIN 碼＝生日）')}
  catch(e){toast('新增失敗：'+((e&&e.message)||e))}finally{devBusy=false}}
 async function devAcctSave(email,dept,off){
  const mail=String(email||'').trim();if(!mail)return toast('請填公務機要登入的 Gmail');
@@ -819,12 +830,14 @@ function renderDeviceBox(){
  host.innerHTML=deviceBoxHtml(accountAll,(orgDepartments||[]).map(d=>d.name),DEV_STATE,typeof roleNames==='object'?roleNames:{});
  const d=host.querySelector('details');if(d)d.open=open}
 {const host=$('deviceBox');if(host){
+ host.addEventListener('input',e=>{const t=e.target;if(t.dataset&&t.dataset.devBday!==undefined)DEV_STATE.bday[t.dataset.devBday]=t.value});
  host.addEventListener('change',e=>{const t=e.target;
   if(t.dataset&&t.dataset.devSel!==undefined){if(t.checked)DEV_STATE.sel.add(t.dataset.devSel);else DEV_STATE.sel.delete(t.dataset.devSel)}
   else if(t.id==='devDeptSel'){DEV_STATE.dept=t.value;DEV_STATE.inited='';renderDeviceBox()}});
  host.addEventListener('click',e=>{const b=e.target.closest&&e.target.closest('button');if(!b)return;
   if(b.dataset.devAll!==undefined){DEV_STATE.sel=new Set(accountAll.filter(u=>String(u.dept||'')===DEV_STATE.dept&&u.empNo&&u.enabled!==false).map(u=>u.empNo));renderDeviceBox()}
   else if(b.dataset.devNone!==undefined){DEV_STATE.sel=new Set();renderDeviceBox()}
+  else if(b.id==='devBdayApply'){const r=devBdayPaste($('devBdayPaste').value);renderDeviceBox();toast(r.ok.length?'已填入 '+r.ok.length+' 人的生日'+(r.bad.length?'；看不懂的 '+r.bad.length+' 行：'+r.bad.join('｜'):''):'沒有可以套用的行（格式：工號 生日，例如 P0657 0315）'+(r.bad.length?'：'+r.bad.join('｜'):''))}
   else if(b.id==='devAddBtn')devApply('add');
   else if(b.id==='devResetBtn')devApply('reset');
   else if(b.id==='devRemoveBtn')devApply('remove');

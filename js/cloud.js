@@ -199,7 +199,7 @@
   // 自己改 PIN 碼（要輸入舊的）：後端 devicePinChange；錯太多次一樣會鎖
   function changePin() {
     var oldPin = root.prompt('請輸入「目前的」PIN 碼'); if (oldPin == null) return;
-    var newPin = root.prompt('請輸入「新的」PIN 碼（4～6 位數字）'); if (newPin == null) return;
+    var newPin = root.prompt('請輸入「新的」PIN 碼（4～6 位數字；原本是生日月日 4 碼）'); if (newPin == null) return;
     if (!/^\d{4,6}$/.test(newPin)) { root.alert('新的 PIN 碼要是 4～6 位數字'); return; }
     call('devicePinChange', { oldPin: String(oldPin).trim(), newPin: newPin.trim() }).then(function () { root.alert('PIN 碼已更新，下次請用新的。'); }, function (e) { root.alert('沒有更新：' + e.message); });
   }
@@ -233,13 +233,13 @@
     var el = $('devPicker'); if (!el) return;
     var foot = '<div class="dev-foot">這是公務機帳號（' + esc(state && state.email) + '）。<button type="button" data-dev="signout">管理員：登出這台公務機</button></div>', h;
     if (!pick.sel) {
-      h = '<div class="dev-card"><h2>🏭 ' + esc(pick.dept) + '　請選擇你的名字</h2><p class="dev-sub">點自己的名字，再輸入 PIN 碼。用完請按「換人／登出」，或送出申請後會自動登出。</p>' +
+      h = '<div class="dev-card"><h2>🏭 ' + esc(pick.dept) + '　請選擇你的名字</h2><p class="dev-sub">點自己的名字，再輸入 PIN 碼（生日）。用完請按「換人／登出」，或送出申請後會自動登出。</p>' +
         (pick.people.length ? '<div class="dev-names">' + pick.people.map(function (p) { return '<button type="button" data-dev="pick" data-id="' + esc(p.id) + '">' + esc(p.name) + '</button>'; }).join('') + '</div>'
           : '<p class="dev-msg">目前沒有可以選的同事。請管理員到「系統設定 → 帳號」的「公務機」區塊，把這個部門的同仁加進來並設定 PIN 碼。</p>') +
         '<div class="dev-msg' + (bad ? ' bad' : '') + '">' + esc(msg || '') + '</div>' + foot + '</div>';
     } else {
-      var dots = ''; for (var i = 0; i < 6; i++) dots += i < pick.pin.length ? '●' : '○';
-      h = '<div class="dev-card"><button type="button" class="dev-back" data-dev="back">← 重新選名字</button><h2>' + esc(pick.sel.name) + '</h2><p class="dev-sub">請輸入你的 PIN 碼（4～6 位數字）</p><div class="dev-dots" aria-live="polite">' + dots + '</div>' +
+      var dots = '', nDots = Math.max(4, pick.pin.length); for (var i = 0; i < nDots; i++) dots += i < pick.pin.length ? '●' : '○';   // 生日是 4 碼，預設畫 4 個圓點；自己改成 5～6 位的人，打到第 5、6 位時圓點會跟著多出來
+      h = '<div class="dev-card"><button type="button" class="dev-back" data-dev="back">← 重新選名字</button><h2>' + esc(pick.sel.name) + '</h2><p class="dev-sub">請輸入你的 PIN 碼（生日）<br><span style="font-size:12px">生日的月日 4 碼，例如 3 月 15 日輸入 0315</span></p><div class="dev-dots" aria-live="polite">' + dots + '</div>' +
         '<div class="dev-msg' + (bad ? ' bad' : '') + '">' + esc(msg || '') + '</div><div class="dev-pad">' +
         [1, 2, 3, 4, 5, 6, 7, 8, 9].map(function (n) { return '<button type="button" data-dev="d" data-n="' + n + '"' + (pick.busy ? ' disabled' : '') + '>' + n + '</button>'; }).join('') +
         '<button type="button" data-dev="del"' + (pick.busy ? ' disabled' : '') + '>⌫</button><button type="button" data-dev="d" data-n="0"' + (pick.busy ? ' disabled' : '') + '>0</button><button type="button" class="ok" data-dev="go"' + (pick.pin.length < 4 || pick.busy ? ' disabled' : '') + '>確定</button></div>' + foot + '</div>';
