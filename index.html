@@ -438,7 +438,7 @@ dialog{border:1px solid var(--cd-gold-deep)}
 <div id="singleMode" class="hide"><div class="panel entry-panel"><div class="entry-top"><h2 id="entryTitle">發票登錄</h2><span id="serialChip" class="serial-tag hide"></span><span id="whoChip" class="who-chip hide"></span><button type="button" id="entryToCsv" class="entry-to-csv" title="改用 CSV 匯入">📊 CSV 匯入</button></div>
 <div class="ocr-box compact">
  <div class="ocr-bar"><label class="btn ocr-button" for="cameraInput">📸 拍照</label><input id="cameraInput" type="file" accept="image/*" capture="environment" style="display:none"><button type="button" id="ocrStart">🔎 重新辨識</button><button type="button" id="ocrClear">清除辨識</button></div>
- <div class="ocr-preview-wrap"><img id="ocrPreview" class="ocr-preview hide" alt="發票影像預覽"><div id="ocrStatus" class="muted small" aria-live="polite">選好發票照片或 PDF 後會自動辨識：先轉正（橫的、倒的、歪的），電子發票先讀 QR code（讀到品項會自動轉成分類），讀不到才用文字辨識；沒有發票號碼的會判斷是收據還是證明；辨識完就先編好發票編號（標題旁，可以先寫在紙本發票上）。</div></div>
+ <div class="ocr-preview-wrap"><img id="ocrPreview" class="ocr-preview hide" alt="發票影像預覽"><div id="ocrStatus" class="muted small" aria-live="polite">選好發票照片或 PDF 後會自動辨識：先轉正（橫的、倒的、歪的），電子發票先讀 QR code（讀到品項會自動轉成分類），讀不到才用文字辨識；沒有發票號碼的會判斷是收據還是證明；執行長的發票辨識完會先編好發票編號（標題旁，可以先寫在紙本發票上）。</div></div>
  <div id="ocrReview" class="ocr-review hide"><details><summary><strong>辨識結果</strong>（已帶入表單，點此核對）</summary><div id="ocrValues" class="ocr-values"></div><div class="small muted">請確認是「開立發票的賣方」，不是買方抬頭；不清楚的欄位請手動修改。</div><details><summary>查看 OCR 原始文字</summary><pre id="ocrRaw"></pre></details></details></div>
 </div>
 <form id="invoiceForm" novalidate data-step="1"><input type="hidden" id="editId">
@@ -2091,17 +2091,28 @@ const voucherBadge=i=>{const s=voucherState(i);return s==='pending'?'<span class
 const voucherText=i=>{const s=voucherState(i);if(s==='none')return '沒有待補的憑證';if(s==='pending')return '待補憑證（還缺 '+(Number(i.claim?.voucherMissing)||0)+' 張）：發票下來後，由申請人在「發票明細」按「補憑證」上傳';return voucherLabel(i)+(s==='confirmed'&&i.voucher?.confirmedBy?'（'+i.voucher.confirmedBy+'）':'')};
 const statusMatch=(i,s)=>s.startsWith('v:')?voucherState(i)===s.slice(2):i.status===s;
 function canSupplementVoucher(i){return !!authUser&&!!i&&canPage('entry')&&['pending','executive_pending','approved','finance_ok','paid'].includes(i.status)&&voucherState(i)==='pending'&&(authUser.role==='admin'||(i.applicant===authUser.name&&(i.dept===authUser.dept||isCeoUser())))}
-// 發票編號（財務核對）：1 月 A、2 月 B … 12 月 L ＋ 4 位流水號，送出簽核時由伺服器編。編號功能啟用前就已送出的發票沒有編號，管理員可以一鍵補（依建立時間先後）
+// 發票編號（財務核對）：1 月 A、2 月 B … 12 月 L ＋ 3 位流水號，送出簽核時由伺服器編。**只有執行長的發票需要編號**（使用者 2026-11-23：「發票編號只有執行長的發票需要，其他的不需要」）；管理員可以一鍵補執行長還沒編號的（依建立時間先後），也可以「歸零」（清掉全部編號、計數歸零，可選擇接著替執行長的發票重編）
 function renderSerialBar(scope){
  let bar=$('serialBar');
  if(!bar){const vb=$('voucherBanner');if(!vb)return;bar=document.createElement('div');bar.id='serialBar';bar.className='note hide';bar.setAttribute('aria-live','polite');vb.after(bar)}
- const n=authUser&&authUser.role==='admin'?scope.filter(i=>i.status!=='draft'&&!i.serialNo).length:0;
- bar.classList.toggle('hide',!n);
- bar.innerHTML=n?'有 <b>'+n+'</b> 張已送出簽核的發票還沒有「發票編號」（編號功能啟用前就送出的）。 <button type="button" id="serialBackfillBtn">補上發票編號</button>':'';
+ const adm=!!authUser&&authUser.role==='admin';
+ const n=adm?scope.filter(i=>i.status!=='draft'&&!i.serialNo&&isCeoApplicant(i.applicant)).length:0,nNo=adm?scope.filter(i=>i.serialNo).length:0;
+ bar.classList.toggle('hide',!(n||nNo));
+ bar.innerHTML=(n?'有 <b>'+n+'</b> 張執行長已送出簽核的發票還沒有「發票編號」。 <button type="button" id="serialBackfillBtn">補上發票編號</button>　':'')+(nNo?'<span class="muted small">發票編號只有執行長的發票需要。</span> <button type="button" id="serialResetBtn" title="清掉全部發票上的編號、計數歸零（可以接著替執行長的發票重新編）">發票編號歸零…</button>':'');
 }
 document.addEventListener('click',async e=>{const b=e.target.closest&&e.target.closest('#serialBackfillBtn');if(!b)return;
- if(!confirm('依建立時間先後，替已送出簽核、還沒有編號的發票補上「發票編號」（1 月 A、2 月 B …＋流水號）。要繼續嗎？'))return;
+ if(!confirm('依建立時間先後，替執行長已送出簽核、還沒有編號的發票補上「發票編號」（1 月 A、2 月 B …＋流水號）。要繼續嗎？'))return;
  b.disabled=true;try{const r=await InvCloud.call('serialBackfill',{});toast('已補上 '+r.count+' 張的發票編號');await syncStores(['invoices']);await refresh()}catch(err){toast('補編號失敗：'+((err&&err.message)||err))}finally{b.disabled=false}});
+// 歸零（使用者 2026-11-23：「把發票的編號歸零」）：先確認會清掉什麼（紙本上寫過的編號會對不上），再問要不要接著替執行長的發票重新編
+document.addEventListener('click',async e=>{const b=e.target.closest&&e.target.closest('#serialResetBtn');if(!b)return;
+ if(!authUser||authUser.role!=='admin')return;
+ const nNo=visibleInvoices(current).filter(i=>i.serialNo).length;
+ if(!confirm('要把發票編號歸零嗎？\n\n會清掉全部發票上的「發票編號」（目前有 '+nNo+' 張有編號），並把預留的計數歸零。已經寫在紙本發票上的編號就對不上了，而且無法復原。'))return;
+ const renumber=confirm('清掉之後，要不要接著替「執行長已送出簽核」的發票，依建立時間從 001 重新編號（每個月重新開始）？\n\n按「確定」＝清掉並重新編號；按「取消」＝只清掉（之後執行長新送出的發票才從 001 開始編）。');
+ b.disabled=true;try{const r=await InvCloud.call('serialReset',{renumber});
+  if(typeof batchRows!=='undefined')batchRows.forEach(x=>{if(!x.saved){x.serialNo='';x.serialYm=''}});   // 批次清單裡先預留、還沒存的編號也作廢
+  toast('發票編號已歸零：清掉 '+r.cleared+' 張'+(renumber?'，替執行長的 '+r.renumbered+' 張重新編號':''));await syncStores(['invoices']);await refresh()}
+ catch(err){toast('歸零失敗：'+((err&&err.message)||err))}finally{b.disabled=false}});
 function renderVoucherBanner(scope){
  renderSerialBar(scope);
  const b=$('voucherBanner');if(!b)return;
@@ -2873,7 +2884,7 @@ function claimPrintCover(item,order,total,attachments,allCount){
  <tr><th>預定付款日</th><td>${printOneLine(c.dueDate)}</td><th>申請人</th><td>${printOneLine(item.applicant)}</td></tr>
  <tr><th>支付對象</th><td colspan="3">${printOneLine(c.payee)}</td></tr>
  <tr><th>用途</th><td colspan="3">${printMultiline(c.purpose)}</td></tr>
- <tr><th>發票編號</th><td colspan="3"><b>${printOneLine(item.serialNo)}</b></td></tr>
+ ${item.serialNo?`<tr><th>發票編號</th><td colspan="3"><b>${printOneLine(item.serialNo)}</b></td></tr>`:''}
  <tr><th>發票號碼</th><td>${printOneLine(item.invoiceNo)}</td><th>發票日期</th><td>${printOneLine(item.invoiceDate)}</td></tr>
  <tr><th>廠商名稱</th><td>${printOneLine(item.vendor)}</td><th>賣方統編</th><td>${printOneLine(item.taxId)}</td></tr>
  <tr><th>發票總計</th><td colspan="3">NT$ ${fmt(item.amount)}</td></tr>
@@ -3506,6 +3517,7 @@ async function applyQRToSingle(file){
 //  ④ 辨識完就預留發票編號（標題旁「編號 ○○○」，先寫在紙本發票上）；存檔時帶 serialClaim 認領，後端確認預留過、沒被用掉才採用；後端還沒更新或連不上不擋，編號改成存檔時才編
 window.singleSerial=null;window.singleLastFile=null;window.singleNotes='';
 let singleDocAuto=false,singleEpoch=0;const singleUprighted=new WeakSet();
+const singleNeedsSerial=()=>entryMode==='ceo'||isCeoApplicant(el('applicant')&&el('applicant').value);   // 發票編號只有執行長的發票需要
 function singleSerialChip(){const c=el('serialChip');if(!c)return;const s=window.singleSerial;c.classList.toggle('hide',!(s&&s.no));c.textContent=s&&s.no?'編號 '+s.no:'';c.title=s&&s.no?'發票編號（財務核對用）：辨識完就編好，先寫在紙本發票上；存檔時沿用這個號碼，之後不會變':''}
 window.singleScanBusy=()=>inProgress;
 window.singleResetState=()=>{singleEpoch++;window.singleSerial=null;window.singleLastFile=null;window.singleNotes='';singleDocAuto=false;singleSerialChip();const b=el('singleDupNote');if(b){b.textContent='';b.classList.add('hide')}};
@@ -3554,8 +3566,8 @@ async function singleAfterRecognize(o){
  const d=singleDocTypeDecision({raw:o.raw,qr:o.qr,pdf:o.pdf,invoiceNo:el('invoiceNo').value,docType:el('docType').value,autoSet:singleDocAuto});
  if(d){el('docType').value=d.docType;singleDocAuto=d.docType!=='invoice';docTypeSync();if(d.note)notes.push(d.note)}
  const hit=singleDupRender();
- if(hit)notes.push('⚠ 已請款（系統裡已有相同發票號碼，說明在表單上），這張不預留編號');
- else{const had=!!(window.singleSerial&&window.singleSerial.no),s=await singleReserveSerial();if(s&&s.no&&!had)notes.push('🔢 發票編號 '+s.no+'（可以先寫在紙本發票上；存檔時沿用這個號碼）')}
+ if(hit)notes.push('⚠ 已請款（系統裡已有相同發票號碼，說明在表單上）'+(singleNeedsSerial()?'，這張不預留編號':''));
+ else if(singleNeedsSerial()){const had=!!(window.singleSerial&&window.singleSerial.no),s=await singleReserveSerial();if(s&&s.no&&!had)notes.push('🔢 發票編號 '+s.no+'（可以先寫在紙本發票上；存檔時沿用這個號碼）')}
  return notes}
 el('docType').addEventListener('change',()=>{singleDocAuto=false});   // 使用者自己改了憑證類型：之後的重新辨識不再動它
 // ===SINGLEUNIFY-END
@@ -3846,8 +3858,9 @@ el('batchDoneGo').addEventListener('click',()=>{
 // 編號要先寫在紙本發票上，所以辨識完、還沒存檔就要有號碼：向雲端後端「預留」N 個編號（serialReserve），每張發票記在 r.serialNo／r.serialYm、顯示在標題旁；
 // 之後按「儲存勾選項目為草稿」或「送出簽核」，存檔時帶 serialClaim 認領這個號碼（後端確認預留過、沒被用掉才採用）。沒存的預留號碼會空著（可能已經寫在紙本上，不重用）。
 // 後端還沒更新（unknown_action）或連不上：不擋，編號改成存檔時才編。
+const batchNeedsSerial=r=>entryMode==='ceo'||isCeoApplicant(r&&r.values&&r.values.applicant);   // 發票編號只有執行長的發票需要（執行長發票頁、或申請人是執行長）
 async function batchReserveSerials(){
- const need=batchRows.filter(r=>!r.saved&&!r.serialNo&&!r.error&&!r.dupCancelled);if(!need.length)return 0;   // 重複取消的不預留編號
+ const need=batchRows.filter(r=>!r.saved&&!r.serialNo&&!r.error&&!r.dupCancelled&&batchNeedsSerial(r));if(!need.length)return 0;   // 重複取消的不預留編號
  let got=0;
  try{
   for(let k=0;k<need.length;k+=50){
