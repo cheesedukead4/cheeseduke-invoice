@@ -1930,7 +1930,7 @@ async function saveInvoiceCore(status,auto){if(!canPage('entry'))return auto?fal
  const missing=claim.voucherMissing;let invNo=$('invoiceNo').value.trim(),vendorName=$('vendor').value.trim();const docType=DocType.norm($('docType').value);if(docType!=='invoice'&&!invNo)invNo=DocType.genNo(docType,$('invoiceDate').value);   // 收據、證明沒有發票號碼：自動編號
  if(missing>0){if(!invNo)invNo='待補-'+claimToday().replace(/-/g,'')+'-'+Math.random().toString(36).slice(2,6).toUpperCase();if(!vendorName)vendorName=claim.payee||'（待補憑證）'}else if(/^待補-/.test(invNo))throw Error('請填入真正的發票號碼，或勾選「目前還沒有發票／憑證」');
  const voucherObj=missing>0?{state:'pending',placeholder:/^待補-/.test(invNo)}:(old?.voucher&&old.voucher.state!=='pending'?old.voucher:null);
- let item={id:old?.id||uid(),invoiceDate:$('invoiceDate').value,invoiceNo:invNo,docType,vendor:vendorName,taxId:$('taxId').value.trim(),vendorSource:$('vendorLookupStatus').textContent,dept:dp,applicant:$('applicant').value.trim(),category:old?.category||'其他費用',amount:Number($('amount').value),payment:claim.paymentMethod,description:claim.purpose,memo:entryMode==='ceo'?'':$('memo').value.trim(),claim,attachments,status,history:old?.history||[],createdAt:old?.createdAt||now(),updatedAt:new Date().toISOString(),editedOn:deviceLabel(),...(deptPlaceholder?{deptPlaceholder:true}:{}),...(voucherObj?{voucher:voucherObj}:{}),...(window.singleSerialClaim?window.singleSerialClaim(old):{})};if(status==='pending'&&(!item.invoiceNo||!item.vendor||!(item.amount>0)||!item.dept||!item.applicant))throw Error('請填完整發票基本資料');prepareRouting(item);if(!(auto&&old))audit(item,status==='draft'?(auto?'自動儲存草稿':'儲存草稿'):routingAction(item));const sv=await put(item);const swarn=window.singleSerialSaved?window.singleSerialSaved(sv):'';if(auto){afterAutoDraft(item,!old,attachments.length);if(swarn)toast(swarn);return true}resetForm();if(window.clearRecognitionPanel)window.clearRecognitionPanel();await refresh();if(entryMode==='ceo'&&canPage('ceoentry'))ceoSetView('mine');else if(canPage('list'))tab('list');toast((status==='draft'?'草稿儲存成功':item.ceoApplicant?'已直接送交財務覆核（執行長本人的請款不用再簽核）':item.skipManagerApproval?'已送交執行長簽核':'已送交部門主管簽核')+(sv&&sv.serialNo?'（發票編號 '+sv.serialNo+'）':'')+(swarn?'　'+swarn:''))}catch(e){if(auto){autoDraftFail(e);return false}toast(e.message)}}$('invoiceForm').onsubmit=e=>{e.preventDefault();saveInvoice('pending')};$('saveDraft').onclick=()=>saveInvoice('draft');
+ let item={id:old?.id||uid(),invoiceDate:$('invoiceDate').value,invoiceNo:invNo,docType,vendor:vendorName,taxId:$('taxId').value.trim(),vendorSource:$('vendorLookupStatus').textContent,dept:dp,applicant:$('applicant').value.trim(),category:old?.category||'其他費用',amount:Number($('amount').value),payment:claim.paymentMethod,description:claim.purpose,memo:entryMode==='ceo'?'':$('memo').value.trim(),claim,attachments,status,history:old?.history||[],createdAt:old?.createdAt||now(),updatedAt:new Date().toISOString(),editedOn:deviceLabel(),...(deptPlaceholder?{deptPlaceholder:true}:{}),...(voucherObj?{voucher:voucherObj}:{}),...(window.singleSerialClaim?window.singleSerialClaim(old):{})};if(status==='pending'&&(!item.invoiceNo||!item.vendor||!(item.amount>0)||!item.dept||!item.applicant))throw Error('請填完整發票基本資料');prepareRouting(item);if(!(auto&&old))audit(item,status==='draft'?(auto?'自動儲存草稿':'儲存草稿'):routingAction(item));const sv=await put(item);const swarn=window.singleSerialSaved?window.singleSerialSaved(sv):'';if(auto){afterAutoDraft(item,!old,attachments.length);if(swarn)toast(swarn);return true}resetForm();if(window.clearRecognitionPanel)window.clearRecognitionPanel();await refresh();if(entryMode==='ceo'&&canPage('ceoentry'))ceoSetView('mine');else if(canPage('list'))tab('list');toast((status==='draft'?'草稿儲存成功':item.ceoApplicant?'已直接送交財務覆核（執行長本人的請款不用再簽核）':item.skipManagerApproval?'已送交執行長簽核':'已送交部門主管簽核')+(sv&&sv.serialNo?'（發票編號 '+sv.serialNo+'）':'')+(swarn?'　'+swarn:''))}catch(e){if(e&&e.code==='duplicate'&&window.singleDupMark)window.singleDupMark();if(auto){autoDraftFail(e);return false}toast(e.message)}}$('invoiceForm').onsubmit=e=>{e.preventDefault();saveInvoice('pending')};$('saveDraft').onclick=()=>saveInvoice('draft');
 async function editItem(id){let i=await get(id);if(!canPage('entry')||!canReadInvoice(i)||!['draft','rejected'].includes(i.status))return toast('此筆無法編輯');if(window.skipBatchRestore)skipBatchRestore();autoDraftReset();tab(i.claim&&i.claim.ceo&&canPage('ceoentry')?'ceoentry':canPage('entry')?'entry':'ceoentry'); // 執行長上傳的單（有判斷結果）回到執行長上傳頁編輯；先切頁，再填欄位（切到執行長頁會清掉預定付款日與備註）
  for(const k of ['invoiceDate','invoiceNo','vendor','taxId','dept','amount','memo'])$(k).value=i[k]??'';$('docType').value=DocType.norm(i.docType);docTypeSync();$('editId').value=id;$('editId').dataset.existingFiles=String((i.attachments||[]).length);loadSingleClaim(i.claim,i);syncApplicantHints();$('applicant').value=i.applicant||'';syncApplicantSubmitLabel();updateWhoChip();$('entryTitle').textContent='編輯發票與請款單：'+i.invoiceNo;$('files').value='';setEntryMode('single');setFormStep(1);if(i.deptPlaceholder)$('dept').value='';if(window.singleShowSerialOf)singleShowSerialOf(i);renderDraftBanner();setTimeout(()=>{autoDraft.sig=autoDraftSig();autoDraft.lastSig=autoDraft.sig},800)} // 只是打開草稿不算有修改：先記下現在的內容當基準，使用者真的改了才自動存（不然只是打開就會把「來源」改成這台裝置）
 const DELETABLE=['draft','rejected'];
@@ -3516,11 +3516,13 @@ async function applyQRToSingle(file){
 //  ③ 發票號碼系統裡已經有 → 顯示「已請款」，不預留編號、存草稿與送簽都擋下（和批次同一個 findDuplicate）
 //  ④ 辨識完就預留發票編號（標題旁「編號 ○○○」，先寫在紙本發票上）；存檔時帶 serialClaim 認領，後端確認預留過、沒被用掉才採用；後端還沒更新或連不上不擋，編號改成存檔時才編
 window.singleSerial=null;window.singleLastFile=null;window.singleNotes='';
-let singleDocAuto=false,singleEpoch=0;const singleUprighted=new WeakSet();
+let singleDocAuto=false,singleEpoch=0,singleSrvDupKey='';   // singleSrvDupKey：後端說「已請款」的那個（發票號碼|統編），號碼一改就不算
+// 使用者 2026-11-23：「目前未儲存草稿或送出的發票，若跟已送出的發票有相同，是否會顯示已送出過？」→ 本機只比得到自己看得到的發票，所以辨識完、改發票號碼時再問後端（dupCheck，用全部發票比，只回有沒有、不說是誰請的）；存檔時後端也會擋（duplicate）
+const singleUprighted=new WeakSet();
 const singleNeedsSerial=()=>entryMode==='ceo'||isCeoApplicant(el('applicant')&&el('applicant').value);   // 發票編號只有執行長的發票需要
 function singleSerialChip(){const c=el('serialChip');if(!c)return;const s=window.singleSerial;c.classList.toggle('hide',!(s&&s.no));c.textContent=s&&s.no?'編號 '+s.no:'';c.title=s&&s.no?'發票編號（財務核對用）：辨識完就編好，先寫在紙本發票上；存檔時沿用這個號碼，之後不會變':''}
 window.singleScanBusy=()=>inProgress;
-window.singleResetState=()=>{singleEpoch++;window.singleSerial=null;window.singleLastFile=null;window.singleNotes='';singleDocAuto=false;singleSerialChip();const b=el('singleDupNote');if(b){b.textContent='';b.classList.add('hide')}};
+window.singleResetState=()=>{singleEpoch++;singleSrvDupKey='';window.singleSerial=null;window.singleLastFile=null;window.singleNotes='';singleDocAuto=false;singleSerialChip();const b=el('singleDupNote');if(b){b.textContent='';b.classList.add('hide')}};
 window.singleShowSerialOf=i=>{singleEpoch++;window.singleSerial=i&&i.serialNo?{no:String(i.serialNo),ym:String(i.serialYm||''),saved:true}:null;singleSerialChip();singleDupRender()};   // 打開已存的草稿／被退回的單：標題旁顯示它原本的編號
 window.singleSerialClaim=old=>{const s=window.singleSerial;return s&&s.no&&!s.saved&&!(old&&old.serialNo)?{serialOnSave:true,serialClaim:{no:s.no,ym:s.ym||''}}:{}};
 window.singleSerialSaved=sv=>{const s=window.singleSerial;if(!sv||!sv.serialNo)return '';const warn=s&&s.no&&!s.saved&&String(sv.serialNo)!==s.no?'⚠ 預留的編號 '+s.no+' 已不能用，這張改編成 '+sv.serialNo+'，紙本上的編號請更正':'';window.singleSerial={no:String(sv.serialNo),ym:String(sv.serialYm||''),saved:true};singleSerialChip();return warn};
@@ -3547,9 +3549,20 @@ function singleDocTypeDecision(o){
 const singleDupSelf=()=>(el('editId')&&el('editId').value)||'';
 function singleDupFind(){const v={invoiceNo:el('invoiceNo').value,taxId:el('taxId').value};const ex=dupNorm(v.invoiceNo)?findDuplicate(v,(current||[]).filter(i=>i.id!==singleDupSelf())):null;return ex?{v,ex}:null}
 function singleDupText(v,ex){return '⚠ 已請款：系統裡已經有這張發票 '+(ex.invoiceNo||v.invoiceNo)+'（'+((names&&names[ex.status])||ex.status||'')+(ex.invoiceDate?'，'+ex.invoiceDate:'')+'），不能重複請款。如果其實不是同一張（例如發票號碼讀錯），請改正發票號碼。'}
-function singleDupRender(){const hit=singleDupFind(),b=el('singleDupNote');if(b){b.textContent=hit?singleDupText(hit.v,hit.ex):'';b.classList.toggle('hide',!hit)}return hit}
-window.singleDupError=selfId=>{const v={invoiceNo:el('invoiceNo').value,taxId:el('taxId').value};if(!dupNorm(v.invoiceNo))return '';const ex=findDuplicate(v,(current||[]).filter(i=>i.id!==selfId));return ex?dupErrorText(ex,v):''};
+const singleDupKeyNow=()=>dupNorm(el('invoiceNo').value)+'|'+String(el('taxId').value||'').trim();
+function singleDupSrvText(v){return '⚠ 已請款：系統裡已經有相同發票號碼 '+String(v.invoiceNo||'').trim()+' 的發票（可能是別人請的），不能重複請款。如果其實不是同一張（例如發票號碼讀錯），請改正發票號碼。'}
+function singleDupRender(){
+ let hit=singleDupFind(),text=hit?singleDupText(hit.v,hit.ex):'';const b=el('singleDupNote');
+ if(!hit&&singleSrvDupKey&&singleSrvDupKey===singleDupKeyNow()){const v={invoiceNo:el('invoiceNo').value,taxId:el('taxId').value};hit={v,ex:null,srv:true};text=singleDupSrvText(v)}
+ if(b){b.textContent=text;b.classList.toggle('hide',!hit)}return hit}
+async function singleServerDupCheck(){   // 本機沒比到、有發票號碼才問後端；回傳後端說不是已請款／連不上都當沒有（存檔時後端還會擋）
+ const key=singleDupKeyNow(),no=el('invoiceNo').value;if(!dupNorm(no)||singleDupFind())return false;
+ try{const res=await InvCloud.call('dupCheck',{items:[{invoiceNo:no,taxId:el('taxId').value,id:singleDupSelf()}]});const dup=!!(res&&res.dups&&res.dups[0]);if(key===singleDupKeyNow())singleSrvDupKey=dup?key:'';return dup}
+ catch(e){console.warn('後端比對發票號碼失敗（存檔時後端還會擋）：',e&&e.message);return false}}
+window.singleDupMark=()=>{singleSrvDupKey=singleDupKeyNow();singleDupRender()};   // 存檔時後端說已請款：記下來（自動存草稿就不會一直重試）
+window.singleDupError=selfId=>{const v={invoiceNo:el('invoiceNo').value,taxId:el('taxId').value};if(!dupNorm(v.invoiceNo))return '';const ex=findDuplicate(v,(current||[]).filter(i=>i.id!==selfId));if(ex)return dupErrorText(ex,v);return singleSrvDupKey&&singleSrvDupKey===singleDupKeyNow()?'已請款：系統裡已經有相同發票號碼 '+String(v.invoiceNo).trim()+' 的發票，不能重複請款。如果發票號碼讀錯，請改正後再存。':''};
 el('invoiceNo').addEventListener('input',singleDupRender);el('taxId').addEventListener('input',singleDupRender);
+for(const id of ['invoiceNo','taxId'])el(id).addEventListener('change',()=>{singleServerDupCheck().then(singleDupRender)});   // 改完發票號碼、統編離開欄位時，再問一次後端
 async function singleReserveSerial(){
  if(window.singleSerial&&window.singleSerial.no)return window.singleSerial;   // 這一張已經有編號（重新辨識不再多領一個）
  const epoch=singleEpoch;
@@ -3565,7 +3578,8 @@ async function singleAfterRecognize(o){
  for(const x of (o.extra||[]))notes.push(x);
  const d=singleDocTypeDecision({raw:o.raw,qr:o.qr,pdf:o.pdf,invoiceNo:el('invoiceNo').value,docType:el('docType').value,autoSet:singleDocAuto});
  if(d){el('docType').value=d.docType;singleDocAuto=d.docType!=='invoice';docTypeSync();if(d.note)notes.push(d.note)}
- const hit=singleDupRender();
+ let hit=singleDupRender();
+ if(!hit){await singleServerDupCheck();hit=singleDupRender()}   // 本機比不到（員工只看得到自己的發票）→ 問後端用全部發票比
  if(hit)notes.push('⚠ 已請款（系統裡已有相同發票號碼，說明在表單上）'+(singleNeedsSerial()?'，這張不預留編號':''));
  else if(singleNeedsSerial()){const had=!!(window.singleSerial&&window.singleSerial.no),s=await singleReserveSerial();if(s&&s.no&&!had)notes.push('🔢 發票編號 '+s.no+'（可以先寫在紙本發票上；存檔時沿用這個號碼）')}
  return notes}
@@ -4041,7 +4055,7 @@ el('batchScan').addEventListener('click',async()=>{
   batchProgress(`已處理 ${batchRows.length} 張：QR code 讀到 ${nQR} 張`+(nPDF?`；PDF 電子發票直接讀文字 ${nPDF} 張（發票號碼、日期、金額不是辨識出來的，不會讀錯）`:'')+(ocrIdx.length?`；沒讀到 QR code、改用文字辨識 ${ocrIdx.length} 張（第 ${ocrIdx.map(i=>i+1).join('、')} 張，比較容易讀錯，請逐欄核對，或對準 QR code 重拍）`:'')+'；辨識不完整的發票請手動補上欄位。【還沒有存檔】核對每一張之後，按下面的「儲存勾選項目為草稿」或「勾選項目送出簽核」才會存（辨識完不會自動存成草稿）。');}
  // 「匯入檢查完就要有發票編號」（使用者 2026-11-19）：先向後端預留編號，顯示在每張旁邊（存檔時認領）
  // 重複的先取消勾選（使用者 2026-11-20：「若有重覆的自動取消不匯入」）：不預留編號、不存；畫面上的勾選與說明馬上更新
- const dupRows=batchCancelDuplicates();if(dupRows.length)renderBatch();
+ const dupRows=batchCancelDuplicates();for(const n of await batchServerDupCheck())dupRows.push(n);if(dupRows.length)renderBatch();   // 先比本機（含同批前面的），再問後端用全部發票比
  const nSerial=await batchReserveSerials();
  // 辨識完不自動存草稿（使用者 2026-11-20：「幫我改成不存草稿但雲端有多少照片一次匯入」；同日稍早的「辨識完整頁自動存草稿」撤回）：留在清單讓人核對，按「儲存勾選項目為草稿」或「勾選項目送出簽核」才存。batchAutoDraft 函式保留但不再呼叫。
  {let msg=el('batchProgress').textContent;
@@ -4412,7 +4426,8 @@ function findDuplicate(v,pool){
 }
 // 重複說明：ex＝系統裡已有的那張發票（沒有＝這一批裡前面已經有同號碼的）；statusNames＝狀態中文名
 function dupNoteText(v,ex,statusNames){
- const kind=dupKindOf(ex),exTxt=ex?(ex.invoiceNo||v.invoiceNo)+'（'+((statusNames&&statusNames[ex.status])||ex.status||'')+(ex.invoiceDate?'，'+ex.invoiceDate:'')+'）':'';
+ const st=ex?((statusNames&&statusNames[ex.status])||ex.status||''):'',info=ex?st+(ex.invoiceDate?(st?'，':'')+ex.invoiceDate:''):'';   // 後端比出來的只知道「已經有」，沒有狀態與日期（不洩漏是誰請的）
+ const kind=dupKindOf(ex),exTxt=ex?(ex.invoiceNo||v.invoiceNo)+(info?'（'+info+'）':''):'';
  const tail='，已自動取消勾選、不匯入。如果其實不是同一張（例如發票號碼讀錯），請改正發票號碼後再勾回來。';
  if(kind==='paid')return '⚠ 已請款：系統裡已經有這張發票 '+exTxt+tail;
  return '⚠ 重複發票：這一批裡前面已經有一張相同的發票號碼 '+v.invoiceNo+tail;
@@ -4431,6 +4446,15 @@ function markDuplicate(r,ex,statusNames){
  r.note=dupNoteText(r.values,ex,statusNames)+(r.note?'　'+r.note:'');
 }
 // ===BATCHDRAFT-END
+// 後端用全部發票再比一次（使用者 2026-11-23：員工只看得到自己的發票，同事請過的本機比不到；後端只回有沒有）：比到的一樣標「已請款」、取消勾選；回傳被取消的是第幾張
+async function batchServerDupCheck(){
+ const rows=batchRows.map((r,i)=>[r,i]).filter(([r])=>r.selected&&!r.saved&&!r.error&&!r.draftId&&!r.dupCancelled&&dupNorm(r.values.invoiceNo)),dups=[];
+ try{for(let k=0;k<rows.length;k+=300){
+   const part=rows.slice(k,k+300),res=await InvCloud.call('dupCheck',{items:part.map(([r])=>({invoiceNo:r.values.invoiceNo,taxId:r.values.taxId,id:r.draftId||''}))}),flags=(res&&res.dups)||[];
+   part.forEach(([r,i],j)=>{if(flags[j]){markDuplicate(r,{invoiceNo:r.values.invoiceNo,status:'',invoiceDate:''},names);dups.push(i+1)}});
+  }}catch(e){console.warn('後端比對發票號碼失敗（存檔時後端還會擋）：',e&&e.message)}
+ return dups;
+}
 // 重複的先取消勾選（在預留發票編號與存草稿之前做，重複的就不會白白占一個編號、也不會上傳照片）：回傳被取消的是第幾張
 function batchCancelDuplicates(){
  const seen=[],dups=[];
