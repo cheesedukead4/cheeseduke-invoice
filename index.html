@@ -4897,15 +4897,19 @@ el('csvDraft').onclick=()=>saveCSV('draft');el('csvSubmit').onclick=()=>saveCSV(
  const dispatchDef=m=>{const d=defOf(m.docType);return d&&d.dispatch?d:null};
  const isDispatched=m=>{const d=dispatchDef(m);return !!d&&!!(m.data&&m.data[d.dispatch.field])};
  const canDispatch=m=>{const d=dispatchDef(m);return !!d&&!!authUser&&m.status==='approved'&&!isDispatched(m)&&(authUser.role==='admin'||(!!d.stage&&(authUser.positions||[]).includes(d.stage.pos)))};
- const canArrive=m=>{const d=arriveDef(m);return !!d&&!!authUser&&m.status==='approved'&&(!d.dispatch||isDispatched(m))&&(authUser.role==='admin'||isMine(m)||(!!d.stage&&(authUser.positions||[]).includes(d.stage.pos)))};
- const arrivedOn=m=>{const h=[...(m.history||[])].reverse().find(x=>String(x.action).indexOf('到貨')===0);return h?String(h.at).split(' ')[0]:''};
+ // ===ARRIVE-BEGIN
+ // 使用者 2026-11-23：「這個部分應該是「已核准」，但要有一個地方是「到貨日期」」「應該是在印刷品的負責人填上到貨日的那一天，它就會自動把到貨日帶進來，讓申請人看到」：有 arriveField 的表單（印刷品送印）按「到貨」＝後端自動把當天記進「到貨日期」，單子維持「已核准」（不再結案），申請人在列表與詳細畫面都看得到
+ const arrivedVal=(m,d)=>d&&d.arriveField?String((m&&m.data&&m.data[d.arriveField])||'').trim():'';
+ // ===ARRIVE-END
+ const canArrive=m=>{const d=arriveDef(m);return !!d&&!!authUser&&m.status==='approved'&&!arrivedVal(m,d)&&(!d.dispatch||isDispatched(m))&&(authUser.role==='admin'||isMine(m)||(!!d.stage&&(authUser.positions||[]).includes(d.stage.pos)))};
+ const arrivedOn=m=>{const v=arrivedVal(m,defOf(m.docType));if(v)return v;const h=[...(m.history||[])].reverse().find(x=>String(x.action).indexOf('到貨')===0);return h?String(h.at).split(' ')[0]:''};
  const localYmd=d=>new Date(d.getTime()-d.getTimezoneOffset()*60000).toISOString().slice(0,10);
  // ===ETA-BEGIN
  // 預計到貨日（使用者 2026-11-23：「印刷品送印人要可以看到預計到貨日」）：有「到貨」按鈕、而且有 eta 欄位的表單（印刷品送印申請）——行銷在簽核那一關填預計到貨日，之後申請人、行銷、簽核的人在列表與詳細畫面一眼就看得到，不用點進「申請內容」找。草稿、被退回的還沒有；已到貨結案的顯示到貨日。
  const etaDef=d=>!!d&&!!d.arrive&&(d.fields||[]).some(fd=>fd.k==='eta');
  const etaShown=m=>!!m&&m.status!=='draft'&&m.status!=='rejected';
  const etaText=(m,d)=>{if(!etaDef(d)||!etaShown(m))return '';const v=String((m.data&&m.data.eta)||'').trim();
-  if(m.status==='closed')return '已到貨'+(arrivedOn(m)?'（'+arrivedOn(m)+'）':'')+(v?'；原預計 '+v:'');
+  if(m.status==='closed'||arrivedVal(m,d))return '已到貨'+(arrivedOn(m)?'（'+arrivedOn(m)+'）':'')+(v?'；原預計 '+v:'');
   if(!v)return '預計到貨日：行銷簽核時填寫';
   return '預計到貨日 '+v+(m.status==='approved'&&v<localYmd(new Date())?'（已超過，尚未到貨）':'')};
  // ===ETA-END
@@ -5317,9 +5321,10 @@ el('csvDraft').onclick=()=>saveCSV('draft');el('csvSubmit').onclick=()=>saveCSV(
   try{const r=await InvCloud.call('put',{store:'memos',item,base:Number(m._rev)||0});stageQuote={id:'',files:[]};upsert(r.item);noteVer(r.v);renderNav();moduleRender();if(detailId===id&&$('memoDetail').open)renderDetail(r.item);toast('已新增附件')}
   catch(e){toast('新增附件失敗：'+(e.message||e));if(e.code==='conflict')memoRefresh(true)}}
  async function arriveMemo(id){const m=memos.find(x=>x.id===id);if(!m||!canArrive(m))return toast('目前不能按到貨');
-  if(!confirm('確定「'+m.title+'」已經到貨，要結案了嗎？\n結案後就不能再修改。'))return;
-  const item={...m,status:'closed',history:[...(m.history||[]),{action:'到貨（結案）',reason:''}]};
-  try{const r=await InvCloud.call('put',{store:'memos',item,base:Number(m._rev)||0});upsert(r.item);noteVer(r.v);renderNav();moduleRender();if(detailId===id&&$('memoDetail').open)renderDetail(r.item);toast('已到貨，這張單已結案')}
+  const keep=!!(arriveDef(m)&&arriveDef(m).arriveField);   // 印刷品送印：記到貨日期、維持已核准；其他有到貨按鈕的表單照舊結案
+  if(!confirm(keep?'確定「'+m.title+'」已經到貨了嗎？\n系統會自動記下今天的到貨日期，申請人就看得到。':'確定「'+m.title+'」已經到貨，要結案了嗎？\n結案後就不能再修改。'))return;
+  const item={...m,status:keep?'approved':'closed',history:[...(m.history||[]),{action:keep?'到貨':'到貨（結案）',reason:''}]};
+  try{const r=await InvCloud.call('put',{store:'memos',item,base:Number(m._rev)||0});upsert(r.item);noteVer(r.v);renderNav();moduleRender();if(detailId===id&&$('memoDetail').open)renderDetail(r.item);toast(keep?'已記下到貨日期（'+arrivedOn(r.item)+'），申請人看得到了':'已到貨，這張單已結案')}
   catch(e){toast('操作失敗：'+(e.message||e));if(e.code==='conflict')memoRefresh(true)}}
  async function deleteMemo(id){if(!confirm('確定刪除這張草稿嗎？'))return;
   try{await InvCloud.call('del',{store:'memos',key:id});memos=memos.filter(x=>x.id!==id);memoVer=null;if(detailId===id)$('memoDetail').close();renderNav();moduleRender();memoRefresh(true)}
@@ -5344,13 +5349,13 @@ el('csvDraft').onclick=()=>saveCSV('draft');el('csvSubmit').onclick=()=>saveCSV(
   const acts=[];
   if(canSign(m)){const p=!canSignStrict(m);acts.push(`<button type="button" class="primary" data-msign="approve" data-id="${esc(m.id)}">${p?'管理員代簽：核准':'核准'}</button>${stageActive(m)&&d&&d.stage.force?`<button type="button" class="primary" data-msign="approveceo" data-id="${esc(m.id)}">${p?'管理員代簽：':''}${esc(d.stage.force.label)}</button>`:''}<button type="button" data-msign="reject" data-id="${esc(m.id)}">${p?'管理員代簽：退回':'退回'}</button>`)}
   if(canDispatch(m)&&!hasItemConfirm(m))acts.push(`<button type="button" class="primary" data-mdispatch="${esc(m.id)}">${esc(d.dispatch.label)}</button>`);
-  if(canArrive(m))acts.push(`<button type="button" class="primary" data-marrive="${esc(m.id)}">到貨（結案）</button>`);
+  if(canArrive(m))acts.push(`<button type="button" class="primary" data-marrive="${esc(m.id)}">${arriveDef(m).arriveField?'到貨':'到貨（結案）'}</button>`);
   if(m.docType==='seal'&&m.docNo)acts.push(`<button type="button" data-mprintseal="${esc(m.id)}">🖨 列印用印申請書</button>`);
   if(canEditMemo(m))acts.push(`<button type="button" class="primary" data-medit="${esc(m.id)}">${m.status==='rejected'?'修改後重新送出':'編輯'}</button>`);
   if(canDeleteMemo(m))acts.push(`<button type="button" class="danger" data-mdel="${esc(m.id)}">刪除草稿</button>`);
   $('memoDetailBody').innerHTML=`<div class="flex" style="margin-bottom:10px">${badge(m)}</div>
   ${rej?`<div class="warn" style="margin-bottom:10px"><b>退回原因：</b>${esc(rej.reason)}（${esc(rej.actor)}）</div>`:''}
-  <div class="memo-meta"><div><span>表單</span>${d?esc(d.icon+' '+d.name):esc(m.docType)}</div><div><span>申請人</span>${esc(m.applicant)}</div><div><span>部門</span>${esc(m.dept||'—')}</div>${d&&d.amount?`<div><span>金額</span>${money(m.amount)}</div>`:''}<div><span>建立時間</span>${esc(when(m.createdAt))}</div><div><span>最後更新</span>${esc(when(m.updatedAt))}</div>${d&&d.dispatch&&m.status==='approved'&&!isDispatched(m)?`<div><span>${esc(d.dispatch.label)}</span><b style="color:#8d5600">${hasItemConfirm(m)?'已核准，'+esc(progressText(itemProgress(m))):'已核准，尚未'+esc(d.dispatch.label)}</b></div>`:''}${etaDef(d)&&etaShown(m)?`<div><span>預計到貨日</span>${esc((m.data&&String(m.data.eta||'').trim())||'尚未填寫（行銷簽核時填）')}</div>`:''}${m.status==='closed'?`<div><span>到貨日</span>${esc(arrivedOn(m))}</div>`:''}${d&&d.pub?`<div><span>公告</span>${m.public?'核准後公告全公司':'不公告'}</div>`:''}</div>
+  <div class="memo-meta"><div><span>表單</span>${d?esc(d.icon+' '+d.name):esc(m.docType)}</div><div><span>申請人</span>${esc(m.applicant)}</div><div><span>部門</span>${esc(m.dept||'—')}</div>${d&&d.amount?`<div><span>金額</span>${money(m.amount)}</div>`:''}<div><span>建立時間</span>${esc(when(m.createdAt))}</div><div><span>最後更新</span>${esc(when(m.updatedAt))}</div>${d&&d.dispatch&&m.status==='approved'&&!isDispatched(m)?`<div><span>${esc(d.dispatch.label)}</span><b style="color:#8d5600">${hasItemConfirm(m)?'已核准，'+esc(progressText(itemProgress(m))):'已核准，尚未'+esc(d.dispatch.label)}</b></div>`:''}${etaDef(d)&&etaShown(m)?`<div><span>預計到貨日</span>${esc((m.data&&String(m.data.eta||'').trim())||'尚未填寫（行銷簽核時填）')}</div>`:''}${m.status==='closed'||arrivedVal(m,d)?`<div><span>到貨日期</span>${esc(arrivedOn(m))}</div>`:''}${d&&d.pub?`<div><span>公告</span>${m.public?'核准後公告全公司':'不公告'}</div>`:''}</div>
   <h3 style="margin:8px 0 6px">申請內容</h3>${dataHtml(m,d)}${stageSection(m,d)}${itemsDoneSection(m,d)}${quoteAddSection(m,d)}${fillSections(m,d)}
   ${(m.attachments||[]).length?`<h3 style="margin:14px 0 6px">附件</h3><div class="memo-files">${m.attachments.map((f,i)=>`<button type="button" class="memo-fileitem" data-matt="${i}" data-id="${esc(m.id)}">📎 ${f.tag==='quote'?'<b>'+esc(quoteName(d))+'</b>｜':''}${esc(f.name)} <span class="muted small">${fmtSize(f.size)}</span></button>`).join('')}</div>`:''}
   <h3 style="margin:14px 0 6px">簽核流程</h3><div class="flowpills">${pills}</div>
