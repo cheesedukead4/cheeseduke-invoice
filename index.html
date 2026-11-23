@@ -1698,11 +1698,20 @@ async function mirrorSyncClick(recreate){
  catch(e){toast('更新失敗：'+(e.message||e))}
  finally{dbMirrorBusy=false;await loadDbInfo()}
 }
+// ===DBSERIAL-BEGIN
+// 使用者 2026-11-23：「沒有找到發票歸0的按鈕」→ 原本的「發票編號歸零…」只出現在「發票明細」頁上方、而且要有發票有編號才會出現，不好找；這裡在「系統設定 → 資料庫 → 總覽」最上面放一個永遠看得到的「發票編號」區塊（只有管理員進得了這一頁），沒有編號可歸零時按鈕是灰的並說明原因
+function dbSerialHtml(){
+ const inv=visibleInvoices(current||[]),nNo=inv.filter(i=>i.serialNo).length,nCeo=inv.filter(i=>isCeoApplicant(i.applicant)).length,nCeoNo=inv.filter(i=>i.status!=='draft'&&!i.serialNo&&isCeoApplicant(i.applicant)).length;
+ return '<div class="panel" id="dbSerialPanel"><h3 style="margin:0 0 6px">🔢 發票編號</h3><p class="muted" style="margin:6px 0">發票編號（1 月 A、2 月 B … ＋ 3 位流水號）只有<b>執行長的發票</b>需要。目前有編號的發票 <b>'+nNo+'</b> 張；執行長的發票共 '+nCeo+' 張，其中已送出簽核、還沒編號的 '+nCeoNo+' 張。</p>'+
+  '<div class="actions" style="margin:6px 0"><button type="button" id="serialBackfillBtn2" '+(nCeoNo?'':'disabled')+'>補上發票編號</button><button type="button" class="danger" id="serialResetBtn2" '+(nNo?'':'disabled')+'>發票編號歸零…</button></div>'+
+  '<p class="muted small" style="margin:0">「歸零」會清掉<b>全部</b>發票上的編號、預留計數歸零，並可以接著替執行長已送出簽核的發票，依建立時間從 001 重新編（每個月重新開始）。已經寫在紙本發票上的編號會對不上，無法復原。'+(nNo?'':'（目前沒有任何發票有編號，所以「歸零」是灰的。）')+'</p></div>';
+}
+// ===DBSERIAL-END
 function renderDbOverview(){
  const host=$('dbPane-overview');if(!host)return;
  const rows=DB_CATALOG.map(c=>{const s=c.store&&dbStoreInfo(c.store);
   return '<tr><td data-label="資料庫"><b>'+c.icon+' '+esc(c.name)+'</b><div class="muted small">'+esc(c.desc)+'</div></td><td data-label="筆數">'+esc(dbCount(c))+'</td><td data-label="大小">'+(s?esc(fmtBytes(s.bytes)):'—')+'</td><td data-label="最後更新">'+(s&&s.at?esc(fmtAt(s.at))+'<div class="muted small">'+esc(s.by||'')+'｜第 '+s.v+' 版</div>':'—')+'</td><td data-label="誰能改">'+esc(c.who)+'</td><td data-label="用在哪">'+esc(c.used)+'</td><td data-label=""  class="act"><div class="cv"><button type="button" '+(c.pane?'data-db-open="'+c.pane+'"':c.page?'data-db-page="'+c.page+'"':'disabled')+'>'+(c.pane?'管理':c.page?'前往':'—')+'</button></div></td></tr>'}).join('');
- host.innerHTML=dbMirrorHtml()+'<div class="panel"><div class="flex"><h2 style="margin:0">🗄 資料庫總覽</h2><div class="spacer"></div><button type="button" id="dbRefresh">🔄 重新整理</button>'+(dbInfoData&&dbInfoData.folderUrl?'<a class="btn" href="'+esc(dbInfoData.folderUrl)+'" target="_blank" rel="noopener">📁 開啟雲端資料夾</a>':'')+'<button type="button" data-db-page="settings">💾 備份與還原</button></div>'+
+ host.innerHTML=dbSerialHtml()+dbMirrorHtml()+'<div class="panel"><div class="flex"><h2 style="margin:0">🗄 資料庫總覽</h2><div class="spacer"></div><button type="button" id="dbRefresh">🔄 重新整理</button>'+(dbInfoData&&dbInfoData.folderUrl?'<a class="btn" href="'+esc(dbInfoData.folderUrl)+'" target="_blank" rel="noopener">📁 開啟雲端資料夾</a>':'')+'<button type="button" data-db-page="settings">💾 備份與還原</button></div>'+
   (dbErr?'<div class="warn" style="margin-top:10px">'+esc(dbErr)+'</div>':'')+
   '<p class="muted">每種資料各存成一個檔案，放在同一個雲端資料夾（「發票簽核系統_雲端資料」）；每天凌晨自動完整備份。'+(dbInfoData?'目前共 '+dbInfoData.stores.length+' 個資料集、'+fmtBytes(dbInfoData.bytes)+'、帳號 '+dbInfoData.users+' 人。':(dbBusy?'讀取中…':''))+'</p>'+
   '<div class="tablewrap"><table><thead><tr><th>資料庫</th><th>筆數</th><th>大小</th><th>最後更新</th><th>誰能改</th><th>用在哪</th><th></th></tr></thead><tbody>'+rows+'</tbody></table></div></div>';
@@ -2100,18 +2109,18 @@ function renderSerialBar(scope){
  bar.classList.toggle('hide',!(n||nNo));
  bar.innerHTML=(n?'有 <b>'+n+'</b> 張執行長已送出簽核的發票還沒有「發票編號」。 <button type="button" id="serialBackfillBtn">補上發票編號</button>　':'')+(nNo?'<span class="muted small">發票編號只有執行長的發票需要。</span> <button type="button" id="serialResetBtn" title="清掉全部發票上的編號、計數歸零（可以接著替執行長的發票重新編）">發票編號歸零…</button>':'');
 }
-document.addEventListener('click',async e=>{const b=e.target.closest&&e.target.closest('#serialBackfillBtn');if(!b)return;
+document.addEventListener('click',async e=>{const b=e.target.closest&&e.target.closest('#serialBackfillBtn,#serialBackfillBtn2');if(!b)return;
  if(!confirm('依建立時間先後，替執行長已送出簽核、還沒有編號的發票補上「發票編號」（1 月 A、2 月 B …＋流水號）。要繼續嗎？'))return;
- b.disabled=true;try{const r=await InvCloud.call('serialBackfill',{});toast('已補上 '+r.count+' 張的發票編號');await syncStores(['invoices']);await refresh()}catch(err){toast('補編號失敗：'+((err&&err.message)||err))}finally{b.disabled=false}});
+ b.disabled=true;try{const r=await InvCloud.call('serialBackfill',{});toast('已補上 '+r.count+' 張的發票編號');await syncStores(['invoices']);await refresh();if(typeof renderDbOverview==='function')renderDbOverview()}catch(err){toast('補編號失敗：'+((err&&err.message)||err))}finally{b.disabled=false}});
 // 歸零（使用者 2026-11-23：「把發票的編號歸零」）：先確認會清掉什麼（紙本上寫過的編號會對不上），再問要不要接著替執行長的發票重新編
-document.addEventListener('click',async e=>{const b=e.target.closest&&e.target.closest('#serialResetBtn');if(!b)return;
+document.addEventListener('click',async e=>{const b=e.target.closest&&e.target.closest('#serialResetBtn,#serialResetBtn2');if(!b)return;
  if(!authUser||authUser.role!=='admin')return;
  const nNo=visibleInvoices(current).filter(i=>i.serialNo).length;
  if(!confirm('要把發票編號歸零嗎？\n\n會清掉全部發票上的「發票編號」（目前有 '+nNo+' 張有編號），並把預留的計數歸零。已經寫在紙本發票上的編號就對不上了，而且無法復原。'))return;
  const renumber=confirm('清掉之後，要不要接著替「執行長已送出簽核」的發票，依建立時間從 001 重新編號（每個月重新開始）？\n\n按「確定」＝清掉並重新編號；按「取消」＝只清掉（之後執行長新送出的發票才從 001 開始編）。');
  b.disabled=true;try{const r=await InvCloud.call('serialReset',{renumber});
   if(typeof batchRows!=='undefined')batchRows.forEach(x=>{if(!x.saved){x.serialNo='';x.serialYm=''}});   // 批次清單裡先預留、還沒存的編號也作廢
-  toast('發票編號已歸零：清掉 '+r.cleared+' 張'+(renumber?'，替執行長的 '+r.renumbered+' 張重新編號':''));await syncStores(['invoices']);await refresh()}
+  toast('發票編號已歸零：清掉 '+r.cleared+' 張'+(renumber?'，替執行長的 '+r.renumbered+' 張重新編號':''));await syncStores(['invoices']);await refresh();if(typeof renderDbOverview==='function')renderDbOverview()}
  catch(err){toast('歸零失敗：'+((err&&err.message)||err))}finally{b.disabled=false}});
 function renderVoucherBanner(scope){
  renderSerialBar(scope);
