@@ -2734,7 +2734,7 @@ function renderFlows(){if(!$('flows')||!flowData)return;renderFlowList();renderF
 function renderFlowList(){
  const d=flowData;
  $('flowList').innerHTML=d.cats.map(c=>{const list=d.forms.filter(f=>f.cat===c.key);if(!list.length)return '';
-  return `<div class="flow-cat">${esc(c.icon||'')} ${esc(c.name)}</div>`+list.map(f=>`<button type="button" class="flow-item${f.key===flowSel?' on':''}" data-flow-sel="${esc(f.key)}"><span>${esc(f.icon||'')} ${esc(f.name)}${f.custom?' <span class="flow-badge">已調整</span>':''}</span><small>${esc(flowText(f.flow))}</small></button>`).join('')}).join('')
+  return `<div class="flow-cat">${esc(c.icon||'')} ${esc(c.name)}</div>`+list.map(f=>`<button type="button" class="flow-item${f.key===flowSel?' on':''}" data-flow-sel="${esc(f.key)}"><span>${esc(f.icon||'')} ${esc(f.name)}${f.custom?' <span class="flow-badge">已調整</span>':''}${f.closed?' <span class="flow-badge" style="background:#f6dcdc;color:#8a1c1c">未開放</span>':''}</span><small>${esc(flowText(f.flow))}</small></button>`).join('')}).join('')
   +'<p class="muted small" style="margin-top:10px">「請款（發票）」的流程是另一套（部門主管 → 執行長 → 財務，另有財務覆核與付款），不在這裡調整。</p>';
 }
 function flowErrors(){
@@ -2765,6 +2765,7 @@ function renderFlowEditor(){
  const depts=(orgDepartments||[]).map(d=>`<option value="${esc(d.name)}">${esc(departmentLabel?departmentLabel(d.name):d.name)}</option>`).join('');
  root.innerHTML=`<h3 style="margin:0">${esc(f.icon||'')} ${esc(f.name)} ${f.custom?'<span class="flow-badge">已調整</span>':'<span class="flow-badge flow-def">預設流程</span>'}</h3>
  <p class="muted small" style="margin:4px 0 8px">${esc(f.desc||'')}${f.custom?`<br>最後調整：${esc(f.at||'')}　${esc(f.by||'')}`:''}</p>
+ <div class="note" id="formOpenBox" style="margin:6px 0 10px;${f.closed?'border-left-color:#c0392b;background:#fdeeee':''}"><b>開放狀態：${f.closed?'🔒 未開放':'🔓 已開放'}</b>　${f.key==='memo'?'<span class="muted small">通用簽呈是其他表單的備案，一直開放。</span>':`<button type="button" id="formOpenToggle" class="${f.closed?'primary':'danger'}" ${flowBusy?'disabled':''}>${f.closed?'開放這張表單':'關閉這張表單'}</button><div class="muted small" style="margin-top:4px">${f.closed?'目前員工看不到這張表單、不能提出申請（管理員還是看得到，可以先試填）。做好了按「開放」，員工就會在導覽列看到。':'關閉後員工看不到這張表單、不能新增或送出（已經送出的單照常簽核）；管理員仍可試填。還沒完成的表單可以先關著。'}${f.closed&&f.closedAt?'<br>關閉時間：'+esc(f.closedAt)+'　'+esc(f.closedBy||''):''}</div>`}</div>
  <div class="note">${f.hasAmount?`依「${esc(f.amountLabel)}」的金額決定走哪一級：金額小於等於某一級的上限，就用那一級的流程。每一級的關卡由上而下依序簽核；申請人本人就是某一關時會自動略過，同一個人連續兩關只簽一次。`:'這張表單沒有金額欄位，只能設一級流程（不分金額）。'}</div>
  ${f.stage?(f.stage.gate?`<div class="note"><b>這張表單由「${esc(f.stage.name)}」那一關決定要不要送簽給後面的關卡</b>（例如「是否送簽給執行長」，可以寫備註、附報價單）。申請人送出時流程先走到「${esc(f.stage.name)}」；他選「送簽」，才會繼續走後面的關卡，選「不送簽」就在這一關核准後完成。所以<b>每一級都要有「${esc(f.stage.name)}」</b>，而且它前面的關卡每一級要一樣。</div>`:`<div class="note"><b>這張表單的金額由「${esc(f.stage.name)}」那一關決定</b>（他可以填各品項的單價，系統加總成合計；不用再填供應商與含稅總額）。申請人送出時還沒有金額，流程先走到「${esc(f.stage.name)}」；有了金額之後，才依金額決定後面的關卡（沒有填單價＝沒有金額，到這一關就完成）。${f.stage.force?'另外「'+esc(f.stage.name)+'」那一關有一顆「核准並送執行長簽核」按鈕，按了不管金額多少都會補上執行長。':''}所以<b>每一級都要有「${esc(f.stage.name)}」</b>，而且它前面的關卡每一級要一樣。</div>`):''}
  ${tiers}
@@ -2826,6 +2827,7 @@ function bindFlows(){
    renderFlowEditor()}
   else if(b.id==='flowCancel'){flowDraft=null;renderFlowEditor()}
   else if(b.id==='flowSave'){const f=flowForm();if(!f||flowErrors().length)return;flowCall('flowSave',{form:f.key,flow:flowDraft},'已儲存「'+f.name+'」的簽核流程；之後送出的單會用新流程')}
+  else if(b.id==='formOpenToggle'){const f=flowForm();if(!f)return;const open=!!f.closed;if(!confirm(open?'開放「'+f.name+'」？\n\n開放後員工會在導覽列看到，可以開始提出申請。':'關閉「'+f.name+'」？\n\n員工會看不到這張表單、不能新增或送出；已經送出的單照常簽核。管理員仍可試填。'))return;flowCall('formOpenSet',{form:f.key,open},open?'已開放「'+f.name+'」':'已關閉「'+f.name+'」')}
   else if(b.id==='flowReset'){const f=flowForm();if(!f)return;if(!confirm('把「'+f.name+'」還原成預設流程？\n\n預設：'+flowText(f.defaultFlow)))return;flowCall('flowReset',{form:f.key},'已還原「'+f.name+'」的預設流程')}
  });
  ed.addEventListener('change',e=>{
@@ -4865,6 +4867,13 @@ el('csvDraft').onclick=()=>saveCSV('draft');el('csvSubmit').onclick=()=>saveCSV(
  let view={mode:'home',key:''},memoFilter=null,openCats=new Set(),editing=null,editDef=null,formFiles=[],busy=false,detailId='',homeTodos=[],amountManual=false;
  const memoRefs=new WeakMap(),memoBlobCache=new Map();
  const defOf=k=>forms.find(f=>f.key===k),catOf=k=>cats.find(c=>c.key===k);
+ // ===FORMOPEN-BEGIN
+ // 後台「開放／關閉表單」（使用者 2026-11-23：「有些表單還沒完成幫我在後台增加一個開啟的功能」）：還沒完成的表單在後台關閉，員工看不到、不能新增；管理員看得到（加 🔒）可以先試填；做好了在後台按「開放」。已經送出的單照常簽核。後端（formOpenSet／applyMemoWrite_）也會擋，這裡只是不讓員工看到。
+ const isAdminUser=()=>!!authUser&&authUser.role==='admin';
+ const formVisible=f=>!!f&&(!f.closed||isAdminUser());
+ const formCanCreate=f=>!!f&&(!f.closed||isAdminUser());
+ // ===FORMOPEN-END
+
  const isMine=m=>!!authUser&&m.applicant===authUser.name&&String(m.dept||'')===String(authUser.dept||'');
  const curIdx=m=>Number(m.flow&&m.flow.current)||0;
  const curStep=m=>m.status==='in_review'&&m.flow&&Array.isArray(m.flow.steps)?m.flow.steps[curIdx(m)]:null;
@@ -4935,7 +4944,7 @@ el('csvDraft').onclick=()=>saveCSV('draft');el('csvSubmit').onclick=()=>saveCSV(
   let h=btn('home','🏠 主畫面')+btn('inbox','📥 待我簽核'+(inboxN?' <span class="nav-n">'+inboxN+'</span>':''))+btn('mine','📤 我的申請');
   if(!formsLoaded)h+='<div class="nav-note">表單目錄載入中…</div>';
   else h+=cats.map(c=>{
-   const list=forms.filter(f=>f.cat===c.key).map(f=>btn('form:'+f.key,esc(f.icon)+' '+esc(f.name),' navform'));
+   const list=forms.filter(f=>f.cat===c.key&&formVisible(f)).map(f=>btn('form:'+f.key,esc(f.icon)+' '+esc(f.name)+(f.closed?' 🔒':''),' navform'));
    if(c.key==='fin'&&groupAccessible('invoice'))list.unshift(btn('form:invoice','🧾 請款',' navform'));
    if(!list.length)return '';
    const open=openCats.has(c.key)||curCat===c.key;
@@ -5061,8 +5070,8 @@ el('csvDraft').onclick=()=>saveCSV('draft');el('csvSubmit').onclick=()=>saveCSV(
  function memoRenderPage(){
   const root=$('memoPage');if(!root||root.classList.contains('hide')||!authUser)return;
   const def=view.mode==='form'?defOf(view.key):null;
-  $('memoPageTitle').textContent=view.mode==='inbox'?'📥 待我簽核':view.mode==='mine'?'📤 我的申請':def?def.icon+' '+def.name:'載入中…';
-  $('memoNew').classList.toggle('hide',!def);if(def)$('memoNew').textContent='＋ 新增'+def.name;
+  $('memoPageTitle').textContent=view.mode==='inbox'?'📥 待我簽核':view.mode==='mine'?'📤 我的申請':def?def.icon+' '+def.name+(def.closed?'（尚未開放，只有管理員看得到）':''):'載入中…';
+  $('memoNew').classList.toggle('hide',!def||!formCanCreate(def));if(def)$('memoNew').textContent='＋ 新增'+def.name;
   $('memoPageDesc').textContent=view.mode==='inbox'?'輪到你處理的所有表單：待簽核（核准或退回），以及核准之後輪到你的待辦（購買、逐項確認、到貨、財務回填、回簽）；每一筆會標示是哪一種。':view.mode==='mine'?'你提出過的所有表單，各種表單都在這裡；點「查看」看簽核進度。':def?def.desc+'　'+flowText(def):'';
   let items,chips='';
   if(view.mode==='inbox')items=memos.filter(inboxTodo);
