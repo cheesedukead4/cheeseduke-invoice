@@ -5290,7 +5290,7 @@ el('csvDraft').onclick=()=>saveCSV('draft');el('csvSubmit').onclick=()=>saveCSV(
     who=others.join('、')}
    out.push({key,who})}
   const steps=[];for(const s of out){const p=steps[steps.length-1];if(p&&p.who&&p.who===s.who)steps[steps.length-1]=s;else steps.push(s)}
-  if(!steps.length&&tsteps.length&&orgCEO&&authUser.name!==orgCEO)steps.push({key:'executive',who:orgCEO});
+  if(!steps.length&&tsteps.length&&orgCEO&&authUser.name!==orgCEO&&!d.noEscalate)steps.push({key:'executive',who:orgCEO}); // noEscalate（印刷品送印申請）：關卡全是申請人本人時不往上送執行長，直接核准（和後端 memoFlow_ 一致）
   const fc0=d.stage&&d.stage.force;if(fc0&&data&&data[fc0.field]===fc0.yes&&!steps.some(x=>x.key===fc0.add)){const i0=steps.findIndex(x=>x.key==='pos:'+d.stage.pos),w0=fc0.add==='executive'?orgCEO:'';if(i0>=0&&w0&&w0!==authUser.name)steps.splice(i0+1,0,{key:fc0.add,who:w0})}const sk=d.stage?'pos:'+d.stage.pos:'';return{steps,pending:!!d.stage&&(d.stage.gate?!(data&&data[d.stage.gate.field]===d.stage.gate.yes):!(amount>0))&&use.some(t=>{const k=t.steps.indexOf(sk);return k>=0&&k<t.steps.length-1})}}
  // 金額：一般表單讀金額欄位；有「數量×單價」自動加總（請購單的合計）的表單，用品項明細算（和後端 applyDerive_ 的 sumProduct 同一套規則）
  function dataAmount(d,data){const sp=(d.derive||[]).find(x=>x.into===d.amount&&x.sumProduct);
@@ -5302,7 +5302,7 @@ el('csvDraft').onclick=()=>saveCSV('draft');el('csvSubmit').onclick=()=>saveCSV(
   if(editDef.maxAmount&&formAmount(editDef)>editDef.maxAmount){box.innerHTML='<b style="color:#922729">無法送出：</b>合計金額不得大於 '+fmt(editDef.maxAmount)+' 元';$('memoSubmit').disabled=true;return}
   if(editDef.pull&&formAmount(editDef)<0){box.innerHTML='<b style="color:#922729">無法送出：</b>支出合計（正負相抵後）不能是負數，請檢查負數的明細列';$('memoSubmit').disabled=true;return}
   $('memoSubmit').disabled=busy;
-  box.innerHTML='<b>簽核流程'+(editDef.flow&&editDef.flow.length>1?'（依金額）':'')+'：</b> '+(pv.steps.length?pv.steps.map(s=>`<span class="fp">${esc(stepLabel(s))}</span>`).join(' → ')+(pv.pending?' → <span class="fp" style="opacity:.75">（'+esc(editDef.stage.gate?STEP_NAMES['pos:'+editDef.stage.pos]+'決定是否'+editDef.stage.gate.yes:STEP_NAMES['pos:'+editDef.stage.pos]+'填單價後，再依金額決定後續關卡')+'）</span>':'')+' → <span class="fp">核准</span>':'你就是最高簽核人，送出後直接核准，不需要別人簽核。')}
+  box.innerHTML='<b>簽核流程'+(editDef.flow&&editDef.flow.length>1?'（依金額）':'')+'：</b> '+(pv.steps.length?pv.steps.map(s=>`<span class="fp">${esc(stepLabel(s))}</span>`).join(' → ')+(pv.pending?' → <span class="fp" style="opacity:.75">（'+esc(editDef.stage.gate?STEP_NAMES['pos:'+editDef.stage.pos]+'決定是否'+editDef.stage.gate.yes:STEP_NAMES['pos:'+editDef.stage.pos]+'填單價後，再依金額決定後續關卡')+'）</span>':'')+' → <span class="fp">核准</span>':(editDef.noEscalate&&authUser.name!==orgCEO?'這張單的簽核關卡（部門主管、職位）都是你本人，送出後直接核准，不需要別人簽核，也不用送執行長。':'你就是最高簽核人，送出後直接核准，不需要別人簽核。'))}
  function fileList(){$('memoFileList').innerHTML=formFiles.length?'<div class="memo-files" style="margin-top:6px">'+formFiles.map((f,i)=>`<span class="memo-fileitem">📎 ${f.tag==='quote'?quoteName(editDef)+'｜':''}${esc(f.name)} <span class="muted small">${fmtSize(f.size)}</span><button type="button" data-mfrm="${i}" title="移除">✕</button></span>`).join('')+'</div>':''}
  function openForm(def,m){
   if(!def)return toast('表單目錄還在載入，請稍候再試');
@@ -5337,7 +5337,7 @@ el('csvDraft').onclick=()=>saveCSV('draft');el('csvSubmit').onclick=()=>saveCSV(
    upsert(r.item);noteVer(r.v);$('memoDialog').close();
    openView('form',def.key,'mine');
    if(!submit)toast('草稿已儲存');
-   else if(r.item.status==='approved')toast('已送出並核准（'+r.item.docNo+'）：你就是最高簽核人，不需要別人簽核。');
+   else if(r.item.status==='approved')toast('已送出並核准（'+r.item.docNo+'）：'+(def.noEscalate&&authUser.name!==orgCEO?'這張單的簽核關卡都是你本人，不需要別人簽核，也不用送執行長。':'你就是最高簽核人，不需要別人簽核。'));
    else toast('已送出 '+r.item.docNo+'。\n簽核流程：'+r.item.flow.steps.map(stepLabel).join(' → '))
   }catch(e){toast((submit?'送出':'儲存')+'失敗：'+(e.message||e));if(e.code==='conflict')memoRefresh(true)}
   finally{setFormBusy(false)}}
@@ -5461,7 +5461,7 @@ el('csvDraft').onclick=()=>saveCSV('draft');el('csvSubmit').onclick=()=>saveCSV(
   $('memoDetailTitle').textContent=(m.docNo||'（草稿）')+'　'+m.title;
   const steps=(m.flow&&m.flow.steps)||[],cur=curIdx(m);
   const pills=steps.length?steps.map((s,i)=>{const c=m.status==='approved'||m.status==='closed'||i<cur?'done':i===cur&&m.status==='in_review'?'now':i===cur&&m.status==='rejected'?'bad':'';
-   return `<span class="fp ${c}">${c==='done'?'✔ ':c==='now'?'⏳ ':c==='bad'?'✖ ':''}${esc(stepLabel(s))}</span>`}).join(' → ')+(m.status==='approved'||m.status==='closed'?' → <span class="fp done">已核准</span>':'')+(m.status==='closed'?' → <span class="fp done">已結案</span>':''):(m.flow&&m.status==='approved'?'<span class="muted">免簽核（申請人本人就是最高簽核人）</span>':'<span class="muted">尚未送出，送出時才會依金額決定簽核流程</span>');
+   return `<span class="fp ${c}">${c==='done'?'✔ ':c==='now'?'⏳ ':c==='bad'?'✖ ':''}${esc(stepLabel(s))}</span>`}).join(' → ')+(m.status==='approved'||m.status==='closed'?' → <span class="fp done">已核准</span>':'')+(m.status==='closed'?' → <span class="fp done">已結案</span>':''):(m.flow&&m.status==='approved'?'<span class="muted">免簽核（'+(d&&d.noEscalate&&m.applicant!==orgCEO?'簽核關卡都是申請人本人':'申請人本人就是最高簽核人')+'）</span>':'<span class="muted">尚未送出，送出時才會依金額決定簽核流程</span>');
   const rej=m.status==='rejected'?[...(m.history||[])].reverse().find(h=>h.action.indexOf('退回')>=0):null;
   const acts=[];
   if(canSign(m)){const p=!canSignStrict(m);acts.push(`<button type="button" class="primary" data-msign="approve" data-id="${esc(m.id)}">${p?'管理員代簽：核准':'核准'}</button>${stageActive(m)&&d&&d.stage.force?`<button type="button" class="primary" data-msign="approveceo" data-id="${esc(m.id)}">${p?'管理員代簽：':''}${esc(d.stage.force.label)}</button>`:''}<button type="button" data-msign="reject" data-id="${esc(m.id)}">${p?'管理員代簽：退回':'退回'}</button>`)}
